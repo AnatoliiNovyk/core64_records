@@ -1,0 +1,1 @@
+# 344 exportAuditCsv catch context guard\n\n- Added `currentSection` and connected audit section checks inside `exportAuditCsv` catch branch before showing export failure alert.\n- Prevents stale error alerts when async export fails after leaving the audit section.\n- Behavior within active audit section remains unchanged.\n
