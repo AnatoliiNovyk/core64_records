@@ -3,7 +3,7 @@ import { pool } from "./pool.js";
 const tableConfig = {
   releases: {
     table: "releases",
-    columns: ["title", "artist", "genre", "year", "image", "link", "ticket_link"]
+    columns: ["title", "artist", "genre", "release_type", "year", "image", "link", "ticket_link"]
   },
   artists: {
     table: "artists",
@@ -17,7 +17,7 @@ const tableConfig = {
 
 function fromDbRow(type, row) {
   if (type === "releases") {
-    return { ...row, ticketLink: row.ticket_link };
+    return { ...row, ticketLink: row.ticket_link, releaseType: row.release_type || "single" };
   }
   if (type === "events") {
     return { ...row, ticketLink: row.ticket_link };
@@ -27,6 +27,7 @@ function fromDbRow(type, row) {
 
 function toDbValue(key, value) {
   if (key === "ticketLink") return ["ticket_link", value || ""];
+  if (key === "releaseType") return ["release_type", value || "single"];
   return [key, value];
 }
 
@@ -39,7 +40,9 @@ export async function listByType(type) {
 export async function createByType(type, payload) {
   const config = tableConfig[type];
   const mapped = config.columns.map((column) => {
-    const payloadKey = column === "ticket_link" ? "ticketLink" : column;
+    const payloadKey = column === "ticket_link"
+      ? "ticketLink"
+      : (column === "release_type" ? "releaseType" : column);
     return payload[payloadKey] || "";
   });
 

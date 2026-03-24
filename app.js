@@ -55,11 +55,27 @@ function getSocialBrandIconSvg(platform, sizeClass) {
     return "";
 }
 
+function normalizeReleaseTypeValue(value) {
+    const rawValue = String(value ?? "").trim().toLowerCase();
+    if (rawValue === "single" || rawValue === "ep" || rawValue === "album") return rawValue;
+    return "single";
+}
+
+function getReleaseTypeLabel(value) {
+    const normalizedValue = normalizeReleaseTypeValue(value);
+    if (normalizedValue === "ep") return "EP";
+    if (normalizedValue === "album") return "Альбом";
+    return "Сингл";
+}
+
 function renderReleases(data) {
     const grid = document.getElementById("releases-grid");
     if (!grid) return;
 
-    grid.innerHTML = (data.releases || []).map((release) => `
+    grid.innerHTML = (data.releases || []).map((release) => {
+        const releaseTypeLabel = getReleaseTypeLabel(release.releaseType || release.release_type);
+
+        return `
         <div class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer">
             <div class="relative aspect-square overflow-hidden bg-gray-900">
                 <img src="${release.image}" alt="${release.title}" class="w-full h-full object-cover vinyl-spin">
@@ -69,7 +85,7 @@ function renderReleases(data) {
                     </button>
                 </div>
                 <div class="absolute top-2 right-2 genre-tag px-3 py-1 text-xs rounded uppercase tracking-wider">
-                    ${release.genre}
+                    ${releaseTypeLabel}
                 </div>
             </div>
             <div class="p-4">
@@ -77,11 +93,12 @@ function renderReleases(data) {
                 <p class="text-gray-400 text-sm mb-2">${release.artist}</p>
                 <div class="flex justify-between items-center text-xs text-gray-500 uppercase tracking-wider">
                     <span>${release.year}</span>
-                    <span class="text-cyan-400">CORE64</span>
+                    <span class="text-cyan-400">${release.genre}</span>
                 </div>
             </div>
         </div>
-    `).join("");
+    `;
+    }).join("");
 
     const statEl = document.getElementById("stat-releases");
     if (statEl) statEl.textContent = String((data.releases || []).length);

@@ -2218,6 +2218,7 @@ async function loadReleases() {
         const safeTitle = sanitizeInput(release.title || "-");
         const safeArtist = sanitizeInput(release.artist || "-");
         const safeGenre = sanitizeInput(release.genre || "-");
+        const safeReleaseType = sanitizeInput(getReleaseTypeLabel(release.releaseType || release.release_type));
         const safeYear = sanitizeInput(release.year || "-");
         const safeImage = sanitizeInput(release.image || "");
         const idArg = serializeInlineEntityIdArg(release.id);
@@ -2232,7 +2233,7 @@ async function loadReleases() {
                     <div class="flex-1 min-w-0">
                         <h4 class="font-bold text-white truncate">${safeTitle}</h4>
                         <p class="text-cyan-400 text-sm">${safeArtist}</p>
-                        <p class="text-gray-500 text-xs uppercase mt-1">${safeGenre} • ${safeYear}</p>
+                        <p class="text-gray-500 text-xs uppercase mt-1">${safeGenre} • ${safeReleaseType} • ${safeYear}</p>
                     </div>
                 </div>
                 <div class="flex gap-2 mt-4">
@@ -3868,12 +3869,14 @@ function generateFields(type, item) {
     const sourceItem = item && typeof item === "object" ? item : {};
     const normalizeFieldValue = (value, fallback = "") => sanitizeInput(value ?? fallback);
     const rawGenre = typeof sourceItem.genre === "string" ? sourceItem.genre : "";
+    const rawReleaseType = normalizeReleaseTypeValue(sourceItem.releaseType || sourceItem.release_type);
     const imageValue = normalizeFieldValue(sourceItem.image);
 
     const fieldValues = {
         title: normalizeFieldValue(sourceItem.title),
         artist: normalizeFieldValue(sourceItem.artist),
         genre: normalizeFieldValue(rawGenre),
+        releaseType: rawReleaseType,
         year: normalizeFieldValue(sourceItem.year, "2024"),
         link: normalizeFieldValue(sourceItem.link, "#"),
         image: imageValue,
@@ -3911,6 +3914,14 @@ function generateFields(type, item) {
                         <option value="Darkstep" ${rawGenre === 'Darkstep' ? 'selected' : ''}>Darkstep</option>
                     </select>
                 </div>
+            </div>
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">Формат релізу</label>
+                <select name="releaseType" class="form-input w-full p-3 rounded" required>
+                    <option value="single" ${fieldValues.releaseType === 'single' ? 'selected' : ''}>Сингл</option>
+                    <option value="ep" ${fieldValues.releaseType === 'ep' ? 'selected' : ''}>EP</option>
+                    <option value="album" ${fieldValues.releaseType === 'album' ? 'selected' : ''}>Альбом</option>
+                </select>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
@@ -4024,6 +4035,24 @@ function getTypeName(type) {
     return names[type] || type;
 }
 
+const RELEASE_TYPE_OPTIONS = [
+    { value: "single", label: "Сингл" },
+    { value: "ep", label: "EP" },
+    { value: "album", label: "Альбом" }
+];
+
+function normalizeReleaseTypeValue(value) {
+    const rawValue = String(value ?? "").trim().toLowerCase();
+    if (rawValue === "single" || rawValue === "ep" || rawValue === "album") return rawValue;
+    return "single";
+}
+
+function getReleaseTypeLabel(value) {
+    const normalizedValue = normalizeReleaseTypeValue(value);
+    const option = RELEASE_TYPE_OPTIONS.find((entry) => entry.value === normalizedValue);
+    return option ? option.label : "Сингл";
+}
+
 const SUPPORTED_ENTITY_TYPES = ["release", "artist", "event"];
 
 function isSupportedEntityType(type) {
@@ -4050,6 +4079,10 @@ function hasUsableEntityId(id) {
 function normalizeCrudFormFieldValue(entityType, key, value) {
     const rawValue = typeof value === "string" ? value : String(value ?? "");
     const sanitizedValue = sanitizeInput(rawValue);
+
+    if (entityType === "release" && key === "releaseType") {
+        return normalizeReleaseTypeValue(rawValue);
+    }
 
     if (entityType === "release" && key === "year") {
         const trimmedYear = rawValue.trim();

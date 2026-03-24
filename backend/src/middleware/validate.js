@@ -5,6 +5,7 @@ export const releaseSchema = z.object({
   title: z.string().min(1),
   artist: z.string().min(1),
   genre: z.string().min(1),
+  releaseType: z.enum(["single", "ep", "album"]).optional().default("single"),
   year: z.string().min(1),
   image: z.string().min(1),
   link: z.string().optional().default("#"),
