@@ -75,11 +75,11 @@ function renderArtists(data) {
             <div class="p-6">
                 <p class="text-gray-400 text-sm mb-4 line-clamp-2">${artist.bio || ""}</p>
                 <div class="flex gap-3">
-                    <a href="${artist.soundcloud || "#"}" class="p-2 bg-gray-800 rounded hover:bg-cyan-400 hover:text-black transition-colors">
+                    <a href="${artist.soundcloud || "#"}" class="p-2 bg-gray-800 rounded hover:bg-cyan-400 hover:text-black transition-colors" aria-label="SoundCloud" title="SoundCloud" target="_blank" rel="noopener noreferrer">
                         <i data-lucide="music" class="w-4 h-4"></i>
                     </a>
-                    <a href="${artist.instagram || "#"}" class="p-2 bg-gray-800 rounded hover:bg-pink-400 hover:text-black transition-colors">
-                        <i data-lucide="instagram" class="w-4 h-4"></i>
+                    <a href="${artist.instagram || "#"}" class="p-2 bg-gray-800 rounded hover:bg-pink-400 hover:text-black transition-colors" aria-label="Instagram" title="Instagram" target="_blank" rel="noopener noreferrer">
+                        <i data-lucide="at-sign" class="w-4 h-4"></i>
                     </a>
                 </div>
             </div>
