@@ -18,8 +18,12 @@ let cache = {
 };
 let contactsPage = 1;
 const CONTACTS_PAGE_SIZE = 5;
+const CONTACTS_MIN_PAGE = 1;
 let auditPage = 1;
 const AUDIT_PAGE_SIZE = 10;
+const AUDIT_MIN_LIMIT = 1;
+const AUDIT_MAX_LIMIT = 500;
+const AUDIT_MAX_REFRESH_SECONDS = 3600;
 let auditTotal = 0;
 let auditAutoRefreshTimer = null;
 let auditRefreshCountdownTimer = null;
@@ -68,6 +72,157 @@ function getAdapterMethod(methodName) {
     if (typeof methodName !== "string" || !methodName.trim()) return null;
     const method = adapter[methodName];
     return typeof method === "function" ? method : null;
+}
+
+function clampBoundedInteger(value, { fallback, min, max }) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return fallback;
+    return Math.min(max, Math.max(min, Math.trunc(numericValue)));
+}
+
+function normalizeAuditLimit(value, fallback = AUDIT_PAGE_SIZE) {
+    return clampBoundedInteger(value, {
+        fallback,
+        min: AUDIT_MIN_LIMIT,
+        max: AUDIT_MAX_LIMIT
+    });
+}
+
+function normalizeAuditPage(value, fallback = 1) {
+    return clampBoundedInteger(value, {
+        fallback,
+        min: 1,
+        max: Number.MAX_SAFE_INTEGER
+    });
+}
+
+function normalizeAuditRefreshSeconds(value) {
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return 0;
+    const normalized = Math.trunc(numericValue);
+    if (normalized <= 0) return 0;
+    return Math.min(normalized, AUDIT_MAX_REFRESH_SECONDS);
+}
+
+function normalizeAuditFilterSelectValue(value, fallback = "all") {
+    const text = String(value ?? "").trim();
+    if (!text) return fallback;
+    return text;
+}
+
+function normalizeAuditFilterOptionValues(values) {
+    const source = Array.isArray(values) ? values : [];
+    return Array.from(new Set(source
+    .filter((entry) => typeof entry === "string")
+        .map((entry) => normalizeAuditFilterSelectValue(entry, ""))
+        .filter((entry) => entry && entry !== "all")))
+        .sort();
+}
+
+function normalizeContactsPage(value, fallback = CONTACTS_MIN_PAGE) {
+    return clampBoundedInteger(value, {
+        fallback,
+        min: CONTACTS_MIN_PAGE,
+        max: Number.MAX_SAFE_INTEGER
+    });
+}
+
+function normalizeContactsStatusFilter(value) {
+    return normalizeSupportedContactRequestStatus(value) || "all";
+}
+
+function normalizeIsoDateFilter(value) {
+    if (typeof value !== "string") return "";
+    const trimmed = value.trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : "";
+}
+
+function extractIsoDatePrefix(value) {
+    if (typeof value !== "string") return "";
+    const trimmed = value.trim();
+    const prefixedMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s].*)?$/);
+    if (!prefixedMatch) return "";
+    return normalizeIsoDateFilter(prefixedMatch[1]);
+}
+
+function normalizeSearchText(value) {
+    const text = String(value ?? "");
+    const normalized = typeof text.normalize === "function" ? text.normalize("NFKC") : text;
+    return normalized.trim().toLowerCase();
+}
+
+function formatDateToLocalIso(date, fallback = "") {
+    if (!(date instanceof Date)) return fallback;
+    const timestamp = date.getTime();
+    if (!Number.isFinite(timestamp)) return fallback;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function getDateFilterKey(value) {
+    if (value === null || value === undefined || value === "") return "";
+    if (typeof value === "string") {
+        const normalizedIso = normalizeIsoDateFilter(value);
+        if (normalizedIso) return normalizedIso;
+        const prefixedIso = extractIsoDatePrefix(value);
+        if (prefixedIso) return prefixedIso;
+    }
+
+    const date = value instanceof Date ? value : new Date(value);
+    return formatDateToLocalIso(date, "");
+}
+
+function getComparableTimestamp(value) {
+    const date = new Date(value);
+    const timestamp = date.getTime();
+    return Number.isFinite(timestamp) ? timestamp : Number.MAX_SAFE_INTEGER;
+}
+
+function formatDateTimeOrDash(value) {
+    if (value === null || value === undefined || value === "") return "-";
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? date.toLocaleString("uk-UA") : "-";
+}
+
+function formatNowTimeOrFallback() {
+    const now = new Date();
+    const timestamp = now.getTime();
+    return Number.isFinite(timestamp) ? now.toLocaleTimeString("uk-UA") : "--:--:--";
+}
+
+function getTodayIsoDateSafe() {
+    const now = new Date();
+    return formatDateToLocalIso(now, "unknown-date");
+}
+
+function safeSerializeDetails(details, fallback = "{}") {
+    if (details === null || details === undefined) return fallback;
+    if (typeof details !== "object") return String(details);
+
+    try {
+        return JSON.stringify(details);
+    } catch (error) {
+        console.warn("Failed to stringify details payload", error);
+        return fallback;
+    }
+}
+
+function normalizeRecordObject(value) {
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function normalizeRecordArray(value) {
+    return Array.isArray(value) ? value.filter((entry) => entry && typeof entry === "object") : [];
+}
+
+function normalizeAuditFacetsPayload(value) {
+    const facets = normalizeRecordObject(value);
+    return {
+        actions: Array.isArray(facets.actions) ? facets.actions : [],
+        entities: Array.isArray(facets.entities) ? facets.entities : []
+    };
 }
 
 function parsePositiveMsValue(rawValue, fallback) {
@@ -936,8 +1091,16 @@ function applyAuditLatencyThresholds(settings = {}) {
 async function loadAuditLatencyThresholdsFromSettings() {
     const sectionAtLoad = currentSection;
     const navigationSeqAtLoad = sectionNavigationSeq;
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during audit latency thresholds load");
+        if (sectionNavigationSeq !== navigationSeqAtLoad) return;
+        if (currentSection !== sectionAtLoad) return;
+        applyAuditLatencyThresholds({});
+        return;
+    }
     try {
-        const settings = await adapter.getCollection("settings");
+        const settings = await getCollectionMethod.call(adapter, "settings");
         if (sectionNavigationSeq !== navigationSeqAtLoad) return;
         if (currentSection !== sectionAtLoad) return;
         applyAuditLatencyThresholds(settings || {});
@@ -972,18 +1135,24 @@ function saveAuditUiState() {
     const ecoModeEl = document.getElementById("audit-eco-mode");
     const limitEl = document.getElementById("audit-limit");
     const refreshEl = document.getElementById("audit-refresh-interval");
+    const normalizedLimit = limitEl && limitEl.isConnected
+        ? normalizeAuditLimit(limitEl.value)
+        : AUDIT_PAGE_SIZE;
+    const normalizedRefreshInterval = refreshEl && refreshEl.isConnected
+        ? normalizeAuditRefreshSeconds(refreshEl.value)
+        : 0;
 
     const state = {
         search: searchEl && searchEl.isConnected ? searchEl.value || "" : "",
-        action: actionEl && actionEl.isConnected ? actionEl.value || "all" : "all",
-        entity: entityEl && entityEl.isConnected ? entityEl.value || "all" : "all",
-        dateFrom: dateFromEl && dateFromEl.isConnected ? dateFromEl.value || "" : "",
-        dateTo: dateToEl && dateToEl.isConnected ? dateToEl.value || "" : "",
+        action: actionEl && actionEl.isConnected ? normalizeAuditFilterSelectValue(actionEl.value, "all") : "all",
+        entity: entityEl && entityEl.isConnected ? normalizeAuditFilterSelectValue(entityEl.value, "all") : "all",
+        dateFrom: dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "",
+        dateTo: dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "",
         datePreset: datePresetEl && datePresetEl.isConnected ? datePresetEl.value || "all" : "all",
         ecoMode: ecoModeEl && ecoModeEl.isConnected ? !!ecoModeEl.checked : false,
-        limit: limitEl && limitEl.isConnected ? limitEl.value || "50" : "50",
-        refreshInterval: refreshEl && refreshEl.isConnected ? refreshEl.value || "0" : "0",
-        page: auditPage
+        limit: String(normalizedLimit),
+        refreshInterval: String(normalizedRefreshInterval),
+        page: normalizeAuditPage(auditPage)
     };
 
     try {
@@ -1010,15 +1179,27 @@ function loadAuditUiState() {
         const refreshEl = document.getElementById("audit-refresh-interval");
 
         if (searchEl && searchEl.isConnected && typeof state.search === "string") searchEl.value = state.search;
-        if (actionEl && actionEl.isConnected && typeof state.action === "string") actionEl.value = state.action;
-        if (entityEl && entityEl.isConnected && typeof state.entity === "string") entityEl.value = state.entity;
-        if (dateFromEl && dateFromEl.isConnected && typeof state.dateFrom === "string") dateFromEl.value = state.dateFrom;
-        if (dateToEl && dateToEl.isConnected && typeof state.dateTo === "string") dateToEl.value = state.dateTo;
+        if (actionEl && actionEl.isConnected) {
+            actionEl.value = normalizeAuditFilterSelectValue(state.action, "all");
+        }
+        if (entityEl && entityEl.isConnected) {
+            entityEl.value = normalizeAuditFilterSelectValue(state.entity, "all");
+        }
+        if (dateFromEl && dateFromEl.isConnected) {
+            dateFromEl.value = normalizeIsoDateFilter(state.dateFrom);
+        }
+        if (dateToEl && dateToEl.isConnected) {
+            dateToEl.value = normalizeIsoDateFilter(state.dateTo);
+        }
         if (datePresetEl && datePresetEl.isConnected && typeof state.datePreset === "string") datePresetEl.value = state.datePreset;
         if (ecoModeEl && ecoModeEl.isConnected) ecoModeEl.checked = !!state.ecoMode;
-        if (limitEl && limitEl.isConnected && state.limit) limitEl.value = String(state.limit);
-        if (refreshEl && refreshEl.isConnected && state.refreshInterval) refreshEl.value = String(state.refreshInterval);
-        if (Number.isFinite(Number(state.page))) auditPage = Math.max(1, Number(state.page));
+        if (limitEl && limitEl.isConnected) {
+            limitEl.value = String(normalizeAuditLimit(state.limit, AUDIT_PAGE_SIZE));
+        }
+        if (refreshEl && refreshEl.isConnected) {
+            refreshEl.value = String(normalizeAuditRefreshSeconds(state.refreshInterval));
+        }
+        auditPage = normalizeAuditPage(state.page, 1);
     } catch (error) {
         console.warn("Failed to restore audit UI state", error);
     }
@@ -1058,7 +1239,7 @@ function isAbortError(error) {
 function getAuditRefreshSeconds() {
     const intervalEl = document.getElementById("audit-refresh-interval");
     if (!intervalEl || !intervalEl.isConnected) return 0;
-    return Number(intervalEl.value) || 0;
+    return normalizeAuditRefreshSeconds(intervalEl.value);
 }
 
 function isAuditEcoModeEnabled() {
@@ -1433,7 +1614,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const sectionAtBootstrap = currentSection;
     const navigationSeqAtBootstrap = sectionNavigationSeq;
     const dashboardSectionEl = document.getElementById("section-dashboard");
-    adapter.ensureLocalDefaults();
+    const ensureLocalDefaultsMethod = getAdapterMethod("ensureLocalDefaults");
+    const isApiAvailableMethod = getAdapterMethod("isApiAvailable");
+    if (ensureLocalDefaultsMethod) {
+        ensureLocalDefaultsMethod.call(adapter);
+    } else {
+        console.warn("Adapter ensureLocalDefaults method is unavailable during bootstrap");
+    }
     loadAuditUiState();
     renderAuditLatencyLegend();
     await loadAuditLatencyThresholdsFromSettings();
@@ -1451,7 +1638,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("beforeunload", handleUnsavedSettingsBeforeUnload);
         globalEventListenersBound = true;
     }
-    const apiReady = await adapter.isApiAvailable();
+    if (!isApiAvailableMethod) {
+        if (sectionNavigationSeq !== navigationSeqAtBootstrap) return;
+        if (currentSection !== sectionAtBootstrap) return;
+        if (!dashboardSectionEl || !dashboardSectionEl.isConnected) return;
+        showApiStatus("API недоступний. Відсутній метод перевірки у adapter.");
+        return;
+    }
+    const apiReady = await isApiAvailableMethod.call(adapter);
     if (sectionNavigationSeq !== navigationSeqAtBootstrap) return;
     if (!apiReady) {
         if (currentSection !== sectionAtBootstrap) return;
@@ -1483,7 +1677,16 @@ async function checkAuth() {
     const sectionAtAuth = currentSection;
     const navigationSeqAtAuth = sectionNavigationSeq;
     const loginScreen = document.getElementById("login-screen");
-    const isAuth = await adapter.isAuthenticated();
+    const isAuthenticatedMethod = getAdapterMethod("isAuthenticated");
+    if (!isAuthenticatedMethod) {
+        console.warn("Adapter isAuthenticated method is unavailable");
+        if (sectionNavigationSeq !== navigationSeqAtAuth) return;
+        if (!loginScreen || !loginScreen.isConnected) return;
+        if (currentSection !== sectionAtAuth) return;
+        loginScreen.classList.remove("hidden");
+        return;
+    }
+    const isAuth = await isAuthenticatedMethod.call(adapter);
     if (sectionNavigationSeq !== navigationSeqAtAuth) return;
     if (!loginScreen || !loginScreen.isConnected) return;
     if (currentSection !== sectionAtAuth) return;
@@ -1507,10 +1710,17 @@ async function handleLogin(e) {
         console.warn("Login form elements are unavailable");
         return;
     }
+    const loginMethod = getAdapterMethod("login");
+    if (!loginMethod) {
+        errorEl.textContent = "Помилка авторизації: відсутній метод adapter.";
+        errorEl.classList.remove("hidden");
+        console.warn("Adapter login method is unavailable");
+        return;
+    }
     const password = passwordInput.value;
 
     try {
-        const success = await adapter.login(password);
+        const success = await loginMethod.call(adapter, password);
         if (sectionNavigationSeq !== navigationSeqAtLogin) return;
         if (currentSection !== sectionAtLogin) {
             return;
@@ -1558,9 +1768,16 @@ async function logout() {
     if (logoutInProgress) return;
     const sectionAtLogout = currentSection;
     const navigationSeqAtLogout = sectionNavigationSeq;
+    const logoutMethod = getAdapterMethod("logout");
+    if (!logoutMethod) {
+        console.warn("Adapter logout method is unavailable");
+        if (currentSection !== sectionAtLogout) return;
+        alert("Не вдалося вийти: відсутній метод adapter.");
+        return;
+    }
     logoutInProgress = true;
     try {
-        await adapter.logout();
+        await logoutMethod.call(adapter);
         if (sectionNavigationSeq !== navigationSeqAtLogout) return;
         if (currentSection !== sectionAtLogout) return;
         location.reload();
@@ -1723,7 +1940,18 @@ async function showSection(section) {
 }
 
 function sanitizeInput(text) {
-    return adapter.sanitizeText(text);
+    const sanitizeTextMethod = getAdapterMethod("sanitizeText");
+    if (sanitizeTextMethod) {
+        return sanitizeTextMethod.call(adapter, text);
+    }
+
+    const rawText = text === null || text === undefined ? "" : String(text);
+    return rawText
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/\"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 async function refreshCache() {
@@ -1732,20 +1960,25 @@ async function refreshCache() {
     const dashboardSectionEl = document.getElementById("section-dashboard");
     if (sectionAtRefresh !== "dashboard") return;
     if (!dashboardSectionEl || !dashboardSectionEl.isConnected) return;
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during refreshCache");
+        return;
+    }
 
-    const releases = await adapter.getCollection("releases");
+    const releases = await getCollectionMethod.call(adapter, "releases");
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
-    const artists = await adapter.getCollection("artists");
+    const artists = await getCollectionMethod.call(adapter, "artists");
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
-    const events = await adapter.getCollection("events");
+    const events = await getCollectionMethod.call(adapter, "events");
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
-    const settings = await adapter.getCollection("settings");
+    const settings = await getCollectionMethod.call(adapter, "settings");
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
@@ -1753,10 +1986,10 @@ async function refreshCache() {
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
-    cache.releases = releases;
-    cache.artists = artists;
-    cache.events = events;
-    cache.settings = settings;
+    cache.releases = normalizeRecordArray(releases);
+    cache.artists = normalizeRecordArray(artists);
+    cache.events = normalizeRecordArray(events);
+    cache.settings = normalizeRecordObject(settings);
 }
 
 async function loadDashboard() {
@@ -1771,49 +2004,75 @@ async function loadDashboard() {
     const releasesCountEl = document.getElementById("dash-releases");
     const artistsCountEl = document.getElementById("dash-artists");
     const eventsCountEl = document.getElementById("dash-events");
+    const releases = normalizeRecordArray(cache.releases);
+    const artists = normalizeRecordArray(cache.artists);
+    const events = normalizeRecordArray(cache.events);
 
     if (releasesCountEl && releasesCountEl.isConnected) {
-        releasesCountEl.textContent = cache.releases.length;
+        releasesCountEl.textContent = releases.length;
     }
     if (artistsCountEl && artistsCountEl.isConnected) {
-        artistsCountEl.textContent = cache.artists.length;
+        artistsCountEl.textContent = artists.length;
     }
     if (eventsCountEl && eventsCountEl.isConnected) {
-        eventsCountEl.textContent = cache.events.length;
+        eventsCountEl.textContent = events.length;
     }
 }
 
 async function loadReleases() {
     const sectionAtLoad = currentSection;
     const navigationSeqAtLoad = sectionNavigationSeq;
-    const nextReleases = await adapter.getCollection("releases");
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during loadReleases");
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "releases") return;
+        const releasesSectionEl = document.getElementById("section-releases");
+        if (!releasesSectionEl || !releasesSectionEl.isConnected) return;
+        alert("Не вдалося завантажити релізи: відсутній метод adapter.");
+        return;
+    }
+    const nextReleases = await getCollectionMethod.call(adapter, "releases");
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "releases") return;
-    cache.releases = nextReleases;
+    const releases = normalizeRecordArray(nextReleases);
+    cache.releases = releases;
     const releasesSectionEl = document.getElementById("section-releases");
     if (!releasesSectionEl || !releasesSectionEl.isConnected) return;
     const container = document.getElementById("releases-list");
     if (!container || !container.isConnected) return;
 
-    container.innerHTML = cache.releases.map((release) => `
-        <div class="card p-4 rounded relative group">
-            <div class="flex gap-4">
-                <img src="${release.image}" class="w-24 h-24 object-cover rounded border border-cyan-500/30">
-                <div class="flex-1 min-w-0">
-                    <h4 class="font-bold text-white truncate">${release.title}</h4>
-                    <p class="text-cyan-400 text-sm">${release.artist}</p>
-                    <p class="text-gray-500 text-xs uppercase mt-1">${release.genre} • ${release.year}</p>
+    container.innerHTML = releases.map((release) => {
+        const safeTitle = sanitizeInput(release.title || "-");
+        const safeArtist = sanitizeInput(release.artist || "-");
+        const safeGenre = sanitizeInput(release.genre || "-");
+        const safeYear = sanitizeInput(release.year || "-");
+        const safeImage = sanitizeInput(release.image || "");
+        const idArg = serializeInlineEntityIdArg(release.id);
+        const disableActionAttr = idArg === null ? "disabled" : "";
+        const editActionAttr = idArg === null ? "" : `onclick="editItem('release', ${idArg})"`;
+        const deleteActionAttr = idArg === null ? "" : `onclick="deleteItem('release', ${idArg})"`;
+
+        return `
+            <div class="card p-4 rounded relative group">
+                <div class="flex gap-4">
+                    <img src="${safeImage}" class="w-24 h-24 object-cover rounded border border-cyan-500/30">
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-bold text-white truncate">${safeTitle}</h4>
+                        <p class="text-cyan-400 text-sm">${safeArtist}</p>
+                        <p class="text-gray-500 text-xs uppercase mt-1">${safeGenre} • ${safeYear}</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">Редагувати</button>
+                    <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
                 </div>
             </div>
-            <div class="flex gap-2 mt-4">
-                <button onclick="editItem('release', ${release.id})" class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors">Редагувати</button>
-                <button onclick="deleteItem('release', ${release.id})" class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
-    `).join("");
+        `;
+    }).join("");
 
     if (window.lucide) lucide.createIcons();
 }
@@ -1821,34 +2080,56 @@ async function loadReleases() {
 async function loadArtists() {
     const sectionAtLoad = currentSection;
     const navigationSeqAtLoad = sectionNavigationSeq;
-    const nextArtists = await adapter.getCollection("artists");
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during loadArtists");
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "artists") return;
+        const artistsSectionEl = document.getElementById("section-artists");
+        if (!artistsSectionEl || !artistsSectionEl.isConnected) return;
+        alert("Не вдалося завантажити артистів: відсутній метод adapter.");
+        return;
+    }
+    const nextArtists = await getCollectionMethod.call(adapter, "artists");
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "artists") return;
-    cache.artists = nextArtists;
+    const artists = normalizeRecordArray(nextArtists);
+    cache.artists = artists;
     const artistsSectionEl = document.getElementById("section-artists");
     if (!artistsSectionEl || !artistsSectionEl.isConnected) return;
     const container = document.getElementById("artists-list");
     if (!container || !container.isConnected) return;
 
-    container.innerHTML = cache.artists.map((artist) => `
-        <div class="card p-4 rounded relative group">
-            <div class="flex gap-4">
-                <img src="${artist.image}" class="w-24 h-24 object-cover rounded-full border-2 border-pink-500/30">
-                <div class="flex-1 min-w-0">
-                    <h4 class="font-bold text-white text-lg">${artist.name}</h4>
-                    <p class="text-pink-400 text-sm uppercase">${artist.genre}</p>
-                    <p class="text-gray-500 text-xs mt-1 line-clamp-2">${artist.bio || ""}</p>
+    container.innerHTML = artists.map((artist) => {
+        const safeName = sanitizeInput(artist.name || "-");
+        const safeGenre = sanitizeInput(artist.genre || "-");
+        const safeBio = sanitizeInput(artist.bio || "");
+        const safeImage = sanitizeInput(artist.image || "");
+        const idArg = serializeInlineEntityIdArg(artist.id);
+        const disableActionAttr = idArg === null ? "disabled" : "";
+        const editActionAttr = idArg === null ? "" : `onclick="editItem('artist', ${idArg})"`;
+        const deleteActionAttr = idArg === null ? "" : `onclick="deleteItem('artist', ${idArg})"`;
+
+        return `
+            <div class="card p-4 rounded relative group">
+                <div class="flex gap-4">
+                    <img src="${safeImage}" class="w-24 h-24 object-cover rounded-full border-2 border-pink-500/30">
+                    <div class="flex-1 min-w-0">
+                        <h4 class="font-bold text-white text-lg">${safeName}</h4>
+                        <p class="text-pink-400 text-sm uppercase">${safeGenre}</p>
+                        <p class="text-gray-500 text-xs mt-1 line-clamp-2">${safeBio}</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 mt-4">
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">Редагувати</button>
+                    <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
                 </div>
             </div>
-            <div class="flex gap-2 mt-4">
-                <button onclick="editItem('artist', ${artist.id})" class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors">Редагувати</button>
-                <button onclick="deleteItem('artist', ${artist.id})" class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
-    `).join("");
+        `;
+    }).join("");
 
     if (window.lucide) lucide.createIcons();
 }
@@ -1856,33 +2137,56 @@ async function loadArtists() {
 async function loadEvents() {
     const sectionAtLoad = currentSection;
     const navigationSeqAtLoad = sectionNavigationSeq;
-    const nextEvents = await adapter.getCollection("events");
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during loadEvents");
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "events") return;
+        const eventsSectionEl = document.getElementById("section-events");
+        if (!eventsSectionEl || !eventsSectionEl.isConnected) return;
+        alert("Не вдалося завантажити події: відсутній метод adapter.");
+        return;
+    }
+    const nextEvents = await getCollectionMethod.call(adapter, "events");
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "events") return;
-    cache.events = nextEvents;
+    const events = normalizeRecordArray(nextEvents);
+    cache.events = events;
     const eventsSectionEl = document.getElementById("section-events");
     if (!eventsSectionEl || !eventsSectionEl.isConnected) return;
     const container = document.getElementById("events-list-admin");
     if (!container || !container.isConnected) return;
-    const sorted = [...cache.events].sort((a, b) => new Date(a.date) - new Date(b.date));
+    const sorted = [...events].sort((a, b) => getComparableTimestamp(a.date) - getComparableTimestamp(b.date));
 
-    container.innerHTML = sorted.map((event) => `
-        <div class="card p-4 rounded flex flex-col md:flex-row gap-4 items-start md:items-center">
-            <img src="${event.image}" class="w-full md:w-32 h-20 object-cover rounded border border-green-500/30">
-            <div class="flex-1">
-                <h4 class="font-bold text-white">${event.title}</h4>
-                <p class="text-green-400 text-sm">${event.date} • ${event.time}</p>
-                <p class="text-gray-400 text-sm">${event.venue}</p>
+    container.innerHTML = sorted.map((event) => {
+        const safeImage = sanitizeInput(event.image || "");
+        const safeTitle = sanitizeInput(event.title || "-");
+        const safeDate = sanitizeInput(event.date || "-");
+        const safeTime = sanitizeInput(event.time || "-");
+        const safeVenue = sanitizeInput(event.venue || "-");
+        const idArg = serializeInlineEntityIdArg(event.id);
+        const disableActionAttr = idArg === null ? "disabled" : "";
+        const editActionAttr = idArg === null ? "" : `onclick="editItem('event', ${idArg})"`;
+        const deleteActionAttr = idArg === null ? "" : `onclick="deleteItem('event', ${idArg})"`;
+
+        return `
+            <div class="card p-4 rounded flex flex-col md:flex-row gap-4 items-start md:items-center">
+                <img src="${safeImage}" class="w-full md:w-32 h-20 object-cover rounded border border-green-500/30">
+                <div class="flex-1">
+                    <h4 class="font-bold text-white">${safeTitle}</h4>
+                    <p class="text-green-400 text-sm">${safeDate} • ${safeTime}</p>
+                    <p class="text-gray-400 text-sm">${safeVenue}</p>
+                </div>
+                <div class="flex gap-2 w-full md:w-auto">
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 md:flex-none px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm disabled:opacity-50">Редагувати</button>
+                    <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
             </div>
-            <div class="flex gap-2 w-full md:w-auto">
-                <button onclick="editItem('event', ${event.id})" class="flex-1 md:flex-none px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">Редагувати</button>
-                <button onclick="deleteItem('event', ${event.id})" class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors">
-                    <i data-lucide="trash-2" class="w-4 h-4"></i>
-                </button>
-            </div>
-        </div>
-    `).join("");
+        `;
+    }).join("");
 
     if (window.lucide) lucide.createIcons();
 }
@@ -1890,11 +2194,21 @@ async function loadEvents() {
 async function loadSettings() {
     const sectionAtLoad = currentSection;
     const navigationSeqAtLoad = sectionNavigationSeq;
-    const nextSettings = await adapter.getCollection("settings");
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during loadSettings");
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "settings") return;
+        const settingsSectionEl = document.getElementById("section-settings");
+        if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
+        alert("Не вдалося завантажити налаштування: відсутній метод adapter.");
+        return;
+    }
+    const nextSettings = await getCollectionMethod.call(adapter, "settings");
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "settings") return;
-    cache.settings = nextSettings;
+    cache.settings = normalizeRecordObject(nextSettings);
     const settingsSectionEl = document.getElementById("section-settings");
     if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
     const titleInputEl = document.getElementById("setting-title");
@@ -1946,7 +2260,7 @@ async function loadContacts() {
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "contacts") return;
-    cache.contactRequests = nextContactRequests;
+    cache.contactRequests = normalizeRecordArray(nextContactRequests);
     const contactsSectionEl = document.getElementById("section-contacts");
     const contactsListEl = document.getElementById("contacts-list");
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
@@ -1969,24 +2283,40 @@ async function loadAuditLogs() {
         setAuditLoading(false);
         return;
     }
+    const getAuditLogsMethod = getAdapterMethod("getAuditLogs");
+    const getAuditFacetsMethod = getAdapterMethod("getAuditFacets");
+    if (!getAuditLogsMethod || !getAuditFacetsMethod) {
+        auditRequestController = null;
+        setAuditLoading(false);
+        console.warn("Audit adapter methods are unavailable", {
+            hasGetAuditLogs: !!getAuditLogsMethod,
+            hasGetAuditFacets: !!getAuditFacetsMethod
+        });
+        showAuditError("Помилка аудиту: відсутні методи adapter для завантаження журналу.");
+        return;
+    }
     const limitEl = document.getElementById("audit-limit");
     const searchEl = document.getElementById("audit-search");
     const actionFilterEl = document.getElementById("audit-filter-action");
     const entityFilterEl = document.getElementById("audit-filter-entity");
     const dateFromEl = document.getElementById("audit-date-from");
     const dateToEl = document.getElementById("audit-date-to");
-    const limit = limitEl && limitEl.isConnected ? Number(limitEl.value) : 50;
-    const query = searchEl && searchEl.isConnected ? searchEl.value.trim() : "";
-    const actionFilter = actionFilterEl && actionFilterEl.isConnected ? actionFilterEl.value : "all";
-    const entityFilter = entityFilterEl && entityFilterEl.isConnected ? entityFilterEl.value : "all";
-    const dateFrom = dateFromEl && dateFromEl.isConnected ? dateFromEl.value : "";
-    const dateTo = dateToEl && dateToEl.isConnected ? dateToEl.value : "";
+    const limit = limitEl && limitEl.isConnected ? normalizeAuditLimit(limitEl.value) : AUDIT_PAGE_SIZE;
+    const query = normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "");
+    const actionFilter = actionFilterEl && actionFilterEl.isConnected
+        ? normalizeAuditFilterSelectValue(actionFilterEl.value, "all")
+        : "all";
+    const entityFilter = entityFilterEl && entityFilterEl.isConnected
+        ? normalizeAuditFilterSelectValue(entityFilterEl.value, "all")
+        : "all";
+    const dateFrom = dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "";
+    const dateTo = dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "";
 
     let response;
     let facets;
     try {
         [response, facets] = await Promise.all([
-            adapter.getAuditLogs({
+            getAuditLogsMethod.call(adapter, {
                 limit,
                 page: auditPage,
                 q: query,
@@ -1995,7 +2325,7 @@ async function loadAuditLogs() {
                 from: dateFrom,
                 to: dateTo
             }, { signal }),
-            adapter.getAuditFacets({ signal })
+            getAuditFacetsMethod.call(adapter, { signal })
         ]);
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtLoad) {
@@ -2048,17 +2378,18 @@ async function loadAuditLogs() {
 
     auditRequestController = null;
 
-    cache.auditLogs = response.items || [];
-    cache.auditFacets = facets || { actions: [], entities: [] };
-    auditTotal = Number(response.total) || 0;
-    auditPage = Number(response.page) || auditPage;
+    const normalizedResponse = normalizeRecordObject(response);
+    cache.auditLogs = normalizeRecordArray(normalizedResponse.items);
+    cache.auditFacets = normalizeAuditFacetsPayload(facets);
+    auditTotal = Math.max(0, Number(normalizedResponse.total) || 0);
+    auditPage = normalizeAuditPage(normalizedResponse.page, auditPage);
     hideAuditError();
     populateAuditFilterOptions();
     renderAuditLogs();
 
     const updatedEl = document.getElementById("audit-last-updated");
     if (updatedEl && updatedEl.isConnected) {
-        updatedEl.textContent = `Оновлено: ${new Date().toLocaleTimeString("uk-UA")}`;
+        updatedEl.textContent = `Оновлено: ${formatNowTimeOrFallback()}`;
     }
 
     const endedAt = (typeof performance !== "undefined" && typeof performance.now === "function") ? performance.now() : Date.now();
@@ -2102,10 +2433,11 @@ function populateAuditFilterOptions() {
     if (!actionEl || !entityEl) return;
     if (!actionEl.isConnected || !entityEl.isConnected) return;
 
-    const selectedAction = actionEl.value || "all";
-    const selectedEntity = entityEl.value || "all";
-    const actions = Array.from(new Set((cache.auditFacets.actions || []).map((entry) => String(entry || "")).filter(Boolean))).sort();
-    const entities = Array.from(new Set((cache.auditFacets.entities || []).map((entry) => String(entry || "")).filter(Boolean))).sort();
+    const selectedAction = normalizeAuditFilterSelectValue(actionEl.value, "all");
+    const selectedEntity = normalizeAuditFilterSelectValue(entityEl.value, "all");
+    const facets = normalizeAuditFacetsPayload(cache.auditFacets);
+    const actions = normalizeAuditFilterOptionValues(facets.actions);
+    const entities = normalizeAuditFilterOptionValues(facets.entities);
 
     if (selectedAction && selectedAction !== "all" && !actions.includes(selectedAction)) {
         actions.push(selectedAction);
@@ -2395,6 +2727,10 @@ function changeAuditLimit() {
     if (currentSection !== sectionAtChange || currentSection !== "audit") return;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
+    const limitEl = document.getElementById("audit-limit");
+    if (limitEl && limitEl.isConnected) {
+        limitEl.value = String(normalizeAuditLimit(limitEl.value));
+    }
     auditPage = 1;
     saveAuditUiState();
     loadAuditLogs().catch((error) => {
@@ -2439,10 +2775,7 @@ function handleAuditSearchInput() {
 }
 
 function toDateInputValue(date) {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
+    return formatDateToLocalIso(date, "");
 }
 
 function applyAuditDatePreset() {
@@ -2528,7 +2861,7 @@ function clearAuditFilters() {
 }
 
 function getFilteredAuditLogs() {
-    return cache.auditLogs;
+    return normalizeRecordArray(cache.auditLogs);
 }
 
 function exportAuditCsv() {
@@ -2544,13 +2877,22 @@ function exportAuditCsv() {
     const entityFilterEl = document.getElementById("audit-filter-entity");
     const dateFromEl = document.getElementById("audit-date-from");
     const dateToEl = document.getElementById("audit-date-to");
-    const query = searchEl && searchEl.isConnected ? searchEl.value.trim() : "";
-    const actionFilter = actionFilterEl && actionFilterEl.isConnected ? actionFilterEl.value : "all";
-    const entityFilter = entityFilterEl && entityFilterEl.isConnected ? entityFilterEl.value : "all";
-    const dateFrom = dateFromEl && dateFromEl.isConnected ? dateFromEl.value : "";
-    const dateTo = dateToEl && dateToEl.isConnected ? dateToEl.value : "";
+    const query = normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "");
+    const actionFilter = actionFilterEl && actionFilterEl.isConnected
+        ? normalizeAuditFilterSelectValue(actionFilterEl.value, "all")
+        : "all";
+    const entityFilter = entityFilterEl && entityFilterEl.isConnected
+        ? normalizeAuditFilterSelectValue(entityFilterEl.value, "all")
+        : "all";
+    const dateFrom = dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "";
+    const dateTo = dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "";
+    const getAuditLogsMethod = getAdapterMethod("getAuditLogs");
+    if (!getAuditLogsMethod) {
+        alert("Не вдалося експортувати аудит: відсутній метод adapter.");
+        return;
+    }
 
-    adapter.getAuditLogs({
+    getAuditLogsMethod.call(adapter, {
         limit: 500,
         page: 1,
         q: query,
@@ -2564,22 +2906,23 @@ function exportAuditCsv() {
         if (currentSection !== "audit") return;
         if (!auditSectionEl || !auditSectionEl.isConnected) return;
 
-        const filtered = response.items || [];
+        const normalizedResponse = normalizeRecordObject(response);
+        const filtered = normalizeRecordArray(normalizedResponse.items);
         if (!filtered.length) {
             alert("Немає записів аудиту для експорту.");
             return;
         }
 
         const header = ["id", "created_at", "action", "entity_type", "entity_id", "actor", "details"];
-        const rows = filtered.map((entry) => [
+        const rows = filtered.map((entry) => normalizeCsvRowValues([
             entry.id || "",
             entry.created_at || "",
             entry.action || "",
             entry.entity_type || "",
             entry.entity_id || "",
             entry.actor || "",
-            typeof entry.details === "object" ? JSON.stringify(entry.details) : String(entry.details || "")
-        ]);
+            safeSerializeDetails(entry.details, "")
+        ]));
 
         const csv = [header, ...rows]
             .map((row) => row.map(escapeCsv).join(","))
@@ -2590,7 +2933,7 @@ function exportAuditCsv() {
         const link = document.createElement("a");
         const body = document.body;
         link.href = url;
-        link.download = `core64_audit_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.download = `core64_audit_${getTodayIsoDateSafe()}.csv`;
         if (!body || !body.isConnected) {
             URL.revokeObjectURL(url);
             return;
@@ -2637,6 +2980,8 @@ function resetAuditPageAndRender() {
 function changeAuditPage(delta) {
     const sectionAtPageChange = currentSection;
     const navigationSeqAtPageChange = sectionNavigationSeq;
+    const normalizedDelta = Number(delta);
+    if (!Number.isInteger(normalizedDelta) || normalizedDelta === 0) return;
     if (!validateAuditDateRange()) return;
     if (currentSection !== sectionAtPageChange) return;
     if (currentSection !== "audit") return;
@@ -2644,7 +2989,7 @@ function changeAuditPage(delta) {
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
     const container = document.getElementById("audit-list");
     if (!container || !container.isConnected) return;
-    auditPage += delta;
+    auditPage = normalizeAuditPage(auditPage + normalizedDelta, 1);
     saveAuditUiState();
     loadAuditLogs().catch((error) => {
         if (sectionNavigationSeq !== navigationSeqAtPageChange) return;
@@ -2664,15 +3009,21 @@ function renderAuditLogs() {
 
     const filtered = getFilteredAuditLogs();
     const limitEl = document.getElementById("audit-limit");
-    const effectiveLimit = limitEl && limitEl.isConnected ? Number(limitEl.value) || AUDIT_PAGE_SIZE : AUDIT_PAGE_SIZE;
-    const totalPages = Math.max(1, Math.ceil(auditTotal / effectiveLimit));
+    const effectiveLimit = limitEl && limitEl.isConnected
+        ? normalizeAuditLimit(limitEl.value)
+        : AUDIT_PAGE_SIZE;
+    const normalizedTotal = Math.max(0, Number(auditTotal) || 0);
+    const totalPages = Math.max(1, Math.ceil(normalizedTotal / effectiveLimit));
 
     if (totalEl && totalEl.isConnected) {
-        totalEl.textContent = `Знайдено: ${auditTotal}`;
+        totalEl.textContent = `Знайдено: ${normalizedTotal}`;
     }
 
-    if (auditPage > totalPages) auditPage = totalPages;
-    if (auditPage < 1) auditPage = 1;
+    const safeAuditPage = normalizeAuditPage(auditPage, 1);
+    const displayAuditPage = Math.min(safeAuditPage, totalPages);
+    if (auditPage !== displayAuditPage) {
+        auditPage = displayAuditPage;
+    }
 
     const paged = filtered;
 
@@ -2685,8 +3036,8 @@ function renderAuditLogs() {
 
     if (!container.isConnected) return;
     container.innerHTML = paged.map((entry) => {
-        const ts = entry.created_at ? new Date(entry.created_at).toLocaleString("uk-UA") : "-";
-        const details = typeof entry.details === "object" ? JSON.stringify(entry.details) : String(entry.details || "{}");
+        const ts = formatDateTimeOrDash(entry.created_at);
+        const details = safeSerializeDetails(entry.details);
         return `
             <div class="card p-4 rounded">
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-2">
@@ -2702,9 +3053,9 @@ function renderAuditLogs() {
 
     if (pagination && pagination.isConnected) {
         pagination.innerHTML = `
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(-1)" ${auditPage === 1 ? "disabled" : ""}>Назад</button>
-            <div class="text-sm text-gray-300">Сторінка ${auditPage} з ${totalPages} • Всього ${auditTotal}</div>
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(1)" ${auditPage >= totalPages ? "disabled" : ""}>Вперед</button>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(-1)" ${displayAuditPage === 1 ? "disabled" : ""}>Назад</button>
+            <div class="text-sm text-gray-300">Сторінка ${displayAuditPage} з ${totalPages} • Всього ${normalizedTotal}</div>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(1)" ${displayAuditPage >= totalPages ? "disabled" : ""}>Вперед</button>
         `;
     }
 
@@ -2722,9 +3073,9 @@ function getFilteredContacts() {
     const statusFilterEl = document.getElementById("contacts-filter-status");
     const dateFilterEl = document.getElementById("contacts-filter-date");
     const searchEl = document.getElementById("contacts-search");
-    const statusFilter = statusFilterEl && statusFilterEl.isConnected ? statusFilterEl.value : "all";
-    const dateFilter = dateFilterEl && dateFilterEl.isConnected ? dateFilterEl.value : "";
-    const query = (searchEl && searchEl.isConnected ? searchEl.value : "").trim().toLowerCase();
+    const statusFilter = normalizeContactsStatusFilter(statusFilterEl && statusFilterEl.isConnected ? statusFilterEl.value : "all");
+    const dateFilter = normalizeIsoDateFilter(dateFilterEl && dateFilterEl.isConnected ? dateFilterEl.value : "");
+    const query = normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "");
 
     if (!Array.isArray(cache.contactRequests)) return [];
 
@@ -2733,12 +3084,13 @@ function getFilteredContacts() {
         const normalizedStatus = normalizeContactRequestStatus(entry.status);
         const statusMatch = statusFilter === "all" || normalizedStatus === statusFilter;
         const createdAt = entry.created_at || entry.createdAt;
-        const dateMatch = !dateFilter || (createdAt && String(createdAt).slice(0, 10) === dateFilter);
+        const createdDateKey = getDateFilterKey(createdAt);
+        const dateMatch = !dateFilter || createdDateKey === dateFilter;
 
         if (!query) return statusMatch && dateMatch;
 
         const haystack = [entry.subject, entry.email, entry.name]
-            .map((v) => String(v || "").toLowerCase())
+            .map((v) => normalizeSearchText(v || ""))
             .join(" ");
 
         return statusMatch && dateMatch && haystack.includes(query);
@@ -2752,11 +3104,14 @@ function renderContacts() {
 
     const filtered = getFilteredContacts();
 
-    const totalPages = Math.max(1, Math.ceil(filtered.length / CONTACTS_PAGE_SIZE));
-    if (contactsPage > totalPages) contactsPage = totalPages;
-    if (contactsPage < 1) contactsPage = 1;
+    const totalPages = Math.max(CONTACTS_MIN_PAGE, Math.ceil(filtered.length / CONTACTS_PAGE_SIZE));
+    const safeContactsPage = normalizeContactsPage(contactsPage, CONTACTS_MIN_PAGE);
+    const displayContactsPage = Math.min(safeContactsPage, totalPages);
+    if (contactsPage !== displayContactsPage) {
+        contactsPage = displayContactsPage;
+    }
 
-    const start = (contactsPage - 1) * CONTACTS_PAGE_SIZE;
+    const start = (displayContactsPage - CONTACTS_MIN_PAGE) * CONTACTS_PAGE_SIZE;
     const paged = filtered.slice(start, start + CONTACTS_PAGE_SIZE);
 
     if (!paged.length) {
@@ -2769,10 +3124,7 @@ function renderContacts() {
     if (!container.isConnected) return;
     container.innerHTML = paged.map((entry) => {
         const createdAt = entry.created_at || entry.createdAt;
-        const createdDate = createdAt ? new Date(createdAt) : null;
-        const createdText = createdDate && Number.isFinite(createdDate.getTime())
-            ? createdDate.toLocaleString("uk-UA")
-            : "-";
+        const createdText = formatDateTimeOrDash(createdAt);
         const normalizedStatus = normalizeContactRequestStatus(entry.status);
         const normalizedContactId = normalizeContactRequestId(entry.id);
         const statusSelectDisabledAttr = normalizedContactId === null ? "disabled" : "";
@@ -2803,9 +3155,9 @@ function renderContacts() {
 
     if (pagination && pagination.isConnected) {
         pagination.innerHTML = `
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(-1)" ${contactsPage === 1 ? "disabled" : ""}>Назад</button>
-            <div class="text-sm text-gray-300">Сторінка ${contactsPage} з ${totalPages}</div>
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(1)" ${contactsPage >= totalPages ? "disabled" : ""}>Вперед</button>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(-1)" ${displayContactsPage === CONTACTS_MIN_PAGE ? "disabled" : ""}>Назад</button>
+            <div class="text-sm text-gray-300">Сторінка ${displayContactsPage} з ${totalPages}</div>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(1)" ${displayContactsPage >= totalPages ? "disabled" : ""}>Вперед</button>
         `;
     }
 }
@@ -2814,6 +3166,17 @@ function escapeCsv(value) {
     const text = String(value ?? "");
     const escaped = text.replace(/"/g, '""');
     return `"${escaped}"`;
+}
+
+function normalizeCsvRowValues(row) {
+    if (!Array.isArray(row)) return [];
+
+    return row.map((cell) => {
+        if (cell === null || cell === undefined) return "";
+        if (typeof cell === "string" || typeof cell === "number") return cell;
+        if (typeof cell === "boolean") return cell ? "true" : "false";
+        return "";
+    });
 }
 
 function exportContactsCsv() {
@@ -2832,7 +3195,7 @@ function exportContactsCsv() {
     }
 
     const header = ["id", "created_at", "status", "name", "email", "subject", "message"];
-    const rows = filtered.map((entry) => [
+    const rows = filtered.map((entry) => normalizeCsvRowValues([
         entry.id,
         entry.created_at || entry.createdAt || "",
         normalizeContactRequestStatus(entry.status),
@@ -2840,7 +3203,7 @@ function exportContactsCsv() {
         entry.email || "",
         entry.subject || "",
         entry.message || ""
-    ]);
+    ]));
 
     const csv = [header, ...rows]
         .map((row) => row.map(escapeCsv).join(","))
@@ -2850,7 +3213,7 @@ function exportContactsCsv() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `core64_contacts_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.download = `core64_contacts_${getTodayIsoDateSafe()}.csv`;
     const bodyEl = document.body;
     if (!bodyEl || bodyEl.isConnected === false) {
         URL.revokeObjectURL(url);
@@ -2866,7 +3229,8 @@ function exportContactsCsv() {
 }
 
 function changeContactsPage(delta) {
-    if (!Number.isInteger(delta) || delta === 0) return;
+    const normalizedDelta = Number(delta);
+    if (!Number.isInteger(normalizedDelta) || normalizedDelta === 0) return;
     const sectionAtPageChange = currentSection;
     if (currentSection !== sectionAtPageChange) return;
     if (currentSection !== "contacts") return;
@@ -2874,14 +3238,20 @@ function changeContactsPage(delta) {
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
     const container = document.getElementById("contacts-list");
     if (!container || !container.isConnected) return;
-    contactsPage += delta;
+    contactsPage = normalizeContactsPage(contactsPage + normalizedDelta, CONTACTS_MIN_PAGE);
     renderContacts();
 }
 
 const CONTACT_REQUEST_ALLOWED_STATUSES = ["new", "in_progress", "done"];
 
+function normalizeSupportedContactRequestStatus(status) {
+    if (typeof status !== "string") return null;
+    const normalizedStatus = status.trim().toLowerCase();
+    return CONTACT_REQUEST_ALLOWED_STATUSES.includes(normalizedStatus) ? normalizedStatus : null;
+}
+
 function isSupportedContactRequestStatus(status) {
-    return typeof status === "string" && CONTACT_REQUEST_ALLOWED_STATUSES.includes(status);
+    return normalizeSupportedContactRequestStatus(status) !== null;
 }
 
 function normalizeContactRequestId(id) {
@@ -2890,15 +3260,16 @@ function normalizeContactRequestId(id) {
 }
 
 function normalizeContactRequestStatus(status) {
-    return isSupportedContactRequestStatus(status) ? status : "new";
+    return normalizeSupportedContactRequestStatus(status) || "new";
 }
 
 async function changeContactStatus(id, status) {
     const sectionAtUpdate = currentSection;
     const navigationSeqAtUpdate = sectionNavigationSeq;
     const normalizedId = normalizeContactRequestId(id);
+    const normalizedStatus = normalizeSupportedContactRequestStatus(status);
     if (normalizedId === null) return;
-    if (!isSupportedContactRequestStatus(status)) return;
+    if (!normalizedStatus) return;
     if (currentSection !== sectionAtUpdate) return;
     if (currentSection !== "contacts") return;
     const contactsSectionEl = document.getElementById("section-contacts");
@@ -2917,7 +3288,7 @@ async function changeContactStatus(id, status) {
     }
 
     try {
-        await updateContactRequestStatusMethod.call(adapter, normalizedId, status);
+        await updateContactRequestStatusMethod.call(adapter, normalizedId, normalizedStatus);
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         if (currentSection !== sectionAtUpdate) return;
         if (currentSection !== "contacts") return;
@@ -2925,14 +3296,14 @@ async function changeContactStatus(id, status) {
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         if (currentSection !== sectionAtUpdate) return;
         if (currentSection !== "contacts") return;
-        cache.contactRequests = nextContactRequests;
+        cache.contactRequests = normalizeRecordArray(nextContactRequests);
         if (currentSection !== "contacts") return;
         if (sectionAtUpdate !== "contacts") return;
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
         renderContacts();
         if (currentSection !== sectionAtUpdate) return;
-        addActivity(`Оновлено статус звернення #${normalizedId} -> ${status}`);
+        addActivity(`Оновлено статус звернення #${normalizedId} -> ${normalizedStatus}`);
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         console.error("Contact status update failed", error);
@@ -2949,7 +3320,28 @@ async function changeContactStatus(id, status) {
 async function bulkUpdateContactStatus(fromStatus, toStatus) {
     const sectionAtBulkUpdate = currentSection;
     const navigationSeqAtBulkUpdate = sectionNavigationSeq;
-    if (!isSupportedContactRequestStatus(fromStatus) || !isSupportedContactRequestStatus(toStatus)) return;
+    const normalizedFromStatus = normalizeSupportedContactRequestStatus(fromStatus);
+    const normalizedToStatus = normalizeSupportedContactRequestStatus(toStatus);
+    if (!normalizedFromStatus || !normalizedToStatus) {
+        console.warn("Bulk status transition contains unsupported value", {
+            fromStatus,
+            toStatus
+        });
+        return;
+    }
+    if (!isSupportedContactRequestStatus(normalizedFromStatus) || !isSupportedContactRequestStatus(normalizedToStatus)) {
+        console.warn("Bulk status transition failed supported-status validation", {
+            normalizedFromStatus,
+            normalizedToStatus
+        });
+        return;
+    }
+    if (normalizedFromStatus === normalizedToStatus) {
+        console.warn("Bulk status transition skipped because source and target statuses are identical", {
+            normalizedFromStatus
+        });
+        return;
+    }
     if (!Array.isArray(cache.contactRequests)) return;
     if (currentSection !== sectionAtBulkUpdate) return;
     if (currentSection !== "contacts") return;
@@ -2980,14 +3372,14 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
                     status: normalizedEntryStatus
                 };
         })
-        .filter((entry) => entry && entry.status === fromStatus);
+        .filter((entry) => entry && entry.status === normalizedFromStatus);
     if (!targets.length) {
         alert("Немає звернень для масового оновлення.");
         return;
     }
 
     try {
-        await Promise.all(targets.map((entry) => updateContactRequestStatusMethod.call(adapter, entry.id, toStatus)));
+        await Promise.all(targets.map((entry) => updateContactRequestStatusMethod.call(adapter, entry.id, normalizedToStatus)));
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         if (currentSection !== sectionAtBulkUpdate) return;
         if (currentSection !== "contacts") return;
@@ -2995,7 +3387,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         if (currentSection !== sectionAtBulkUpdate) return;
         if (currentSection !== "contacts") return;
-        cache.contactRequests = nextContactRequests;
+        cache.contactRequests = normalizeRecordArray(nextContactRequests);
         if (currentSection !== "contacts") return;
         if (sectionAtBulkUpdate !== "contacts") return;
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
@@ -3003,7 +3395,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         contactsPage = 1;
         renderContacts();
         if (currentSection !== sectionAtBulkUpdate) return;
-        addActivity(`Масово оновлено ${targets.length} звернень: ${fromStatus} -> ${toStatus}`);
+        addActivity(`Масово оновлено ${targets.length} звернень: ${normalizedFromStatus} -> ${normalizedToStatus}`);
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         console.error("Bulk status update failed", error);
@@ -3346,6 +3738,15 @@ function hasUsableEntityId(id) {
     return false;
 }
 
+function serializeInlineEntityIdArg(id) {
+    const normalizedId = normalizeEntityId(id);
+    if (!hasUsableEntityId(normalizedId)) return null;
+    if (typeof normalizedId === "number") return String(normalizedId);
+
+    const candidate = normalizedId.trim();
+    return /^[A-Za-z0-9_-]+$/.test(candidate) ? `'${candidate}'` : null;
+}
+
 const modalFormEl = document.getElementById("modal-form");
 if (modalFormEl && modalFormEl.isConnected) {
     if (!modalFormEl.dataset.submitListenerBound) {
@@ -3598,7 +3999,8 @@ function resetData() {
     if (resetDataInProgress) return;
     if (!confirm("УВАГА! Це скине локальні fallback-дані. Продовжити?")) return;
     const canUseLocalStorage = typeof localStorage !== "undefined" && typeof localStorage.removeItem === "function";
-    const canEnsureLocalDefaults = !!adapter && typeof adapter.ensureLocalDefaults === "function";
+    const ensureLocalDefaultsMethod = getAdapterMethod("ensureLocalDefaults");
+    const canEnsureLocalDefaults = !!ensureLocalDefaultsMethod;
     const canReloadPage = typeof location !== "undefined" && typeof location.reload === "function";
 
     if (!canUseLocalStorage || !canEnsureLocalDefaults || !canReloadPage) {
@@ -3614,7 +4016,7 @@ function resetData() {
     resetDataInProgress = true;
     try {
         localStorage.removeItem("core64_data");
-        adapter.ensureLocalDefaults();
+        ensureLocalDefaultsMethod.call(adapter);
         location.reload();
     } catch (error) {
         console.error("Reset data failed", error);
@@ -3630,7 +4032,7 @@ function addActivity(text) {
     if (text === null || text === undefined) return;
     const safeText = sanitizeInput(String(text));
     if (!safeText.trim()) return;
-    const time = new Date().toLocaleTimeString("uk-UA");
+    const time = formatNowTimeOrFallback();
     const entry = document.createElement("div");
     entry.className = "flex gap-2 text-sm";
     entry.innerHTML = `<span class="text-cyan-400">[${time}]</span> <span class="text-gray-300">${safeText}</span>`;
