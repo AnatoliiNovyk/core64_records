@@ -1,18 +1,17 @@
 # Batch 408: Global Listener Single-Bind Guard
 
-## Як було
-- У `DOMContentLoaded` глобальні listener-и (`visibilitychange`, `keydown`, `blur/focus`, `beforeunload`) реєструвались без guard-а від повторного bind.
-- При повторній ініціалізації скрипта могло з’явитися дублювання обробників.
+У `DOMContentLoaded` глобальні listener-и (`visibilitychange`, `keydown`, `blur/focus`, `beforeunload`) реєструвались без guard-а від повторного bind.
+При повторній ініціалізації скрипта могло з’явитися дублювання обробників.
 
-## Що зроблено
-- Додано глобальний прапорець:
-  - `let globalEventListenersBound = false;`
-- Реєстрацію глобальних listener-ів обгорнуто умовою:
-  - `if (!globalEventListenersBound) { ...; globalEventListenersBound = true; }`
+Додано глобальний прапорець:
 
-## Що покращило / виправило / додало
-- Унеможливлено дубльований bind глобальних обробників при повторному запуску bootstrap-логіки.
-- Зменшено ризик повторних side-effect (подвійні hotkey/visibility callbacks).
+- `let globalEventListenersBound = false;`
 
-## Validation
-- Diagnostics check for `admin.js`: **No errors found**.
+Реєстрацію глобальних listener-ів обгорнуто умовою:
+
+- `if (!globalEventListenersBound) { ...; globalEventListenersBound = true; }`
+
+Унеможливлено дубльований bind глобальних обробників при повторному запуску bootstrap-логіки.
+Зменшено ризик повторних side-effect (подвійні hotkey/visibility callbacks).
+
+Diagnostics check for `admin.js`: **No errors found**.

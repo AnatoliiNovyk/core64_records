@@ -2769,6 +2769,7 @@ async function refreshAuditNow() {
     if (currentSection !== "audit") return false;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return false;
+    cancelPendingAuditFiltersApply();
 
     setRefreshNowButtonLoading(true);
 
@@ -2834,6 +2835,7 @@ async function forceRefreshAuditNow() {
     if (currentSection !== "audit") return false;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return false;
+    cancelPendingAuditFiltersApply();
 
     const refreshSeconds = getAuditRefreshSeconds();
     if (refreshSeconds && !isAuditEcoModeEnabled()) {
@@ -3147,6 +3149,7 @@ function resetAuditPageAndRender() {
     if (currentSection !== "audit") return;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
+    cancelPendingAuditFiltersApply();
     auditPage = 1;
     saveAuditUiState();
     loadAuditLogs().catch((error) => {
@@ -3171,6 +3174,7 @@ function changeAuditPage(delta) {
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
     const container = document.getElementById("audit-list");
     if (!container || !container.isConnected) return;
+    cancelPendingAuditFiltersApply();
     auditPage = normalizeAuditPage(auditPage + normalizedDelta, 1);
     saveAuditUiState();
     loadAuditLogs().catch((error) => {

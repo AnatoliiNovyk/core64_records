@@ -1,15 +1,12 @@
 # Batch 405: Modal Form Missing Element Warning
 
-## Як було
-- Після defensive-binding на `modal-form` відсутність елемента оброблялась тихим no-op без явного сигналу для діагностики.
+Після defensive-binding на `modal-form` відсутність елемента оброблялась тихим no-op без явного сигналу для діагностики.
 
-## Що зроблено
-- Додано нефатальний warning у fallback-гілці реєстрації listener:
-  - `console.warn("Modal form element is unavailable; submit listener was not registered")`
+Додано нефатальний warning у fallback-гілці реєстрації listener:
 
-## Що покращило / виправило / додало
-- Покращено observability DOM-інтеграційних проблем без runtime-падінь.
-- Спрощено діагностику випадків, коли submit handler не підключився через відсутній вузол.
+- `console.warn("Modal form element is unavailable; submit listener was not registered")`
 
-## Validation
-- Diagnostics check for `admin.js`: **No errors found**.
+Покращено observability DOM-інтеграційних проблем без runtime-падінь.
+Спрощено діагностику випадків, коли submit handler не підключився через відсутній вузол.
+
+Diagnostics check for `admin.js`: **No errors found**.

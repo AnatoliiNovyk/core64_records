@@ -1,5 +1,5 @@
 # Changelog
 
-## [Unreleased] - 2024-03-18
-### Added
-- Implemented `toastEl.isConnected` guards in `handleSettingsUnsavedToastVisibilityChange`, `handleSettingsUnsavedToastWindowBlur`, and `handleSettingsUnsavedToastWindowFocus` to ensure auto-close pausing/resuming logic only runs when the toast element is actually in the DOM.
+## Added
+
+Implemented `toastEl.isConnected` guards in `handleSettingsUnsavedToastVisibilityChange`, `handleSettingsUnsavedToastWindowBlur`, and `handleSettingsUnsavedToastWindowFocus` to ensure auto-close pausing/resuming logic only runs when the toast element is actually in the DOM.

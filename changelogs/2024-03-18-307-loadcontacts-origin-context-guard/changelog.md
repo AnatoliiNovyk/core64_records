@@ -1,6 +1,5 @@
 # Change Log
 
-## 2024-03-18 #307
-- Hardened `loadContacts` with origin-context capture before async fetch.
-- Added a post-await guard to ensure current section still matches the section at load start.
-- Prevented stale contacts rendering when section context changes during contacts load.
+Hardened `loadContacts` with origin-context capture before async fetch.
+Added a post-await guard to ensure current section still matches the section at load start.
+Prevented stale contacts rendering when section context changes during contacts load.
