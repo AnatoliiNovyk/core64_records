@@ -2936,11 +2936,10 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
 }
 
 function openModal(type, id) {
-    if (typeof type !== "string" || !type) return;
-    if (!["release", "artist", "event"].includes(type)) return;
-    const normalizedId = typeof id === "string" ? id.trim() : id;
-    if (normalizedId !== null && normalizedId !== undefined && typeof normalizedId !== "string" && typeof normalizedId !== "number") return;
-    editingId = normalizedId || null;
+    if (!isSupportedEntityType(type)) return;
+    const normalizedId = normalizeEntityId(id);
+    if (hasDefinedEntityId(normalizedId) && !hasUsableEntityId(normalizedId)) return;
+    editingId = normalizedId ?? null;
     editingType = type;
 
     const modal = document.getElementById("modal");
@@ -2952,7 +2951,7 @@ function openModal(type, id) {
     const collection = `${type}s`;
 
     let item = {};
-    if (editingId) {
+    if (hasDefinedEntityId(editingId)) {
         item = (cache[collection] || []).find((entry) => Number(entry.id) === Number(editingId)) || {};
         title.textContent = "Редагувати " + getTypeName(type);
     } else {
@@ -3088,7 +3087,7 @@ function generateFields(type, item) {
                     </label>
                 </div>
                 ${imagePreview}
-                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 2MB. Формати: JPG, PNG, GIF</p>
+                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Формати: JPG, PNG, GIF</p>
             </div>
         `,
         artist: `
@@ -3125,7 +3124,7 @@ function generateFields(type, item) {
                     </label>
                 </div>
                 <img src="${item.image || ''}" class="image-preview preview-img mt-2 rounded w-24 h-24 object-cover ${item.image ? '' : 'hidden'}">
-                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 2MB. Рекомендовано: квадратне фото</p>
+                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Рекомендовано: квадратне фото</p>
             </div>
         `,
         event: `
@@ -3166,7 +3165,7 @@ function generateFields(type, item) {
                     </label>
                 </div>
                 <img src="${item.image || ''}" class="image-preview preview-img mt-2 rounded h-32 w-full object-cover ${item.image ? '' : 'hidden'}">
-                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 2MB. Рекомендовано: 640x360 або 16:9</p>
+                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Рекомендовано: 640x360 або 16:9</p>
             </div>
         `
     };
@@ -3179,6 +3178,29 @@ function getTypeName(type) {
     return names[type] || type;
 }
 
+const SUPPORTED_ENTITY_TYPES = ["release", "artist", "event"];
+
+function isSupportedEntityType(type) {
+    return typeof type === "string" && SUPPORTED_ENTITY_TYPES.includes(type);
+}
+
+function normalizeEntityId(id) {
+    if (typeof id !== "string") return id;
+    const trimmedId = id.trim();
+    return trimmedId ? trimmedId : null;
+}
+
+function hasDefinedEntityId(id) {
+    return id !== null && id !== undefined;
+}
+
+function hasUsableEntityId(id) {
+    if (!hasDefinedEntityId(id)) return false;
+    if (typeof id === "string") return !!id.trim();
+    if (typeof id === "number") return Number.isFinite(id);
+    return false;
+}
+
 const modalFormEl = document.getElementById("modal-form");
 if (modalFormEl && modalFormEl.isConnected) {
     if (!modalFormEl.dataset.submitListenerBound) {
@@ -3189,14 +3211,15 @@ if (modalFormEl && modalFormEl.isConnected) {
         const sectionAtSubmit = currentSection;
         const navigationSeqAtSubmit = sectionNavigationSeq;
         const editingTypeAtSubmit = editingType;
-        const editingIdAtSubmit = editingId;
-        const isEditMode = !!editingIdAtSubmit;
+        if (!isSupportedEntityType(editingTypeAtSubmit)) return;
+        const editingIdAtSubmit = normalizeEntityId(editingId);
+        const isEditMode = hasUsableEntityId(editingIdAtSubmit);
 
         const formEl = e.target;
         if (!formEl || formEl.isConnected === false) return;
         if (typeof formEl.tagName !== "string" || formEl.tagName.toUpperCase() !== "FORM") return;
         const formData = new FormData(formEl);
-        const item = { id: editingIdAtSubmit || Date.now() };
+        const item = { id: isEditMode ? editingIdAtSubmit : Date.now() };
         formData.forEach((value, key) => {
             item[key] = sanitizeInput(value);
         });
@@ -3241,25 +3264,23 @@ if (modalFormEl && modalFormEl.isConnected) {
 }
 
 function editItem(type, id) {
-    if (typeof type !== "string" || !["release", "artist", "event"].includes(type)) return;
-    if (id === null || id === undefined) return;
-    if (typeof id === "string" && !id.trim()) return;
-    if (typeof id === "number" && !Number.isFinite(id)) return;
-    openModal(type, id);
+    if (!isSupportedEntityType(type)) return;
+    const normalizedId = normalizeEntityId(id);
+    if (!hasUsableEntityId(normalizedId)) return;
+    openModal(type, normalizedId);
 }
 
 async function deleteItem(type, id) {
-    if (typeof type !== "string" || !["release", "artist", "event"].includes(type)) return;
-    if (id === null || id === undefined) return;
-    if (typeof id === "string" && !id.trim()) return;
-    if (typeof id === "number" && !Number.isFinite(id)) return;
+    if (!isSupportedEntityType(type)) return;
+    const normalizedId = normalizeEntityId(id);
+    if (!hasUsableEntityId(normalizedId)) return;
     const sectionAtDelete = currentSection;
     const navigationSeqAtDelete = sectionNavigationSeq;
     const typeName = getTypeName(type);
     if (!confirm("Ви впевнені, що хочете видалити цей запис?")) return;
 
     try {
-        await adapter.deleteItem(type, id);
+        await adapter.deleteItem(type, normalizedId);
         if (sectionNavigationSeq !== navigationSeqAtDelete) return;
         if (currentSection !== sectionAtDelete) return;
         const sectionEl = document.getElementById(`section-${sectionAtDelete}`);
@@ -3272,7 +3293,7 @@ async function deleteItem(type, id) {
         if (sectionNavigationSeq !== navigationSeqAtDelete) return;
         if (currentSection !== sectionAtDelete) return;
         if (!sectionEl.isConnected) return;
-        addActivity(`Видалено ${typeName} #${id}`);
+        addActivity(`Видалено ${typeName} #${normalizedId}`);
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtDelete) return;
         console.error("Delete failed", error);
