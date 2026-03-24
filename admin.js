@@ -63,6 +63,13 @@ const AUDIT_UI_STATE_KEY = "core64_audit_ui_state";
 let auditLatencyGoodMaxMs = AUDIT_LATENCY_GOOD_MAX_MS;
 let auditLatencyWarnMaxMs = AUDIT_LATENCY_WARN_MAX_MS;
 
+function getAdapterMethod(methodName) {
+    if (!adapter || typeof adapter !== "object") return null;
+    if (typeof methodName !== "string" || !methodName.trim()) return null;
+    const method = adapter[methodName];
+    return typeof method === "function" ? method : null;
+}
+
 function parsePositiveMsValue(rawValue, fallback) {
     const value = Number(rawValue);
     if (!Number.isFinite(value) || value <= 0) return fallback;
@@ -1925,7 +1932,17 @@ async function loadSettings() {
 async function loadContacts() {
     const sectionAtLoad = currentSection;
     const navigationSeqAtLoad = sectionNavigationSeq;
-    const nextContactRequests = await adapter.getContactRequests();
+    const getContactRequestsMethod = getAdapterMethod("getContactRequests");
+    if (!getContactRequestsMethod) {
+        console.warn("Adapter getContactRequests method is unavailable");
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "contacts") return;
+        const contactsSectionEl = document.getElementById("section-contacts");
+        if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
+        alert("Не вдалося завантажити звернення: відсутній метод adapter.");
+        return;
+    }
+    const nextContactRequests = await getContactRequestsMethod.call(adapter);
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "contacts") return;
@@ -2695,8 +2712,9 @@ function renderAuditLogs() {
 }
 
 function getStatusLabel(status) {
-    if (status === "in_progress") return "В роботі";
-    if (status === "done") return "Завершено";
+    const normalizedStatus = normalizeContactRequestStatus(status);
+    if (normalizedStatus === "in_progress") return "В роботі";
+    if (normalizedStatus === "done") return "Завершено";
     return "Нове";
 }
 
@@ -2708,8 +2726,12 @@ function getFilteredContacts() {
     const dateFilter = dateFilterEl && dateFilterEl.isConnected ? dateFilterEl.value : "";
     const query = (searchEl && searchEl.isConnected ? searchEl.value : "").trim().toLowerCase();
 
+    if (!Array.isArray(cache.contactRequests)) return [];
+
     return cache.contactRequests.filter((entry) => {
-        const statusMatch = statusFilter === "all" || entry.status === statusFilter;
+        if (!entry || typeof entry !== "object") return false;
+        const normalizedStatus = normalizeContactRequestStatus(entry.status);
+        const statusMatch = statusFilter === "all" || normalizedStatus === statusFilter;
         const createdAt = entry.created_at || entry.createdAt;
         const dateMatch = !dateFilter || (createdAt && String(createdAt).slice(0, 10) === dateFilter);
 
@@ -2747,9 +2769,16 @@ function renderContacts() {
     if (!container.isConnected) return;
     container.innerHTML = paged.map((entry) => {
         const createdAt = entry.created_at || entry.createdAt;
-        const createdText = createdAt
-            ? new Date(createdAt).toLocaleString("uk-UA")
+        const createdDate = createdAt ? new Date(createdAt) : null;
+        const createdText = createdDate && Number.isFinite(createdDate.getTime())
+            ? createdDate.toLocaleString("uk-UA")
             : "-";
+        const normalizedStatus = normalizeContactRequestStatus(entry.status);
+        const normalizedContactId = normalizeContactRequestId(entry.id);
+        const statusSelectDisabledAttr = normalizedContactId === null ? "disabled" : "";
+        const statusSelectOnChangeAttr = normalizedContactId === null
+            ? ""
+            : `onchange="changeContactStatus(${normalizedContactId}, this.value)"`;
 
         return `
             <div class="card p-5 rounded">
@@ -2757,16 +2786,16 @@ function renderContacts() {
                     <div class="text-lg font-bold text-white">${sanitizeInput(entry.subject || "Без теми")}</div>
                     <div class="flex items-center gap-3">
                         <span class="text-xs uppercase tracking-wider text-cyan-300">${sanitizeInput(createdText)}</span>
-                        <select class="form-input p-2 rounded text-xs" onchange="changeContactStatus(${Number(entry.id)}, this.value)">
-                            <option value="new" ${entry.status === "new" ? "selected" : ""}>Нове</option>
-                            <option value="in_progress" ${entry.status === "in_progress" ? "selected" : ""}>В роботі</option>
-                            <option value="done" ${entry.status === "done" ? "selected" : ""}>Завершено</option>
+                        <select class="form-input p-2 rounded text-xs" ${statusSelectOnChangeAttr} ${statusSelectDisabledAttr}>
+                            <option value="new" ${normalizedStatus === "new" ? "selected" : ""}>Нове</option>
+                            <option value="in_progress" ${normalizedStatus === "in_progress" ? "selected" : ""}>В роботі</option>
+                            <option value="done" ${normalizedStatus === "done" ? "selected" : ""}>Завершено</option>
                         </select>
                     </div>
                 </div>
                 <div class="text-sm text-gray-300 mb-1"><span class="text-gray-400">Ім'я:</span> ${sanitizeInput(entry.name || "-")}</div>
                 <div class="text-sm text-gray-300 mb-3"><span class="text-gray-400">Email:</span> ${sanitizeInput(entry.email || "-")}</div>
-                <div class="text-xs uppercase tracking-wider text-pink-300 mb-2">Статус: ${sanitizeInput(getStatusLabel(entry.status || "new"))}</div>
+                <div class="text-xs uppercase tracking-wider text-pink-300 mb-2">Статус: ${sanitizeInput(getStatusLabel(normalizedStatus))}</div>
                 <div class="text-gray-200 whitespace-pre-wrap">${sanitizeInput(entry.message || "")}</div>
             </div>
         `;
@@ -2806,7 +2835,7 @@ function exportContactsCsv() {
     const rows = filtered.map((entry) => [
         entry.id,
         entry.created_at || entry.createdAt || "",
-        entry.status || "new",
+        normalizeContactRequestStatus(entry.status),
         entry.name || "",
         entry.email || "",
         entry.subject || "",
@@ -2837,6 +2866,7 @@ function exportContactsCsv() {
 }
 
 function changeContactsPage(delta) {
+    if (!Number.isInteger(delta) || delta === 0) return;
     const sectionAtPageChange = currentSection;
     if (currentSection !== sectionAtPageChange) return;
     if (currentSection !== "contacts") return;
@@ -2848,22 +2878,50 @@ function changeContactsPage(delta) {
     renderContacts();
 }
 
+const CONTACT_REQUEST_ALLOWED_STATUSES = ["new", "in_progress", "done"];
+
+function isSupportedContactRequestStatus(status) {
+    return typeof status === "string" && CONTACT_REQUEST_ALLOWED_STATUSES.includes(status);
+}
+
+function normalizeContactRequestId(id) {
+    const normalizedId = Number(id);
+    return Number.isFinite(normalizedId) ? normalizedId : null;
+}
+
+function normalizeContactRequestStatus(status) {
+    return isSupportedContactRequestStatus(status) ? status : "new";
+}
+
 async function changeContactStatus(id, status) {
     const sectionAtUpdate = currentSection;
     const navigationSeqAtUpdate = sectionNavigationSeq;
+    const normalizedId = normalizeContactRequestId(id);
+    if (normalizedId === null) return;
+    if (!isSupportedContactRequestStatus(status)) return;
     if (currentSection !== sectionAtUpdate) return;
     if (currentSection !== "contacts") return;
     const contactsSectionEl = document.getElementById("section-contacts");
     const contactsListEl = document.getElementById("contacts-list");
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
     if (!contactsListEl || !contactsListEl.isConnected) return;
+    const updateContactRequestStatusMethod = getAdapterMethod("updateContactRequestStatus");
+    const getContactRequestsMethod = getAdapterMethod("getContactRequests");
+    if (!updateContactRequestStatusMethod || !getContactRequestsMethod) {
+        console.warn("Contact adapter methods are unavailable", {
+            hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod,
+            hasGetContactRequests: !!getContactRequestsMethod
+        });
+        alert("Не вдалося оновити статус звернення: відсутній метод adapter.");
+        return;
+    }
 
     try {
-        await adapter.updateContactRequestStatus(id, status);
+        await updateContactRequestStatusMethod.call(adapter, normalizedId, status);
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         if (currentSection !== sectionAtUpdate) return;
         if (currentSection !== "contacts") return;
-        const nextContactRequests = await adapter.getContactRequests();
+        const nextContactRequests = await getContactRequestsMethod.call(adapter);
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         if (currentSection !== sectionAtUpdate) return;
         if (currentSection !== "contacts") return;
@@ -2874,7 +2932,7 @@ async function changeContactStatus(id, status) {
         if (!contactsListEl || !contactsListEl.isConnected) return;
         renderContacts();
         if (currentSection !== sectionAtUpdate) return;
-        addActivity(`Оновлено статус звернення #${id} -> ${status}`);
+        addActivity(`Оновлено статус звернення #${normalizedId} -> ${status}`);
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         console.error("Contact status update failed", error);
@@ -2891,25 +2949,49 @@ async function changeContactStatus(id, status) {
 async function bulkUpdateContactStatus(fromStatus, toStatus) {
     const sectionAtBulkUpdate = currentSection;
     const navigationSeqAtBulkUpdate = sectionNavigationSeq;
+    if (!isSupportedContactRequestStatus(fromStatus) || !isSupportedContactRequestStatus(toStatus)) return;
+    if (!Array.isArray(cache.contactRequests)) return;
     if (currentSection !== sectionAtBulkUpdate) return;
     if (currentSection !== "contacts") return;
     const contactsSectionEl = document.getElementById("section-contacts");
     const contactsListEl = document.getElementById("contacts-list");
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
     if (!contactsListEl || !contactsListEl.isConnected) return;
+    const updateContactRequestStatusMethod = getAdapterMethod("updateContactRequestStatus");
+    const getContactRequestsMethod = getAdapterMethod("getContactRequests");
+    if (!updateContactRequestStatusMethod || !getContactRequestsMethod) {
+        console.warn("Bulk contact adapter methods are unavailable", {
+            hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod,
+            hasGetContactRequests: !!getContactRequestsMethod
+        });
+        alert("Не вдалося виконати масове оновлення: відсутній метод adapter.");
+        return;
+    }
 
-    const targets = cache.contactRequests.filter((entry) => (entry.status || "new") === fromStatus);
+    const targets = cache.contactRequests
+        .filter((entry) => entry && typeof entry === "object")
+        .map((entry) => {
+            const normalizedEntryId = normalizeContactRequestId(entry.id);
+            const normalizedEntryStatus = normalizeContactRequestStatus(entry.status);
+            return normalizedEntryId === null
+                ? null
+                : {
+                    id: normalizedEntryId,
+                    status: normalizedEntryStatus
+                };
+        })
+        .filter((entry) => entry && entry.status === fromStatus);
     if (!targets.length) {
         alert("Немає звернень для масового оновлення.");
         return;
     }
 
     try {
-        await Promise.all(targets.map((entry) => adapter.updateContactRequestStatus(entry.id, toStatus)));
+        await Promise.all(targets.map((entry) => updateContactRequestStatusMethod.call(adapter, entry.id, toStatus)));
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         if (currentSection !== sectionAtBulkUpdate) return;
         if (currentSection !== "contacts") return;
-        const nextContactRequests = await adapter.getContactRequests();
+        const nextContactRequests = await getContactRequestsMethod.call(adapter);
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         if (currentSection !== sectionAtBulkUpdate) return;
         if (currentSection !== "contacts") return;
@@ -2949,10 +3031,18 @@ function openModal(type, id) {
         return;
     }
     const collection = `${type}s`;
+    const collectionItems = Array.isArray(cache[collection]) ? cache[collection] : [];
 
     let item = {};
     if (hasDefinedEntityId(editingId)) {
-        item = (cache[collection] || []).find((entry) => Number(entry.id) === Number(editingId)) || {};
+        const matchedItem = collectionItems.find((entry) => {
+            if (!entry || typeof entry !== "object") return false;
+            const entryId = normalizeEntityId(entry.id);
+            if (!hasUsableEntityId(entryId)) return false;
+            return Number(entryId) === Number(editingId);
+        });
+        if (!matchedItem) return;
+        item = matchedItem;
         title.textContent = "Редагувати " + getTypeName(type);
     } else {
         title.textContent = "Додати " + getTypeName(type);
@@ -2975,6 +3065,28 @@ function closeModal() {
     editingType = null;
 }
 
+const MAX_UPLOAD_IMAGE_BYTES = 500 * 1024;
+const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
+
+function hasSupportedUploadImageType(file) {
+    if (!file || typeof file.type !== "string") return false;
+    const normalizedType = file.type.toLowerCase();
+    return SUPPORTED_UPLOAD_IMAGE_TYPES.includes(normalizedType);
+}
+
+function hasSupportedUploadImageExtension(file) {
+    if (!file || typeof file.name !== "string") return false;
+    const normalizedName = file.name.trim().toLowerCase();
+    if (!normalizedName) return false;
+    const ext = normalizedName.split(".").pop();
+    return !!ext && SUPPORTED_UPLOAD_IMAGE_EXTENSIONS.includes(ext);
+}
+
+function isSupportedUploadImage(file) {
+    return hasSupportedUploadImageType(file) || hasSupportedUploadImageExtension(file);
+}
+
 function handleFileUpload(input) {
     const sectionAtUpload = currentSection;
     if (!input || input.isConnected === false) return;
@@ -2985,9 +3097,19 @@ function handleFileUpload(input) {
     if (!files || files.length === 0) return;
     const file = files[0];
     if (!file) return;
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (typeof file.size !== "number" || !Number.isFinite(file.size) || file.size < 0) {
+        if (currentSection === sectionAtUpload) {
+            if (sectionEl && sectionEl.isConnected) {
+                alert("Не вдалося визначити розмір файлу.");
+            }
+        }
+        if (input.isConnected) {
+            input.value = "";
+        }
+        return;
+    }
 
-    if (!allowedTypes.includes(file.type)) {
+    if (!isSupportedUploadImage(file)) {
         if (currentSection === sectionAtUpload) {
             if (sectionEl && sectionEl.isConnected) {
                 alert("Непідтримуваний формат. Дозволено JPG, PNG, WEBP, GIF.");
@@ -2999,7 +3121,7 @@ function handleFileUpload(input) {
         return;
     }
 
-    if (file.size > 500 * 1024) {
+    if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
         if (currentSection === sectionAtUpload) {
             if (sectionEl && sectionEl.isConnected) {
                 alert("Файл занадто великий. Максимальний розмір: 500KB");
@@ -3042,44 +3164,67 @@ function handleFileUpload(input) {
 }
 
 function generateFields(type, item) {
-    const imagePreview = item.image ? `<img src="${item.image}" class="image-preview preview-img mt-2 rounded ${type === 'artist' ? 'w-24 h-24 object-cover' : (type === 'event' ? 'h-32 w-full object-cover' : '')}" style="max-height: 200px;">` : '<img src="" class="image-preview preview-img mt-2 rounded hidden" style="max-height: 200px;">';
+    const sourceItem = item && typeof item === "object" ? item : {};
+    const normalizeFieldValue = (value, fallback = "") => sanitizeInput(value ?? fallback);
+    const rawGenre = typeof sourceItem.genre === "string" ? sourceItem.genre : "";
+    const imageValue = normalizeFieldValue(sourceItem.image);
+
+    const fieldValues = {
+        title: normalizeFieldValue(sourceItem.title),
+        artist: normalizeFieldValue(sourceItem.artist),
+        genre: normalizeFieldValue(rawGenre),
+        year: normalizeFieldValue(sourceItem.year, "2024"),
+        link: normalizeFieldValue(sourceItem.link, "#"),
+        image: imageValue,
+        name: normalizeFieldValue(sourceItem.name),
+        instagram: normalizeFieldValue(sourceItem.instagram),
+        soundcloud: normalizeFieldValue(sourceItem.soundcloud),
+        bio: normalizeFieldValue(sourceItem.bio),
+        date: normalizeFieldValue(sourceItem.date),
+        time: normalizeFieldValue(sourceItem.time),
+        venue: normalizeFieldValue(sourceItem.venue),
+        description: normalizeFieldValue(sourceItem.description),
+        ticketLink: normalizeFieldValue(sourceItem.ticketLink || sourceItem.ticket_link)
+    };
+
+    const imagePreview = imageValue ? `<img src="${imageValue}" class="image-preview preview-img mt-2 rounded ${type === 'artist' ? 'w-24 h-24 object-cover' : (type === 'event' ? 'h-32 w-full object-cover' : '')}" style="max-height: 200px;">` : '<img src="" class="image-preview preview-img mt-2 rounded hidden" style="max-height: 200px;">';
     
     const fields = {
         release: `
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Назва релізу</label>
-                <input type="text" name="title" value="${item.title || ''}" class="form-input w-full p-3 rounded" required>
+                <input type="text" name="title" value="${fieldValues.title}" class="form-input w-full p-3 rounded" required>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Артист</label>
-                    <input type="text" name="artist" value="${item.artist || ''}" class="form-input w-full p-3 rounded" required>
+                    <input type="text" name="artist" value="${fieldValues.artist}" class="form-input w-full p-3 rounded" required>
                 </div>
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Жанр</label>
                     <select name="genre" class="form-input w-full p-3 rounded">
-                        <option value="Neurofunk" ${item.genre === 'Neurofunk' ? 'selected' : ''}>Neurofunk</option>
-                        <option value="Techstep" ${item.genre === 'Techstep' ? 'selected' : ''}>Techstep</option>
-                        <option value="Breakbeat" ${item.genre === 'Breakbeat' ? 'selected' : ''}>Breakbeat</option>
-                        <option value="DnB" ${item.genre === 'DnB' ? 'selected' : ''}>DnB</option>
-                        <option value="Darkstep" ${item.genre === 'Darkstep' ? 'selected' : ''}>Darkstep</option>
+                        <option value="Neurofunk" ${rawGenre === 'Neurofunk' ? 'selected' : ''}>Neurofunk</option>
+                        <option value="Techstep" ${rawGenre === 'Techstep' ? 'selected' : ''}>Techstep</option>
+                        <option value="Breakbeat" ${rawGenre === 'Breakbeat' ? 'selected' : ''}>Breakbeat</option>
+                        <option value="DnB" ${rawGenre === 'DnB' ? 'selected' : ''}>DnB</option>
+                        <option value="Darkstep" ${rawGenre === 'Darkstep' ? 'selected' : ''}>Darkstep</option>
                     </select>
                 </div>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Рік</label>
-                    <input type="text" name="year" value="${item.year || '2024'}" class="form-input w-full p-3 rounded">
+                    <input type="text" name="year" value="${fieldValues.year}" class="form-input w-full p-3 rounded">
                 </div>
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Посилання</label>
-                    <input type="text" name="link" value="${item.link || '#'}" class="form-input w-full p-3 rounded">
+                    <input type="text" name="link" value="${fieldValues.link}" class="form-input w-full p-3 rounded">
                 </div>
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Зображення</label>
                 <div class="flex gap-2 mb-2">
-                    <input type="text" name="image" value="${item.image || ''}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
+                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
                     <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                         <i data-lucide="upload" class="w-4 h-4"></i>
                         <span>Файл</span>
@@ -3093,78 +3238,78 @@ function generateFields(type, item) {
         artist: `
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Ім'я артиста</label>
-                <input type="text" name="name" value="${item.name || ''}" class="form-input w-full p-3 rounded" required>
+                <input type="text" name="name" value="${fieldValues.name}" class="form-input w-full p-3 rounded" required>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Жанр</label>
-                    <input type="text" name="genre" value="${item.genre || ''}" class="form-input w-full p-3 rounded">
+                    <input type="text" name="genre" value="${fieldValues.genre}" class="form-input w-full p-3 rounded">
                 </div>
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Instagram</label>
-                    <input type="text" name="instagram" value="${item.instagram || ''}" class="form-input w-full p-3 rounded" placeholder="@username">
+                    <input type="text" name="instagram" value="${fieldValues.instagram}" class="form-input w-full p-3 rounded" placeholder="@username">
                 </div>
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">SoundCloud</label>
-                <input type="text" name="soundcloud" value="${item.soundcloud || ''}" class="form-input w-full p-3 rounded" placeholder="URL">
+                <input type="text" name="soundcloud" value="${fieldValues.soundcloud}" class="form-input w-full p-3 rounded" placeholder="URL">
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Біографія</label>
-                <textarea name="bio" rows="3" class="form-input w-full p-3 rounded">${item.bio || ''}</textarea>
+                <textarea name="bio" rows="3" class="form-input w-full p-3 rounded">${fieldValues.bio}</textarea>
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Фото</label>
                 <div class="flex gap-2 mb-2">
-                    <input type="text" name="image" value="${item.image || ''}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
+                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
                     <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                         <i data-lucide="upload" class="w-4 h-4"></i>
                         <span>Файл</span>
                         <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(this)">
                     </label>
                 </div>
-                <img src="${item.image || ''}" class="image-preview preview-img mt-2 rounded w-24 h-24 object-cover ${item.image ? '' : 'hidden'}">
+                <img src="${fieldValues.image}" class="image-preview preview-img mt-2 rounded w-24 h-24 object-cover ${fieldValues.image ? '' : 'hidden'}">
                 <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Рекомендовано: квадратне фото</p>
             </div>
         `,
         event: `
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Назва події</label>
-                <input type="text" name="title" value="${item.title || ''}" class="form-input w-full p-3 rounded" required>
+                <input type="text" name="title" value="${fieldValues.title}" class="form-input w-full p-3 rounded" required>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Дата</label>
-                    <input type="date" name="date" value="${item.date || ''}" class="form-input w-full p-3 rounded" required>
+                    <input type="date" name="date" value="${fieldValues.date}" class="form-input w-full p-3 rounded" required>
                 </div>
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Час</label>
-                    <input type="time" name="time" value="${item.time || ''}" class="form-input w-full p-3 rounded">
+                    <input type="time" name="time" value="${fieldValues.time}" class="form-input w-full p-3 rounded">
                 </div>
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Місце проведення</label>
-                <input type="text" name="venue" value="${item.venue || ''}" class="form-input w-full p-3 rounded" placeholder="Місто, Клуб">
+                <input type="text" name="venue" value="${fieldValues.venue}" class="form-input w-full p-3 rounded" placeholder="Місто, Клуб">
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Опис</label>
-                <textarea name="description" rows="3" class="form-input w-full p-3 rounded">${item.description || ''}</textarea>
+                <textarea name="description" rows="3" class="form-input w-full p-3 rounded">${fieldValues.description}</textarea>
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Посилання на квитки</label>
-                <input type="url" name="ticketLink" value="${item.ticketLink || item.ticket_link || ''}" class="form-input w-full p-3 rounded" placeholder="https://...">
+                <input type="url" name="ticketLink" value="${fieldValues.ticketLink}" class="form-input w-full p-3 rounded" placeholder="https://...">
             </div>
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Зображення</label>
                 <div class="flex gap-2 mb-2">
-                    <input type="text" name="image" value="${item.image || ''}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
+                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
                     <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                         <i data-lucide="upload" class="w-4 h-4"></i>
                         <span>Файл</span>
                         <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(this)">
                     </label>
                 </div>
-                <img src="${item.image || ''}" class="image-preview preview-img mt-2 rounded h-32 w-full object-cover ${item.image ? '' : 'hidden'}">
+                <img src="${fieldValues.image}" class="image-preview preview-img mt-2 rounded h-32 w-full object-cover ${fieldValues.image ? '' : 'hidden'}">
                 <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Рекомендовано: 640x360 або 16:9</p>
             </div>
         `
@@ -3213,6 +3358,7 @@ if (modalFormEl && modalFormEl.isConnected) {
         const editingTypeAtSubmit = editingType;
         if (!isSupportedEntityType(editingTypeAtSubmit)) return;
         const editingIdAtSubmit = normalizeEntityId(editingId);
+        if (hasDefinedEntityId(editingIdAtSubmit) && !hasUsableEntityId(editingIdAtSubmit)) return;
         const isEditMode = hasUsableEntityId(editingIdAtSubmit);
 
         const formEl = e.target;
@@ -3224,11 +3370,27 @@ if (modalFormEl && modalFormEl.isConnected) {
             item[key] = sanitizeInput(value);
         });
 
+        const updateItemMethod = getAdapterMethod("updateItem");
+        const createItemMethod = getAdapterMethod("createItem");
+        if ((isEditMode && !updateItemMethod) || (!isEditMode && !createItemMethod)) {
+            console.warn("Adapter CRUD method is unavailable", {
+                isEditMode,
+                hasUpdateItem: !!updateItemMethod,
+                hasCreateItem: !!createItemMethod
+            });
+            if (sectionNavigationSeq !== navigationSeqAtSubmit) return;
+            if (currentSection !== sectionAtSubmit) return;
+            const sectionEl = document.getElementById(`section-${sectionAtSubmit}`);
+            if (!sectionEl || !sectionEl.isConnected) return;
+            alert("Не вдалося виконати збереження: відсутній метод adapter.");
+            return;
+        }
+
         try {
             if (isEditMode) {
-                await adapter.updateItem(editingTypeAtSubmit, editingIdAtSubmit, item);
+                await updateItemMethod.call(adapter, editingTypeAtSubmit, editingIdAtSubmit, item);
             } else {
-                await adapter.createItem(editingTypeAtSubmit, item);
+                await createItemMethod.call(adapter, editingTypeAtSubmit, item);
             }
 
             if (sectionNavigationSeq !== navigationSeqAtSubmit) return;
@@ -3278,9 +3440,18 @@ async function deleteItem(type, id) {
     const navigationSeqAtDelete = sectionNavigationSeq;
     const typeName = getTypeName(type);
     if (!confirm("Ви впевнені, що хочете видалити цей запис?")) return;
+    const deleteItemMethod = getAdapterMethod("deleteItem");
+    if (!deleteItemMethod) {
+        console.warn("Adapter deleteItem method is unavailable");
+        if (currentSection !== sectionAtDelete) return;
+        const sectionEl = document.getElementById(`section-${sectionAtDelete}`);
+        if (!sectionEl || !sectionEl.isConnected) return;
+        alert("Не вдалося видалити запис: відсутній метод adapter.");
+        return;
+    }
 
     try {
-        await adapter.deleteItem(type, normalizedId);
+        await deleteItemMethod.call(adapter, type, normalizedId);
         if (sectionNavigationSeq !== navigationSeqAtDelete) return;
         if (currentSection !== sectionAtDelete) return;
         const sectionEl = document.getElementById(`section-${sectionAtDelete}`);
@@ -3307,7 +3478,7 @@ async function deleteItem(type, id) {
 async function saveSettings(options = {}) {
     const sectionAtSave = currentSection;
     const navigationSeqAtSave = sectionNavigationSeq;
-    const { notifySuccess = true } = options;
+    const { notifySuccess } = normalizeSaveSettingsOptions(options);
     const titleInputEl = document.getElementById("setting-title");
     const aboutInputEl = document.getElementById("setting-about");
     const missionInputEl = document.getElementById("setting-mission");
@@ -3346,8 +3517,19 @@ async function saveSettings(options = {}) {
         auditLatencyWarnMaxMs: warnMax
     };
 
+    const saveCollectionMethod = getAdapterMethod("saveCollection");
+    if (!saveCollectionMethod) {
+        console.warn("Adapter saveCollection method is unavailable during settings save");
+        if (currentSection !== sectionAtSave) return false;
+        if (currentSection !== "settings") return false;
+        const settingsSectionEl = document.getElementById("section-settings");
+        if (!settingsSectionEl || !settingsSectionEl.isConnected) return false;
+        alert("Не вдалося зберегти налаштування: відсутній метод adapter.");
+        return false;
+    }
+
     try {
-        await adapter.saveCollection("settings", settings);
+        await saveCollectionMethod.call(adapter, "settings", settings);
         if (sectionNavigationSeq !== navigationSeqAtSave) return false;
         cache.settings = settings;
         applyAuditLatencyThresholds(settings);
@@ -3379,6 +3561,16 @@ async function saveSettings(options = {}) {
     }
 }
 
+function normalizeSaveSettingsOptions(options) {
+    if (!options || typeof options !== "object") {
+        return { notifySuccess: true };
+    }
+
+    return {
+        notifySuccess: options.notifySuccess !== false
+    };
+}
+
 function resetAuditLatencyThresholdsForm() {
     const sectionAtReset = currentSection;
     const goodEl = document.getElementById("setting-audit-latency-good-max");
@@ -3405,6 +3597,20 @@ function resetAuditLatencyThresholdsForm() {
 function resetData() {
     if (resetDataInProgress) return;
     if (!confirm("УВАГА! Це скине локальні fallback-дані. Продовжити?")) return;
+    const canUseLocalStorage = typeof localStorage !== "undefined" && typeof localStorage.removeItem === "function";
+    const canEnsureLocalDefaults = !!adapter && typeof adapter.ensureLocalDefaults === "function";
+    const canReloadPage = typeof location !== "undefined" && typeof location.reload === "function";
+
+    if (!canUseLocalStorage || !canEnsureLocalDefaults || !canReloadPage) {
+        console.warn("Reset data preflight failed", {
+            canUseLocalStorage,
+            canEnsureLocalDefaults,
+            canReloadPage
+        });
+        alert("Не вдалося виконати скидання в поточному середовищі.");
+        return;
+    }
+
     resetDataInProgress = true;
     try {
         localStorage.removeItem("core64_data");
@@ -3421,10 +3627,13 @@ function resetData() {
 function addActivity(text) {
     const log = document.getElementById("activity-log");
     if (!log || !log.isConnected) return;
+    if (text === null || text === undefined) return;
+    const safeText = sanitizeInput(String(text));
+    if (!safeText.trim()) return;
     const time = new Date().toLocaleTimeString("uk-UA");
     const entry = document.createElement("div");
     entry.className = "flex gap-2 text-sm";
-    entry.innerHTML = `<span class="text-cyan-400">[${time}]</span> <span class="text-gray-300">${sanitizeInput(text)}</span>`;
+    entry.innerHTML = `<span class="text-cyan-400">[${time}]</span> <span class="text-gray-300">${safeText}</span>`;
     if (!log.isConnected) return;
     log.insertBefore(entry, log.firstChild);
 }
