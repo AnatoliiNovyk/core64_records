@@ -1,6 +1,8 @@
 // CORE64 Records - Public site logic with API-first data access.
 
 const adapter = window.Core64DataAdapter;
+let sponsorCarouselAutoplayTimer = null;
+let sponsorCarouselVisibilityListenerBound = false;
 
 function showPublicApiStatus(message) {
     const statusEl = document.getElementById("public-api-status");
@@ -211,6 +213,137 @@ function renderEvents(data) {
     }).join("");
 }
 
+function getSponsorsCarouselStep(trackEl) {
+    if (!trackEl) return 320;
+    const firstCard = trackEl.firstElementChild;
+    const cardWidth = firstCard ? firstCard.getBoundingClientRect().width : 280;
+    const styles = window.getComputedStyle(trackEl);
+    const gap = Number.parseFloat(styles.columnGap || styles.gap || "0") || 0;
+    return Math.max(240, Math.round(cardWidth + gap));
+}
+
+function sponsorCarouselStep(direction = 1) {
+    const trackEl = document.getElementById("sponsors-track");
+    if (!trackEl) return;
+    const step = getSponsorsCarouselStep(trackEl);
+    const maxScroll = Math.max(0, trackEl.scrollWidth - trackEl.clientWidth);
+    const movingForward = direction >= 0;
+
+    if (movingForward && trackEl.scrollLeft >= maxScroll - 4) {
+        trackEl.scrollTo({ left: 0, behavior: "smooth" });
+        return;
+    }
+
+    if (!movingForward && trackEl.scrollLeft <= 4) {
+        trackEl.scrollTo({ left: maxScroll, behavior: "smooth" });
+        return;
+    }
+
+    trackEl.scrollBy({ left: step * direction, behavior: "smooth" });
+}
+
+function stopSponsorsAutoplay() {
+    if (sponsorCarouselAutoplayTimer) {
+        clearInterval(sponsorCarouselAutoplayTimer);
+        sponsorCarouselAutoplayTimer = null;
+    }
+}
+
+function startSponsorsAutoplay() {
+    stopSponsorsAutoplay();
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const trackEl = document.getElementById("sponsors-track");
+    if (!trackEl || trackEl.children.length < 2) return;
+
+    sponsorCarouselAutoplayTimer = setInterval(() => {
+        sponsorCarouselStep(1);
+    }, 3200);
+}
+
+function setupSponsorsCarousel() {
+    const trackEl = document.getElementById("sponsors-track");
+    if (!trackEl) return;
+
+    trackEl.onmouseenter = stopSponsorsAutoplay;
+    trackEl.onmouseleave = startSponsorsAutoplay;
+    trackEl.onfocusin = stopSponsorsAutoplay;
+    trackEl.onfocusout = startSponsorsAutoplay;
+    if (!sponsorCarouselVisibilityListenerBound) {
+        sponsorCarouselVisibilityListenerBound = true;
+        document.addEventListener("visibilitychange", () => {
+            if (document.hidden) {
+                stopSponsorsAutoplay();
+                return;
+            }
+            startSponsorsAutoplay();
+        });
+    }
+    startSponsorsAutoplay();
+}
+
+function renderSponsors(data) {
+    const track = document.getElementById("sponsors-track");
+    if (!track) return;
+
+    const sponsors = [...(data.sponsors || [])].sort((a, b) => {
+        const left = Number(a.sortOrder ?? a.sort_order ?? 0);
+        const right = Number(b.sortOrder ?? b.sort_order ?? 0);
+        return left - right;
+    });
+
+    if (!sponsors.length) {
+        track.innerHTML = `
+            <div class="w-full min-h-[180px] border border-yellow-500/25 rounded-xl bg-black/30 grid place-items-center text-center text-gray-400 p-6">
+                Партнерська секція оновлюється
+            </div>
+        `;
+        stopSponsorsAutoplay();
+        return;
+    }
+
+    track.innerHTML = sponsors.map((sponsor) => {
+        const sponsorName = sponsor.name || "Партнер";
+        const sponsorDescription = sponsor.shortDescription || sponsor.short_description || "Надійна підтримка лейблу";
+        const sponsorLogo = sponsor.logo || "";
+        const sponsorLink = sponsor.link || "#";
+        const cardContent = `
+            <div class="h-28 mb-4 rounded-lg border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
+                <img src="${sponsorLogo}" alt="${sponsorName}" class="h-full w-full object-contain" loading="lazy">
+            </div>
+            <h3 class="text-xl font-bold text-white truncate">${sponsorName}</h3>
+            <p class="text-sm text-gray-300 mt-1">${sponsorDescription}</p>
+        `;
+
+        if (!sponsorLink || sponsorLink === "#") {
+            return `
+                <article class="snap-start shrink-0 w-[280px] p-5 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35">
+                    ${cardContent}
+                </article>
+            `;
+        }
+
+        return `
+            <a href="${sponsorLink}" target="_blank" rel="noopener noreferrer" class="snap-start shrink-0 w-[280px] p-5 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35 hover:border-yellow-400/55 transition-colors block">
+                ${cardContent}
+            </a>
+        `;
+    }).join("");
+
+    setupSponsorsCarousel();
+}
+
+function sponsorCarouselPrev() {
+    sponsorCarouselStep(-1);
+}
+
+function sponsorCarouselNext() {
+    sponsorCarouselStep(1);
+}
+
+window.sponsorCarouselPrev = sponsorCarouselPrev;
+window.sponsorCarouselNext = sponsorCarouselNext;
+
 function showTicketInfo() {
     alert("Квитки скоро будуть доступні. Напишіть нам через форму внизу сторінки.");
 }
@@ -348,6 +481,7 @@ async function bootstrap() {
         renderReleases(data);
         renderArtists(data);
         renderEvents(data);
+        renderSponsors(data);
         loadAbout(data.settings || {});
         applyHeroSocialLinks(data.settings || {});
     } catch (error) {
@@ -361,6 +495,7 @@ async function bootstrap() {
         renderReleases(fallback);
         renderArtists(fallback);
         renderEvents(fallback);
+        renderSponsors(fallback);
         loadAbout(fallback.settings);
         applyHeroSocialLinks(fallback.settings);
     }

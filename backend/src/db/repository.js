@@ -12,6 +12,10 @@ const tableConfig = {
   events: {
     table: "events",
     columns: ["title", "date", "time", "venue", "description", "image", "ticket_link"]
+  },
+  sponsors: {
+    table: "sponsors",
+    columns: ["name", "short_description", "logo", "link", "sort_order"]
   }
 };
 
@@ -79,6 +83,13 @@ function fromDbRow(type, row) {
   if (type === "events") {
     return { ...row, ticketLink: row.ticket_link };
   }
+  if (type === "sponsors") {
+    return {
+      ...row,
+      shortDescription: row.short_description || "",
+      sortOrder: Number.isFinite(Number(row.sort_order)) ? Number(row.sort_order) : 0
+    };
+  }
   return row;
 }
 
@@ -86,12 +97,15 @@ function toDbValue(key, value) {
   if (key === "ticketLink") return ["ticket_link", value || ""];
   if (key === "releaseType") return ["release_type", value || "single"];
   if (key === "releaseDate") return ["release_date", normalizeIsoDate(value)];
+  if (key === "shortDescription") return ["short_description", value || ""];
+  if (key === "sortOrder") return ["sort_order", Number.isFinite(Number(value)) ? Number(value) : 0];
   return [key, value];
 }
 
 export async function listByType(type) {
   const config = tableConfig[type];
-  const result = await pool.query(`SELECT * FROM ${config.table} ORDER BY id ASC`);
+  const orderClause = type === "sponsors" ? "ORDER BY sort_order ASC, id ASC" : "ORDER BY id ASC";
+  const result = await pool.query(`SELECT * FROM ${config.table} ${orderClause}`);
   return result.rows.map((row) => fromDbRow(type, row));
 }
 
@@ -103,8 +117,12 @@ export async function createByType(type, payload) {
       ? "ticketLink"
       : (column === "release_type"
         ? "releaseType"
-        : (column === "release_date" ? "releaseDate" : column));
-    return normalizedPayload[payloadKey] || "";
+        : (column === "release_date"
+          ? "releaseDate"
+          : (column === "short_description"
+            ? "shortDescription"
+            : (column === "sort_order" ? "sortOrder" : column))));
+    return normalizedPayload[payloadKey] ?? "";
   });
 
   const placeholders = mapped.map((_, index) => `$${index + 1}`).join(", ");

@@ -125,6 +125,10 @@
                 <i data-lucide="calendar" class="w-5 h-5"></i>
                 <span>Події</span>
             </button>
+            <button onclick="showSection('sponsors')" class="nav-item w-full text-left px-6 py-3 flex items-center gap-3 text-gray-400 hover:text-cyan-400">
+                <i data-lucide="handshake" class="w-5 h-5"></i>
+                <span>Спонсори</span>
+            </button>
             <button onclick="showSection('settings')" class="nav-item w-full text-left px-6 py-3 flex items-center gap-3 text-gray-400 hover:text-cyan-400">
                 <i data-lucide="settings" class="w-5 h-5"></i>
                 <span>Налаштування</span>
@@ -259,6 +263,21 @@
                 
                 <div id="events-list-admin" class="space-y-4">
                     <!-- Events loaded here -->
+                </div>
+            </div>
+
+            <!-- Sponsors -->
+            <div id="section-sponsors" class="section-content hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-yellow-300">Спонсори, Партнери та Друзі</h2>
+                    <button onclick="openModal('sponsor')" class="btn-cyan px-6 py-2 rounded flex items-center gap-2">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                        Додати партнера
+                    </button>
+                </div>
+
+                <div id="sponsors-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Sponsors loaded here -->
                 </div>
             </div>
 

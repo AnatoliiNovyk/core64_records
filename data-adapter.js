@@ -102,6 +102,32 @@
                 ticketLink: ""
             }
         ],
+        sponsors: [
+            {
+                id: 1,
+                name: "BassLab Audio",
+                shortDescription: "Студія мастерингу лейблу",
+                logo: "http://static.photos/technology/640x360/31",
+                link: "#",
+                sortOrder: 1
+            },
+            {
+                id: 2,
+                name: "NightPulse Agency",
+                shortDescription: "Подієвий партнер сцени",
+                logo: "http://static.photos/nightlife/640x360/32",
+                link: "#",
+                sortOrder: 2
+            },
+            {
+                id: 3,
+                name: "DnB Family UA",
+                shortDescription: "Друзі з комʼюніті",
+                logo: "http://static.photos/people/640x360/33",
+                link: "#",
+                sortOrder: 3
+            }
+        ],
         settings: {
             title: "CORE64 Records",
             about: "CORE64 Records — незалежний музичний лейбл, заснований у 2024 році. Ми спеціалізуємося на найважчих жанрах електронної музики: Neurofunk, Techstep, Darkstep та Breakbeat.",
@@ -147,6 +173,7 @@
                 releases: parsed.releases || [],
                 artists: parsed.artists || [],
                 events: parsed.events || [],
+                sponsors: parsed.sponsors || [],
                 settings: {
                     ...deepClone(DEFAULT_DATA.settings),
                     ...(parsed.settings || {})

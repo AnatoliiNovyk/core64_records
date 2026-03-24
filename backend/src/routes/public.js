@@ -5,10 +5,11 @@ const router = Router();
 
 router.get("/public", async (_req, res, next) => {
   try {
-    const [releases, artists, events, settings] = await Promise.all([
+    const [releases, artists, events, sponsors, settings] = await Promise.all([
       listByType("releases"),
       listByType("artists"),
       listByType("events"),
+      listByType("sponsors"),
       getSettings()
     ]);
 
@@ -17,6 +18,7 @@ router.get("/public", async (_req, res, next) => {
         releases,
         artists,
         events,
+        sponsors,
         settings
       }
     });

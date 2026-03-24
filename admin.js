@@ -11,6 +11,7 @@ let cache = {
     releases: [],
     artists: [],
     events: [],
+    sponsors: [],
     settings: {},
     contactRequests: [],
     auditLogs: [],
@@ -2068,6 +2069,8 @@ async function showSection(section) {
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
         if (section === "events") await loadEvents();
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
+        if (section === "sponsors") await loadSponsors();
+        if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
         if (section === "settings") await loadSettings();
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
         if (section === "contacts") await loadContacts();
@@ -2176,6 +2179,10 @@ async function refreshCache() {
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
+    const sponsors = await getCollectionMethod.call(adapter, "sponsors");
+    if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
+    if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
+    if (!dashboardSectionEl.isConnected) return;
     const settings = await getCollectionMethod.call(adapter, "settings");
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
@@ -2187,6 +2194,7 @@ async function refreshCache() {
     cache.releases = normalizeRecordArray(releases);
     cache.artists = normalizeRecordArray(artists);
     cache.events = normalizeRecordArray(events);
+    cache.sponsors = normalizeRecordArray(sponsors);
     cache.settings = normalizeRecordObject(settings);
 }
 
@@ -2379,6 +2387,73 @@ async function loadEvents() {
                 </div>
                 <div class="flex gap-2 w-full md:w-auto">
                     <button ${editActionAttr} ${disableActionAttr} class="flex-1 md:flex-none px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm disabled:opacity-50">Редагувати</button>
+                    <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    if (window.lucide) lucide.createIcons();
+}
+
+async function loadSponsors() {
+    const sectionAtLoad = currentSection;
+    const navigationSeqAtLoad = sectionNavigationSeq;
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during loadSponsors");
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "sponsors") return;
+        const sponsorsSectionEl = document.getElementById("section-sponsors");
+        if (!sponsorsSectionEl || !sponsorsSectionEl.isConnected) return;
+        alert("Не вдалося завантажити партнерів: відсутній метод adapter.");
+        return;
+    }
+
+    const nextSponsors = await getCollectionMethod.call(adapter, "sponsors");
+    if (sectionNavigationSeq !== navigationSeqAtLoad) return;
+    if (currentSection !== sectionAtLoad) return;
+    if (currentSection !== "sponsors") return;
+
+    const sponsors = normalizeRecordArray(nextSponsors).sort((left, right) => {
+        const leftOrder = Number(left.sortOrder ?? left.sort_order ?? 0);
+        const rightOrder = Number(right.sortOrder ?? right.sort_order ?? 0);
+        return leftOrder - rightOrder;
+    });
+    cache.sponsors = sponsors;
+
+    const sponsorsSectionEl = document.getElementById("section-sponsors");
+    if (!sponsorsSectionEl || !sponsorsSectionEl.isConnected) return;
+    const container = document.getElementById("sponsors-list");
+    if (!container || !container.isConnected) return;
+
+    container.innerHTML = sponsors.map((sponsor) => {
+        const safeName = sanitizeInput(sponsor.name || "-");
+        const safeDescription = sanitizeInput(sponsor.shortDescription || sponsor.short_description || "-");
+        const safeLogo = sanitizeInput(sponsor.logo || "");
+        const safeLink = sanitizeInput(sponsor.link || "#");
+        const safeOrder = sanitizeInput(String(sponsor.sortOrder ?? sponsor.sort_order ?? 0));
+        const idArg = serializeInlineEntityIdArg(sponsor.id);
+        const disableActionAttr = idArg === null ? "disabled" : "";
+        const editActionAttr = idArg === null ? "" : `onclick="editItem('sponsor', ${idArg})"`;
+        const deleteActionAttr = idArg === null ? "" : `onclick="deleteItem('sponsor', ${idArg})"`;
+        const linkMarkup = safeLink && safeLink !== "#"
+            ? `<a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="text-xs text-cyan-300 hover:text-cyan-200 break-all">${safeLink}</a>`
+            : `<span class="text-xs text-gray-500">Без посилання</span>`;
+
+        return `
+            <div class="card p-4 rounded relative group">
+                <div class="h-24 rounded border border-yellow-500/20 bg-black/40 flex items-center justify-center p-2 overflow-hidden mb-3">
+                    <img src="${safeLogo}" class="w-full h-full object-contain" alt="${safeName}">
+                </div>
+                <h4 class="font-bold text-white truncate">${safeName}</h4>
+                <p class="text-yellow-300 text-xs uppercase mt-1">Порядок: ${safeOrder}</p>
+                <p class="text-gray-400 text-sm mt-2">${safeDescription}</p>
+                <div class="mt-2">${linkMarkup}</div>
+                <div class="flex gap-2 mt-4">
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">Редагувати</button>
                     <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
@@ -3911,7 +3986,10 @@ function generateFields(type, item) {
         releaseDate: normalizeFieldValue(rawReleaseDate),
         link: normalizeFieldValue(sourceItem.link, "#"),
         image: imageValue,
+        logo: normalizeFieldValue(sourceItem.logo),
         name: normalizeFieldValue(sourceItem.name),
+        shortDescription: normalizeFieldValue(sourceItem.shortDescription || sourceItem.short_description),
+        sortOrder: normalizeFieldValue(sourceItem.sortOrder ?? sourceItem.sort_order, "0"),
         instagram: normalizeFieldValue(sourceItem.instagram),
         soundcloud: normalizeFieldValue(sourceItem.soundcloud),
         bio: normalizeFieldValue(sourceItem.bio),
@@ -4055,6 +4133,36 @@ function generateFields(type, item) {
                 <img src="${fieldValues.image}" class="image-preview preview-img mt-2 rounded h-32 w-full object-cover ${fieldValues.image ? '' : 'hidden'}">
                 <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Рекомендовано: 640x360 або 16:9</p>
             </div>
+        `,
+        sponsor: `
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">Назва</label>
+                <input type="text" name="name" value="${fieldValues.name}" class="form-input w-full p-3 rounded" required>
+            </div>
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">Короткий опис (3-5 слів)</label>
+                <input type="text" name="shortDescription" value="${fieldValues.shortDescription}" class="form-input w-full p-3 rounded" placeholder="Підтримка андерграунд музики" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">URL логотипа</label>
+                    <input type="url" name="logo" value="${fieldValues.logo}" class="form-input w-full p-3 rounded" placeholder="https://..." required>
+                </div>
+                <div>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">Порядок у каруселі</label>
+                    <input type="number" min="0" max="9999" step="1" name="sortOrder" value="${fieldValues.sortOrder}" class="form-input w-full p-3 rounded" required>
+                </div>
+            </div>
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">Посилання (опціонально)</label>
+                <input type="url" name="link" value="${fieldValues.link}" class="form-input w-full p-3 rounded" placeholder="https://...">
+            </div>
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">Превʼю логотипа</label>
+                <div class="h-28 rounded border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
+                    <img src="${fieldValues.logo}" class="w-full h-full object-contain ${fieldValues.logo ? '' : 'hidden'}" alt="logo preview">
+                </div>
+            </div>
         `
     };
     
@@ -4062,7 +4170,7 @@ function generateFields(type, item) {
 }
 
 function getTypeName(type) {
-    const names = { release: "реліз", artist: "артиста", event: "подію" };
+    const names = { release: "реліз", artist: "артиста", event: "подію", sponsor: "партнера" };
     return names[type] || type;
 }
 
@@ -4084,7 +4192,7 @@ function getReleaseTypeLabel(value) {
     return option ? option.label : "Сингл";
 }
 
-const SUPPORTED_ENTITY_TYPES = ["release", "artist", "event"];
+const SUPPORTED_ENTITY_TYPES = ["release", "artist", "event", "sponsor"];
 
 function isSupportedEntityType(type) {
     return typeof type === "string" && SUPPORTED_ENTITY_TYPES.includes(type);
@@ -4139,6 +4247,19 @@ function normalizeCrudFormFieldValue(entityType, key, value) {
         return normalizeIsoDateFilter(rawValue) || sanitizedValue;
     }
 
+    if (entityType === "sponsor" && key === "shortDescription") {
+        return sanitizedValue.replace(/\s+/g, " ").trim();
+    }
+
+    if (entityType === "sponsor" && key === "sortOrder") {
+        const numericOrder = Number(rawValue);
+        return clampBoundedInteger(numericOrder, {
+            fallback: 0,
+            min: 0,
+            max: 9999
+        });
+    }
+
     return sanitizedValue;
 }
 
@@ -4159,6 +4280,16 @@ function buildCrudItemFromFormData(entityType, formData, baseItem = {}) {
             item.releaseDate = normalizedReleaseDate;
             item.year = normalizedReleaseDate.slice(0, 4);
         }
+    }
+
+    if (entityType === "sponsor") {
+        const normalizedLink = String(item.link || "").trim();
+        item.link = normalizedLink || "#";
+        item.sortOrder = clampBoundedInteger(item.sortOrder, {
+            fallback: 0,
+            min: 0,
+            max: 9999
+        });
     }
 
     return item;

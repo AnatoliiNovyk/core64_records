@@ -38,6 +38,19 @@ async function seed() {
     ["CORE64 Label Night", "2024-02-15", "22:00", "Київ, Atlas", "Великий лейбл-ніч з усіма артистами CORE64.", "http://static.photos/nightlife/640x360/20", ""]
   );
 
+  await pool.query(
+    "INSERT INTO sponsors (name, short_description, logo, link, sort_order) SELECT $1, $2, $3, $4, $5 WHERE NOT EXISTS (SELECT 1 FROM sponsors WHERE name = $1)",
+    ["BassLab Audio", "Студія мастерингу лейблу", "http://static.photos/technology/640x360/31", "#", 1]
+  );
+  await pool.query(
+    "INSERT INTO sponsors (name, short_description, logo, link, sort_order) SELECT $1, $2, $3, $4, $5 WHERE NOT EXISTS (SELECT 1 FROM sponsors WHERE name = $1)",
+    ["NightPulse Agency", "Подієвий партнер сцени", "http://static.photos/nightlife/640x360/32", "#", 2]
+  );
+  await pool.query(
+    "INSERT INTO sponsors (name, short_description, logo, link, sort_order) SELECT $1, $2, $3, $4, $5 WHERE NOT EXISTS (SELECT 1 FROM sponsors WHERE name = $1)",
+    ["DnB Family UA", "Друзі з комʼюніті", "http://static.photos/people/640x360/33", "#", 3]
+  );
+
   console.log("Seed completed");
   await pool.end();
 }

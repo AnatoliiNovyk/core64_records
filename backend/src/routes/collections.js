@@ -3,6 +3,7 @@ import {
   artistSchema,
   eventSchema,
   releaseSchema,
+  sponsorSchema,
   validateBody
 } from "../middleware/validate.js";
 import {
@@ -17,10 +18,11 @@ const router = Router();
 const schemaMap = {
   releases: releaseSchema,
   artists: artistSchema,
-  events: eventSchema
+  events: eventSchema,
+  sponsors: sponsorSchema
 };
 
-router.get("/:type(releases|artists|events)", async (req, res, next) => {
+router.get("/:type(releases|artists|events|sponsors)", async (req, res, next) => {
   try {
     const data = await listByType(req.params.type);
     res.json({ data });
@@ -29,7 +31,7 @@ router.get("/:type(releases|artists|events)", async (req, res, next) => {
   }
 });
 
-router.post("/:type(releases|artists|events)", requireAuth, async (req, res, next) => {
+router.post("/:type(releases|artists|events|sponsors)", requireAuth, async (req, res, next) => {
   try {
     const schema = schemaMap[req.params.type];
     const validated = schema.parse(req.body);
@@ -40,7 +42,7 @@ router.post("/:type(releases|artists|events)", requireAuth, async (req, res, nex
   }
 });
 
-router.put("/:type(releases|artists|events)/:id", requireAuth, async (req, res, next) => {
+router.put("/:type(releases|artists|events|sponsors)/:id", requireAuth, async (req, res, next) => {
   try {
     const schema = schemaMap[req.params.type];
     const validated = schema.partial().parse(req.body);
@@ -54,7 +56,7 @@ router.put("/:type(releases|artists|events)/:id", requireAuth, async (req, res, 
   }
 });
 
-router.delete("/:type(releases|artists|events)/:id", requireAuth, async (req, res, next) => {
+router.delete("/:type(releases|artists|events|sponsors)/:id", requireAuth, async (req, res, next) => {
   try {
     await deleteByType(req.params.type, Number(req.params.id));
     res.status(204).send();

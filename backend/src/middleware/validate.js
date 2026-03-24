@@ -34,6 +34,21 @@ export const eventSchema = z.object({
   ticketLink: z.string().optional().default("")
 });
 
+export const sponsorSchema = z.object({
+  id: z.union([z.number(), z.string()]).optional(),
+  name: z.string().min(1),
+  shortDescription: z.string().trim().max(120).refine((value) => {
+    if (!value) return true;
+    const words = value.split(/\s+/).filter(Boolean);
+    return words.length >= 3 && words.length <= 5;
+  }, {
+    message: "shortDescription must contain 3 to 5 words"
+  }).optional().default(""),
+  logo: z.string().min(1),
+  link: z.string().optional().default("#"),
+  sortOrder: z.number().int().min(0).max(9999).optional().default(0)
+});
+
 export const settingsSchema = z.object({
   title: z.string().min(1),
   about: z.string().optional().default(""),
