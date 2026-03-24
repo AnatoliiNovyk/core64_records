@@ -6,7 +6,8 @@ export const releaseSchema = z.object({
   artist: z.string().min(1),
   genre: z.string().min(1),
   releaseType: z.enum(["single", "ep", "album"]).optional().default("single"),
-  year: z.string().min(1),
+  releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  year: z.string().optional().default(""),
   image: z.string().min(1),
   link: z.string().optional().default("#"),
   ticketLink: z.string().optional().default("")

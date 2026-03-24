@@ -269,6 +269,33 @@ function extractIsoDatePrefix(value) {
     return normalizeIsoDateFilter(prefixedMatch[1]);
 }
 
+function normalizeReleaseDateValue(value, fallback = "") {
+    if (typeof value !== "string") return fallback;
+    const normalizedIso = normalizeIsoDateFilter(value);
+    if (normalizedIso) return normalizedIso;
+    const parsedLocalIso = formatDateToLocalIso(new Date(value), "");
+    if (parsedLocalIso) return parsedLocalIso;
+    const prefixedIso = extractIsoDatePrefix(value);
+    if (prefixedIso) return prefixedIso;
+    return fallback;
+}
+
+function releaseDateFromYearFallback(yearValue, fallback = "") {
+    const yearText = String(yearValue ?? "").trim();
+    return /^\d{4}$/.test(yearText) ? `${yearText}-01-01` : fallback;
+}
+
+function formatReleaseDateDisplay(dateValue, fallbackYear = "") {
+    const isoDate = normalizeReleaseDateValue(String(dateValue ?? ""));
+    if (isoDate) {
+        const [year, month, day] = isoDate.split("-");
+        return `${day}.${month}.${year}`;
+    }
+
+    const yearText = String(fallbackYear ?? "").trim();
+    return yearText || "-";
+}
+
 function normalizeSearchText(value) {
     const text = String(value ?? "");
     const normalized = typeof text.normalize === "function" ? text.normalize("NFKC") : text;
@@ -2219,7 +2246,7 @@ async function loadReleases() {
         const safeArtist = sanitizeInput(release.artist || "-");
         const safeGenre = sanitizeInput(release.genre || "-");
         const safeReleaseType = sanitizeInput(getReleaseTypeLabel(release.releaseType || release.release_type));
-        const safeYear = sanitizeInput(release.year || "-");
+        const safeReleaseDate = sanitizeInput(formatReleaseDateDisplay(release.releaseDate || release.release_date, release.year));
         const safeImage = sanitizeInput(release.image || "");
         const idArg = serializeInlineEntityIdArg(release.id);
         const disableActionAttr = idArg === null ? "disabled" : "";
@@ -2233,7 +2260,7 @@ async function loadReleases() {
                     <div class="flex-1 min-w-0">
                         <h4 class="font-bold text-white truncate">${safeTitle}</h4>
                         <p class="text-cyan-400 text-sm">${safeArtist}</p>
-                        <p class="text-gray-500 text-xs uppercase mt-1">${safeGenre} • ${safeReleaseType} • ${safeYear}</p>
+                        <p class="text-gray-500 text-xs uppercase mt-1">${safeGenre} • ${safeReleaseType} • ${safeReleaseDate}</p>
                     </div>
                 </div>
                 <div class="flex gap-2 mt-4">
@@ -3870,6 +3897,10 @@ function generateFields(type, item) {
     const normalizeFieldValue = (value, fallback = "") => sanitizeInput(value ?? fallback);
     const rawGenre = typeof sourceItem.genre === "string" ? sourceItem.genre : "";
     const rawReleaseType = normalizeReleaseTypeValue(sourceItem.releaseType || sourceItem.release_type);
+    const rawReleaseDate = normalizeReleaseDateValue(
+        String(sourceItem.releaseDate || sourceItem.release_date || ""),
+        releaseDateFromYearFallback(sourceItem.year, getTodayIsoDateSafe())
+    );
     const imageValue = normalizeFieldValue(sourceItem.image);
 
     const fieldValues = {
@@ -3877,7 +3908,7 @@ function generateFields(type, item) {
         artist: normalizeFieldValue(sourceItem.artist),
         genre: normalizeFieldValue(rawGenre),
         releaseType: rawReleaseType,
-        year: normalizeFieldValue(sourceItem.year, "2024"),
+        releaseDate: normalizeFieldValue(rawReleaseDate),
         link: normalizeFieldValue(sourceItem.link, "#"),
         image: imageValue,
         name: normalizeFieldValue(sourceItem.name),
@@ -3925,8 +3956,8 @@ function generateFields(type, item) {
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Рік</label>
-                    <input type="text" name="year" value="${fieldValues.year}" class="form-input w-full p-3 rounded">
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">Дата релізу</label>
+                    <input type="date" name="releaseDate" value="${fieldValues.releaseDate}" class="form-input w-full p-3 rounded" required>
                 </div>
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Посилання</label>
@@ -4084,6 +4115,10 @@ function normalizeCrudFormFieldValue(entityType, key, value) {
         return normalizeReleaseTypeValue(rawValue);
     }
 
+    if (entityType === "release" && key === "releaseDate") {
+        return normalizeReleaseDateValue(rawValue);
+    }
+
     if (entityType === "release" && key === "year") {
         const trimmedYear = rawValue.trim();
         if (!trimmedYear) return "";
@@ -4117,6 +4152,14 @@ function buildCrudItemFromFormData(entityType, formData, baseItem = {}) {
         if (typeof key !== "string" || !key.trim()) return;
         item[key] = normalizeCrudFormFieldValue(entityType, key, value);
     });
+
+    if (entityType === "release") {
+        const normalizedReleaseDate = normalizeReleaseDateValue(String(item.releaseDate || item.release_date || ""));
+        if (normalizedReleaseDate) {
+            item.releaseDate = normalizedReleaseDate;
+            item.year = normalizedReleaseDate.slice(0, 4);
+        }
+    }
 
     return item;
 }

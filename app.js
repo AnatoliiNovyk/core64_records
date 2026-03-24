@@ -68,12 +68,43 @@ function getReleaseTypeLabel(value) {
     return "Сингл";
 }
 
+function formatDateToLocalIso(value, fallback = "") {
+    const date = value instanceof Date ? value : new Date(value);
+    const timestamp = date.getTime();
+    if (!Number.isFinite(timestamp)) return fallback;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+}
+
+function normalizeReleaseDateValue(value) {
+    const rawValue = String(value ?? "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) return rawValue;
+    const localIso = formatDateToLocalIso(rawValue, "");
+    if (localIso) return localIso;
+    const isoMatch = rawValue.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s].*)?$/);
+    return isoMatch ? isoMatch[1] : "";
+}
+
+function formatReleaseDateLabel(release) {
+    const isoDate = normalizeReleaseDateValue(release.releaseDate || release.release_date || "");
+    if (isoDate) {
+        const [year, month, day] = isoDate.split("-");
+        return `${day}.${month}.${year}`;
+    }
+
+    const yearText = String(release.year ?? "").trim();
+    return yearText || "-";
+}
+
 function renderReleases(data) {
     const grid = document.getElementById("releases-grid");
     if (!grid) return;
 
     grid.innerHTML = (data.releases || []).map((release) => {
         const releaseTypeLabel = getReleaseTypeLabel(release.releaseType || release.release_type);
+        const releaseDateLabel = formatReleaseDateLabel(release);
 
         return `
         <div class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer">
@@ -92,7 +123,7 @@ function renderReleases(data) {
                 <h3 class="text-xl font-bold text-white mb-1 group-hover:text-cyan-400 transition-colors">${release.title}</h3>
                 <p class="text-gray-400 text-sm mb-2">${release.artist}</p>
                 <div class="flex justify-between items-center text-xs text-gray-500 uppercase tracking-wider">
-                    <span>${release.year}</span>
+                    <span>${releaseDateLabel}</span>
                     <span class="text-cyan-400">${release.genre}</span>
                 </div>
             </div>

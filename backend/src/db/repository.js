@@ -3,7 +3,7 @@ import { pool } from "./pool.js";
 const tableConfig = {
   releases: {
     table: "releases",
-    columns: ["title", "artist", "genre", "release_type", "year", "image", "link", "ticket_link"]
+    columns: ["title", "artist", "genre", "release_type", "release_date", "year", "image", "link", "ticket_link"]
   },
   artists: {
     table: "artists",
@@ -15,9 +15,66 @@ const tableConfig = {
   }
 };
 
+function normalizeIsoDate(value) {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) {
+    return formatDateToLocalIso(value, "");
+  }
+
+  const rawValue = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(rawValue)) {
+    return rawValue;
+  }
+
+  const localIso = formatDateToLocalIso(rawValue, "");
+  if (localIso) return localIso;
+
+  const match = rawValue.match(/^(\d{4}-\d{2}-\d{2})(?:[T\s].*)?$/);
+  return match ? match[1] : "";
+}
+
+function formatDateToLocalIso(value, fallback = "") {
+  const date = value instanceof Date ? value : new Date(value);
+  const timestamp = date.getTime();
+  if (!Number.isFinite(timestamp)) return fallback;
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function deriveYearFromDateOrFallback(releaseDate, fallbackYear = "") {
+  const isoDate = normalizeIsoDate(releaseDate);
+  if (isoDate) return isoDate.slice(0, 4);
+
+  const rawYear = String(fallbackYear || "").trim();
+  if (/^\d{4}$/.test(rawYear)) return rawYear;
+
+  return String(new Date().getFullYear());
+}
+
+function normalizeReleasePayload(payload) {
+  const rawPayload = payload && typeof payload === "object" ? payload : {};
+  const releaseDate = normalizeIsoDate(rawPayload.releaseDate || rawPayload.release_date) || `${deriveYearFromDateOrFallback("", rawPayload.year)}-01-01`;
+  const year = deriveYearFromDateOrFallback(releaseDate, rawPayload.year);
+
+  return {
+    ...rawPayload,
+    releaseDate,
+    year,
+    releaseType: rawPayload.releaseType || rawPayload.release_type || "single"
+  };
+}
+
 function fromDbRow(type, row) {
   if (type === "releases") {
-    return { ...row, ticketLink: row.ticket_link, releaseType: row.release_type || "single" };
+    const releaseDate = normalizeIsoDate(row.release_date) || `${deriveYearFromDateOrFallback("", row.year)}-01-01`;
+    return {
+      ...row,
+      ticketLink: row.ticket_link,
+      releaseType: row.release_type || "single",
+      releaseDate
+    };
   }
   if (type === "events") {
     return { ...row, ticketLink: row.ticket_link };
@@ -28,6 +85,7 @@ function fromDbRow(type, row) {
 function toDbValue(key, value) {
   if (key === "ticketLink") return ["ticket_link", value || ""];
   if (key === "releaseType") return ["release_type", value || "single"];
+  if (key === "releaseDate") return ["release_date", normalizeIsoDate(value)];
   return [key, value];
 }
 
@@ -39,11 +97,14 @@ export async function listByType(type) {
 
 export async function createByType(type, payload) {
   const config = tableConfig[type];
+  const normalizedPayload = type === "releases" ? normalizeReleasePayload(payload) : payload;
   const mapped = config.columns.map((column) => {
     const payloadKey = column === "ticket_link"
       ? "ticketLink"
-      : (column === "release_type" ? "releaseType" : column);
-    return payload[payloadKey] || "";
+      : (column === "release_type"
+        ? "releaseType"
+        : (column === "release_date" ? "releaseDate" : column));
+    return normalizedPayload[payloadKey] || "";
   });
 
   const placeholders = mapped.map((_, index) => `$${index + 1}`).join(", ");
@@ -54,10 +115,11 @@ export async function createByType(type, payload) {
 
 export async function updateByType(type, id, payload) {
   const config = tableConfig[type];
+  const normalizedPayload = type === "releases" ? normalizeReleasePayload(payload) : payload;
   const assignments = [];
   const values = [];
 
-  Object.entries(payload).forEach(([key, value]) => {
+  Object.entries(normalizedPayload).forEach(([key, value]) => {
     if (key === "id") return;
     const [dbKey, dbValue] = toDbValue(key, value);
     if (!config.columns.includes(dbKey)) return;

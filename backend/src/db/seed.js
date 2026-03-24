@@ -24,8 +24,8 @@ async function seed() {
   );
 
   await pool.query(
-    "INSERT INTO releases (title, artist, genre, release_type, year, image, link, ticket_link) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING",
-    ["Neural Network", "Cybernetic", "Neurofunk", "single", "2024", "http://static.photos/technology/640x360/1", "#", ""]
+    "INSERT INTO releases (title, artist, genre, release_type, release_date, year, image, link, ticket_link) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT DO NOTHING",
+    ["Neural Network", "Cybernetic", "Neurofunk", "single", "2024-01-10", "2024", "http://static.photos/technology/640x360/1", "#", ""]
   );
 
   await pool.query(
