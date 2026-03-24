@@ -119,6 +119,16 @@ function normalizeAuditFilterControlValue(filterEl, fallback = "all") {
     return normalizedFilter;
 }
 
+function normalizeAuditSearchControlValue(searchEl) {
+    if (!searchEl || !searchEl.isConnected) return "";
+    const rawValue = String(searchEl.value ?? "");
+    const normalizedValue = typeof rawValue.normalize === "function" ? rawValue.normalize("NFKC") : rawValue;
+    if (searchEl.value !== normalizedValue) {
+        searchEl.value = normalizedValue;
+    }
+    return normalizedValue;
+}
+
 function normalizeAuditFilterOptionValues(values) {
     const source = Array.isArray(values) ? values : [];
     return Array.from(new Set(source
@@ -134,6 +144,11 @@ function normalizeAuditDatePreset(value, fallback = "all") {
     if (typeof value !== "string") return fallback;
     const normalized = value.trim();
     return AUDIT_DATE_PRESET_ALLOWED_VALUES.includes(normalized) ? normalized : fallback;
+}
+
+function hasValidAuditDateRangeOrder(dateFrom, dateTo) {
+    if (!dateFrom || !dateTo) return true;
+    return dateFrom <= dateTo;
 }
 
 function normalizeAuditLimitControlValue(limitEl) {
@@ -163,7 +178,7 @@ function getNormalizedAuditFilters() {
     const dateFromEl = document.getElementById("audit-date-from");
     const dateToEl = document.getElementById("audit-date-to");
 
-    const searchRaw = searchEl && searchEl.isConnected ? String(searchEl.value || "") : "";
+    const searchRaw = normalizeAuditSearchControlValue(searchEl);
     const actionFilter = normalizeAuditFilterControlValue(actionFilterEl, "all");
     const entityFilter = normalizeAuditFilterControlValue(entityFilterEl, "all");
     const dateFrom = dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "";
@@ -216,15 +231,26 @@ function normalizeContactsDateControlValue(dateFilterEl) {
     return normalizedDateFilter;
 }
 
+function normalizeContactsSearchControlValue(searchEl) {
+    if (!searchEl || !searchEl.isConnected) return "";
+    const rawValue = String(searchEl.value ?? "");
+    const normalizedValue = typeof rawValue.normalize === "function" ? rawValue.normalize("NFKC") : rawValue;
+    if (searchEl.value !== normalizedValue) {
+        searchEl.value = normalizedValue;
+    }
+    return normalizedValue;
+}
+
 function getNormalizedContactsFilters() {
     const statusFilterEl = document.getElementById("contacts-filter-status");
     const dateFilterEl = document.getElementById("contacts-filter-date");
     const searchEl = document.getElementById("contacts-search");
+    const searchRaw = normalizeContactsSearchControlValue(searchEl);
 
     return {
         statusFilter: normalizeContactsStatusControlValue(statusFilterEl),
         dateFilter: normalizeContactsDateControlValue(dateFilterEl),
-        query: normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "")
+        query: normalizeSearchText(searchRaw)
     };
 }
 
@@ -1273,18 +1299,20 @@ function loadAuditUiState() {
         const limitEl = document.getElementById("audit-limit");
         const refreshEl = document.getElementById("audit-refresh-interval");
 
-        if (searchEl && searchEl.isConnected && typeof state.search === "string") searchEl.value = state.search;
+        if (searchEl && searchEl.isConnected) {
+            searchEl.value = typeof state.search === "string" ? state.search : "";
+        }
         if (actionEl && actionEl.isConnected) {
-            actionEl.value = normalizeAuditFilterSelectValue(state.action, "all");
+            actionEl.value = typeof state.action === "string" ? state.action : "all";
         }
         if (entityEl && entityEl.isConnected) {
-            entityEl.value = normalizeAuditFilterSelectValue(state.entity, "all");
+            entityEl.value = typeof state.entity === "string" ? state.entity : "all";
         }
         if (dateFromEl && dateFromEl.isConnected) {
-            dateFromEl.value = normalizeIsoDateFilter(state.dateFrom);
+            dateFromEl.value = typeof state.dateFrom === "string" ? state.dateFrom : "";
         }
         if (dateToEl && dateToEl.isConnected) {
-            dateToEl.value = normalizeIsoDateFilter(state.dateTo);
+            dateToEl.value = typeof state.dateTo === "string" ? state.dateTo : "";
         }
         if (datePresetEl && datePresetEl.isConnected) {
             datePresetEl.value = normalizeAuditDatePreset(state.datePreset, "all");
@@ -1292,10 +1320,13 @@ function loadAuditUiState() {
         if (ecoModeEl && ecoModeEl.isConnected) ecoModeEl.checked = !!state.ecoMode;
         if (limitEl && limitEl.isConnected) {
             limitEl.value = String(normalizeAuditLimit(state.limit, AUDIT_PAGE_SIZE));
+            normalizeAuditLimitControlValue(limitEl);
         }
         if (refreshEl && refreshEl.isConnected) {
             refreshEl.value = String(normalizeAuditRefreshSeconds(state.refreshInterval));
+            normalizeAuditRefreshControlValue(refreshEl);
         }
+        getNormalizedAuditFilters();
         auditPage = normalizeAuditPage(state.page, 1);
     } catch (error) {
         console.warn("Failed to restore audit UI state", error);
@@ -2400,6 +2431,12 @@ async function loadAuditLogs() {
         dateFrom,
         dateTo
     } = getNormalizedAuditFilters();
+    if (!hasValidAuditDateRangeOrder(dateFrom, dateTo)) {
+        auditRequestController = null;
+        setAuditLoading(false);
+        showAuditError("Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.");
+        return;
+    }
 
     let response;
     let facets;
@@ -2522,8 +2559,8 @@ function populateAuditFilterOptions() {
     if (!actionEl || !entityEl) return;
     if (!actionEl.isConnected || !entityEl.isConnected) return;
 
-    const selectedAction = normalizeAuditFilterSelectValue(actionEl.value, "all");
-    const selectedEntity = normalizeAuditFilterSelectValue(entityEl.value, "all");
+    const selectedAction = normalizeAuditFilterControlValue(actionEl, "all");
+    const selectedEntity = normalizeAuditFilterControlValue(entityEl, "all");
     const facets = normalizeAuditFacetsPayload(cache.auditFacets);
     const actions = normalizeAuditFilterOptionValues(facets.actions);
     const entities = normalizeAuditFilterOptionValues(facets.entities);
@@ -2590,7 +2627,7 @@ function validateAuditDateRange() {
         dateToEl.value = to;
     }
 
-    if (from && to && from > to) {
+    if (!hasValidAuditDateRangeOrder(from, to)) {
         showAuditError("Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.");
         return false;
     }
@@ -2869,6 +2906,8 @@ function changeAuditRefreshInterval() {
 function handleAuditSearchInput() {
     const sectionAtInput = currentSection;
     const navigationSeqAtInput = sectionNavigationSeq;
+    const searchEl = document.getElementById("audit-search");
+    normalizeAuditSearchControlValue(searchEl);
     if (auditSearchDebounceTimer) {
         clearTimeout(auditSearchDebounceTimer);
     }
@@ -3014,6 +3053,10 @@ function exportAuditCsv() {
         dateFrom,
         dateTo
     } = getNormalizedAuditFilters();
+    if (!hasValidAuditDateRangeOrder(dateFrom, dateTo)) {
+        alert("Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.");
+        return;
+    }
     const getAuditLogsMethod = getAdapterMethod("getAuditLogs");
     if (!getAuditLogsMethod) {
         alert("Не вдалося експортувати аудит: відсутній метод adapter.");
@@ -3398,6 +3441,20 @@ function normalizeContactRequestStatus(status) {
     return normalizeSupportedContactRequestStatus(status) || "new";
 }
 
+function getCachedContactRequestStatusById(id) {
+    const normalizedId = normalizeContactRequestId(id);
+    if (normalizedId === null) return null;
+    if (!Array.isArray(cache.contactRequests)) return null;
+
+    const matchedEntry = cache.contactRequests.find((entry) => {
+        if (!entry || typeof entry !== "object") return false;
+        return normalizeContactRequestId(entry.id) === normalizedId;
+    });
+
+    if (!matchedEntry || typeof matchedEntry !== "object") return null;
+    return normalizeContactRequestStatus(matchedEntry.status);
+}
+
 async function changeContactStatus(id, status) {
     const sectionAtUpdate = currentSection;
     const navigationSeqAtUpdate = sectionNavigationSeq;
@@ -3405,6 +3462,8 @@ async function changeContactStatus(id, status) {
     const normalizedStatus = normalizeSupportedContactRequestStatus(status);
     if (normalizedId === null) return;
     if (!normalizedStatus) return;
+    const cachedStatus = getCachedContactRequestStatusById(normalizedId);
+    if (cachedStatus && cachedStatus === normalizedStatus) return;
     if (currentSection !== sectionAtUpdate) return;
     if (currentSection !== "contacts") return;
     const contactsSectionEl = document.getElementById("section-contacts");
@@ -3495,6 +3554,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         return;
     }
 
+    const seenTargetIds = new Set();
     const targets = cache.contactRequests
         .filter((entry) => entry && typeof entry === "object")
         .map((entry) => {
@@ -3507,7 +3567,13 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
                     status: normalizedEntryStatus
                 };
         })
-        .filter((entry) => entry && entry.status === normalizedFromStatus);
+        .filter((entry) => {
+            if (!entry) return false;
+            if (entry.status !== normalizedFromStatus) return false;
+            if (seenTargetIds.has(entry.id)) return false;
+            seenTargetIds.add(entry.id);
+            return true;
+        });
     if (!targets.length) {
         alert("Немає звернень для масового оновлення.");
         return;
