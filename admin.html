@@ -374,13 +374,13 @@
                     </div>
                     <div>
                         <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за дією</label>
-                        <select id="audit-filter-action" class="form-input w-full p-3 rounded" onchange="resetAuditPageAndRender()" title="Фільтр аудиту за дією">
+                        <select id="audit-filter-action" class="form-input w-full p-3 rounded" onchange="handleAuditFilterChange()" title="Фільтр аудиту за дією">
                             <option value="all" selected>Усі дії</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за сутністю</label>
-                        <select id="audit-filter-entity" class="form-input w-full p-3 rounded" onchange="resetAuditPageAndRender()" title="Фільтр аудиту за сутністю">
+                        <select id="audit-filter-entity" class="form-input w-full p-3 rounded" onchange="handleAuditFilterChange()" title="Фільтр аудиту за сутністю">
                             <option value="all" selected>Усі сутності</option>
                         </select>
                     </div>

@@ -110,6 +110,15 @@ function normalizeAuditFilterSelectValue(value, fallback = "all") {
     return text;
 }
 
+function normalizeAuditFilterControlValue(filterEl, fallback = "all") {
+    if (!filterEl || !filterEl.isConnected) return fallback;
+    const normalizedFilter = normalizeAuditFilterSelectValue(filterEl.value, fallback);
+    if (filterEl.value !== normalizedFilter) {
+        filterEl.value = normalizedFilter;
+    }
+    return normalizedFilter;
+}
+
 function normalizeAuditFilterOptionValues(values) {
     const source = Array.isArray(values) ? values : [];
     return Array.from(new Set(source
@@ -145,6 +154,36 @@ function normalizeAuditRefreshControlValue(refreshEl) {
         refreshEl.value = normalizedText;
     }
     return normalizedRefreshSeconds;
+}
+
+function getNormalizedAuditFilters() {
+    const searchEl = document.getElementById("audit-search");
+    const actionFilterEl = document.getElementById("audit-filter-action");
+    const entityFilterEl = document.getElementById("audit-filter-entity");
+    const dateFromEl = document.getElementById("audit-date-from");
+    const dateToEl = document.getElementById("audit-date-to");
+
+    const searchRaw = searchEl && searchEl.isConnected ? String(searchEl.value || "") : "";
+    const actionFilter = normalizeAuditFilterControlValue(actionFilterEl, "all");
+    const entityFilter = normalizeAuditFilterControlValue(entityFilterEl, "all");
+    const dateFrom = dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "";
+    const dateTo = dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "";
+
+    if (dateFromEl && dateFromEl.isConnected && dateFromEl.value !== dateFrom) {
+        dateFromEl.value = dateFrom;
+    }
+    if (dateToEl && dateToEl.isConnected && dateToEl.value !== dateTo) {
+        dateToEl.value = dateTo;
+    }
+
+    return {
+        searchRaw,
+        query: normalizeSearchText(searchRaw),
+        actionFilter,
+        entityFilter,
+        dateFrom,
+        dateTo
+    };
 }
 
 function normalizeContactsPage(value, fallback = CONTACTS_MIN_PAGE) {
@@ -1184,11 +1223,13 @@ function renderAuditLatencyLegend() {
 }
 
 function saveAuditUiState() {
-    const searchEl = document.getElementById("audit-search");
-    const actionEl = document.getElementById("audit-filter-action");
-    const entityEl = document.getElementById("audit-filter-entity");
-    const dateFromEl = document.getElementById("audit-date-from");
-    const dateToEl = document.getElementById("audit-date-to");
+    const {
+        searchRaw,
+        actionFilter,
+        entityFilter,
+        dateFrom,
+        dateTo
+    } = getNormalizedAuditFilters();
     const datePresetEl = document.getElementById("audit-date-preset");
     const ecoModeEl = document.getElementById("audit-eco-mode");
     const limitEl = document.getElementById("audit-limit");
@@ -1197,11 +1238,11 @@ function saveAuditUiState() {
     const normalizedRefreshInterval = normalizeAuditRefreshControlValue(refreshEl);
 
     const state = {
-        search: searchEl && searchEl.isConnected ? searchEl.value || "" : "",
-        action: actionEl && actionEl.isConnected ? normalizeAuditFilterSelectValue(actionEl.value, "all") : "all",
-        entity: entityEl && entityEl.isConnected ? normalizeAuditFilterSelectValue(entityEl.value, "all") : "all",
-        dateFrom: dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "",
-        dateTo: dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "",
+        search: searchRaw,
+        action: actionFilter,
+        entity: entityFilter,
+        dateFrom,
+        dateTo,
         datePreset: datePresetEl && datePresetEl.isConnected ? normalizeAuditDatePreset(datePresetEl.value, "all") : "all",
         ecoMode: ecoModeEl && ecoModeEl.isConnected ? !!ecoModeEl.checked : false,
         limit: String(normalizedLimit),
@@ -2351,21 +2392,14 @@ async function loadAuditLogs() {
         return;
     }
     const limitEl = document.getElementById("audit-limit");
-    const searchEl = document.getElementById("audit-search");
-    const actionFilterEl = document.getElementById("audit-filter-action");
-    const entityFilterEl = document.getElementById("audit-filter-entity");
-    const dateFromEl = document.getElementById("audit-date-from");
-    const dateToEl = document.getElementById("audit-date-to");
-    const limit = limitEl && limitEl.isConnected ? normalizeAuditLimit(limitEl.value) : AUDIT_PAGE_SIZE;
-    const query = normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "");
-    const actionFilter = actionFilterEl && actionFilterEl.isConnected
-        ? normalizeAuditFilterSelectValue(actionFilterEl.value, "all")
-        : "all";
-    const entityFilter = entityFilterEl && entityFilterEl.isConnected
-        ? normalizeAuditFilterSelectValue(entityFilterEl.value, "all")
-        : "all";
-    const dateFrom = dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "";
-    const dateTo = dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "";
+    const limit = normalizeAuditLimitControlValue(limitEl);
+    const {
+        query,
+        actionFilter,
+        entityFilter,
+        dateFrom,
+        dateTo
+    } = getNormalizedAuditFilters();
 
     let response;
     let facets;
@@ -2916,6 +2950,17 @@ function onAuditDateInputChange() {
     resetAuditPageAndRender();
 }
 
+function handleAuditFilterChange() {
+    const sectionAtFilterChange = currentSection;
+    if (currentSection !== sectionAtFilterChange) return;
+    if (currentSection !== "audit") return;
+    const auditSectionEl = document.getElementById("section-audit");
+    if (!auditSectionEl || !auditSectionEl.isConnected) return;
+
+    getNormalizedAuditFilters();
+    resetAuditPageAndRender();
+}
+
 function clearAuditFilters() {
     const sectionAtClear = currentSection;
     const navigationSeqAtClear = sectionNavigationSeq;
@@ -2962,20 +3007,13 @@ function exportAuditCsv() {
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
 
-    const searchEl = document.getElementById("audit-search");
-    const actionFilterEl = document.getElementById("audit-filter-action");
-    const entityFilterEl = document.getElementById("audit-filter-entity");
-    const dateFromEl = document.getElementById("audit-date-from");
-    const dateToEl = document.getElementById("audit-date-to");
-    const query = normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "");
-    const actionFilter = actionFilterEl && actionFilterEl.isConnected
-        ? normalizeAuditFilterSelectValue(actionFilterEl.value, "all")
-        : "all";
-    const entityFilter = entityFilterEl && entityFilterEl.isConnected
-        ? normalizeAuditFilterSelectValue(entityFilterEl.value, "all")
-        : "all";
-    const dateFrom = dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "";
-    const dateTo = dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "";
+    const {
+        query,
+        actionFilter,
+        entityFilter,
+        dateFrom,
+        dateTo
+    } = getNormalizedAuditFilters();
     const getAuditLogsMethod = getAdapterMethod("getAuditLogs");
     if (!getAuditLogsMethod) {
         alert("Не вдалося експортувати аудит: відсутній метод adapter.");
