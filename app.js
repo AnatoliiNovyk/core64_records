@@ -24,6 +24,37 @@ function updateContactStatus(message, isError) {
         : "mt-3 text-sm text-green-400";
 }
 
+function getSocialBrandIconSvg(platform, sizeClass) {
+    const iconClass = typeof sizeClass === "string" && sizeClass.trim() ? sizeClass.trim() : "w-4 h-4";
+
+    if (platform === "instagram") {
+        return `
+            <svg viewBox="0 0 24 24" class="${iconClass}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                <rect x="3" y="3" width="18" height="18" rx="5"></rect>
+                <circle cx="12" cy="12" r="4"></circle>
+                <circle cx="17.25" cy="6.75" r="1.25" fill="currentColor" stroke="none"></circle>
+            </svg>
+        `;
+    }
+
+    if (platform === "soundcloud") {
+        return `
+            <svg viewBox="0 0 24 24" class="${iconClass}" fill="currentColor" aria-hidden="true" focusable="false">
+                <rect x="1.5" y="13" width="1.6" height="6" rx="0.8"></rect>
+                <rect x="4.1" y="12" width="1.6" height="7" rx="0.8"></rect>
+                <rect x="6.7" y="11" width="1.6" height="8" rx="0.8"></rect>
+                <rect x="9.3" y="10" width="1.6" height="9" rx="0.8"></rect>
+                <circle cx="13.9" cy="14.9" r="3.9"></circle>
+                <circle cx="18" cy="15.3" r="3.1"></circle>
+                <circle cx="10.6" cy="16.1" r="2.4"></circle>
+                <rect x="8.4" y="14.9" width="12.6" height="4.3" rx="2.1"></rect>
+            </svg>
+        `;
+    }
+
+    return "";
+}
+
 function renderReleases(data) {
     const grid = document.getElementById("releases-grid");
     if (!grid) return;
@@ -76,10 +107,10 @@ function renderArtists(data) {
                 <p class="text-gray-400 text-sm mb-4 line-clamp-2">${artist.bio || ""}</p>
                 <div class="flex gap-3">
                     <a href="${artist.soundcloud || "#"}" class="p-2 bg-gray-800 rounded hover:bg-cyan-400 hover:text-black transition-colors" aria-label="SoundCloud" title="SoundCloud" target="_blank" rel="noopener noreferrer">
-                        <i data-lucide="music" class="w-4 h-4"></i>
+                        ${getSocialBrandIconSvg("soundcloud", "w-4 h-4")}
                     </a>
                     <a href="${artist.instagram || "#"}" class="p-2 bg-gray-800 rounded hover:bg-pink-400 hover:text-black transition-colors" aria-label="Instagram" title="Instagram" target="_blank" rel="noopener noreferrer">
-                        <i data-lucide="at-sign" class="w-4 h-4"></i>
+                        ${getSocialBrandIconSvg("instagram", "w-4 h-4")}
                     </a>
                 </div>
             </div>
