@@ -308,23 +308,25 @@ function renderSponsors(data) {
         const sponsorLogo = sponsor.logo || "";
         const sponsorLink = sponsor.link || "#";
         const cardContent = `
-            <div class="h-28 mb-4 rounded-lg border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
+            <div class="h-[75%] rounded-lg border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
                 <img src="${sponsorLogo}" alt="${sponsorName}" class="h-full w-full object-contain" loading="lazy">
             </div>
-            <h3 class="text-xl font-bold text-white truncate">${sponsorName}</h3>
-            <p class="text-sm text-gray-300 mt-1">${sponsorDescription}</p>
+            <div class="h-[25%] pt-3 flex flex-col justify-start overflow-hidden">
+                <h3 class="text-lg font-bold text-white truncate">${sponsorName}</h3>
+                <p class="text-sm text-gray-300 truncate">${sponsorDescription}</p>
+            </div>
         `;
 
         if (!sponsorLink || sponsorLink === "#") {
             return `
-                <article class="snap-start shrink-0 w-[280px] p-5 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35">
+                <article class="snap-start shrink-0 w-[280px] h-[280px] p-4 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35 flex flex-col">
                     ${cardContent}
                 </article>
             `;
         }
 
         return `
-            <a href="${sponsorLink}" target="_blank" rel="noopener noreferrer" class="snap-start shrink-0 w-[280px] p-5 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35 hover:border-yellow-400/55 transition-colors block">
+            <a href="${sponsorLink}" target="_blank" rel="noopener noreferrer" class="snap-start shrink-0 w-[280px] h-[280px] p-4 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35 hover:border-yellow-400/55 transition-colors block flex flex-col">
                 ${cardContent}
             </a>
         `;
