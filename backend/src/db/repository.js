@@ -77,7 +77,7 @@ export async function deleteByType(type, id) {
 }
 
 export async function getSettings() {
-  const result = await pool.query("SELECT title, about, mission, email FROM settings LIMIT 1");
+  const result = await pool.query("SELECT title, about, mission, email, instagram_url AS \"instagramUrl\", youtube_url AS \"youtubeUrl\", soundcloud_url AS \"soundcloudUrl\", radio_url AS \"radioUrl\" FROM settings LIMIT 1");
   return result.rows[0] || null;
 }
 
@@ -85,15 +85,15 @@ export async function saveSettings(payload) {
   const existing = await getSettings();
   if (!existing) {
     const insert = await pool.query(
-      "INSERT INTO settings (title, about, mission, email) VALUES ($1, $2, $3, $4) RETURNING title, about, mission, email",
-      [payload.title, payload.about, payload.mission, payload.email]
+      "INSERT INTO settings (title, about, mission, email, instagram_url, youtube_url, soundcloud_url, radio_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING title, about, mission, email, instagram_url AS \"instagramUrl\", youtube_url AS \"youtubeUrl\", soundcloud_url AS \"soundcloudUrl\", radio_url AS \"radioUrl\"",
+      [payload.title, payload.about, payload.mission, payload.email, payload.instagramUrl, payload.youtubeUrl, payload.soundcloudUrl, payload.radioUrl]
     );
     return insert.rows[0];
   }
 
   const updated = await pool.query(
-    "UPDATE settings SET title = $1, about = $2, mission = $3, email = $4, updated_at = NOW() WHERE id = (SELECT id FROM settings LIMIT 1) RETURNING title, about, mission, email",
-    [payload.title, payload.about, payload.mission, payload.email]
+    "UPDATE settings SET title = $1, about = $2, mission = $3, email = $4, instagram_url = $5, youtube_url = $6, soundcloud_url = $7, radio_url = $8, updated_at = NOW() WHERE id = (SELECT id FROM settings LIMIT 1) RETURNING title, about, mission, email, instagram_url AS \"instagramUrl\", youtube_url AS \"youtubeUrl\", soundcloud_url AS \"soundcloudUrl\", radio_url AS \"radioUrl\"",
+    [payload.title, payload.about, payload.mission, payload.email, payload.instagramUrl, payload.youtubeUrl, payload.soundcloudUrl, payload.radioUrl]
   );
   return updated.rows[0];
 }

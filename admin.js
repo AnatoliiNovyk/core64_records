@@ -2083,6 +2083,48 @@ function sanitizeInput(text) {
         .replace(/'/g, "&#039;");
 }
 
+function decodeHtmlEntities(text) {
+    let decodedText = text === null || text === undefined ? "" : String(text);
+    for (let i = 0; i < 5; i += 1) {
+        const nextDecodedText = decodedText
+            .replace(/&amp;/gi, "&")
+            .replace(/&lt;/gi, "<")
+            .replace(/&gt;/gi, ">")
+            .replace(/&quot;/gi, '"')
+            .replace(/&#039;/gi, "'");
+        if (nextDecodedText === decodedText) break;
+        decodedText = nextDecodedText;
+    }
+    return decodedText;
+}
+
+function normalizeSettingsUrlInput(value, options = {}) {
+    const { platform = "" } = options || {};
+    const decodedValue = decodeHtmlEntities(value).trim();
+    if (!decodedValue || decodedValue === "#") return "#";
+
+    const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(decodedValue)
+        ? decodedValue
+        : (decodedValue.startsWith("www.") ? `https://${decodedValue}` : decodedValue);
+
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(withProtocol);
+    } catch (_error) {
+        return "#";
+    }
+
+    if (!/^https?:$/i.test(parsedUrl.protocol)) {
+        return "#";
+    }
+
+    if (platform === "youtube" && parsedUrl.hostname.toLowerCase() === "music.youtube.com" && parsedUrl.pathname.startsWith("/@")) {
+        parsedUrl.hostname = "www.youtube.com";
+    }
+
+    return parsedUrl.toString();
+}
+
 async function refreshCache() {
     const sectionAtRefresh = currentSection;
     const navigationSeqAtRefresh = sectionNavigationSeq;
@@ -2344,6 +2386,10 @@ async function loadSettings() {
     const aboutInputEl = document.getElementById("setting-about");
     const missionInputEl = document.getElementById("setting-mission");
     const emailInputEl = document.getElementById("setting-email");
+    const instagramInputEl = document.getElementById("setting-social-instagram");
+    const youtubeInputEl = document.getElementById("setting-social-youtube");
+    const soundcloudInputEl = document.getElementById("setting-social-soundcloud");
+    const radioInputEl = document.getElementById("setting-social-radio");
     if (titleInputEl && titleInputEl.isConnected) {
         titleInputEl.value = cache.settings.title || "";
     }
@@ -2355,6 +2401,18 @@ async function loadSettings() {
     }
     if (emailInputEl && emailInputEl.isConnected) {
         emailInputEl.value = cache.settings.email || "";
+    }
+    if (instagramInputEl && instagramInputEl.isConnected) {
+        instagramInputEl.value = decodeHtmlEntities(cache.settings.instagramUrl || "");
+    }
+    if (youtubeInputEl && youtubeInputEl.isConnected) {
+        youtubeInputEl.value = decodeHtmlEntities(cache.settings.youtubeUrl || "");
+    }
+    if (soundcloudInputEl && soundcloudInputEl.isConnected) {
+        soundcloudInputEl.value = decodeHtmlEntities(cache.settings.soundcloudUrl || "");
+    }
+    if (radioInputEl && radioInputEl.isConnected) {
+        radioInputEl.value = decodeHtmlEntities(cache.settings.radioUrl || "");
     }
     const persisted = getNormalizedLatencyThresholds(cache.settings || {});
     const goodMaxInputEl = document.getElementById("setting-audit-latency-good-max");
@@ -4175,7 +4233,11 @@ async function saveSettings(options = {}) {
     const aboutInputEl = document.getElementById("setting-about");
     const missionInputEl = document.getElementById("setting-mission");
     const emailInputEl = document.getElementById("setting-email");
-    if (!titleInputEl || !aboutInputEl || !missionInputEl || !emailInputEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !emailInputEl.isConnected) {
+    const instagramInputEl = document.getElementById("setting-social-instagram");
+    const youtubeInputEl = document.getElementById("setting-social-youtube");
+    const soundcloudInputEl = document.getElementById("setting-social-soundcloud");
+    const radioInputEl = document.getElementById("setting-social-radio");
+    if (!titleInputEl || !aboutInputEl || !missionInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected) {
         console.warn("Core settings inputs are unavailable during settings save");
         return false;
     }
@@ -4205,6 +4267,10 @@ async function saveSettings(options = {}) {
         about: sanitizeInput(aboutInputEl.value),
         mission: sanitizeInput(missionInputEl.value),
         email: sanitizeInput(emailInputEl.value),
+        instagramUrl: normalizeSettingsUrlInput(instagramInputEl.value, { platform: "instagram" }),
+        youtubeUrl: normalizeSettingsUrlInput(youtubeInputEl.value, { platform: "youtube" }),
+        soundcloudUrl: normalizeSettingsUrlInput(soundcloudInputEl.value, { platform: "soundcloud" }),
+        radioUrl: normalizeSettingsUrlInput(radioInputEl.value, { platform: "radio" }),
         auditLatencyGoodMaxMs: goodMax,
         auditLatencyWarnMaxMs: warnMax
     };

@@ -98,7 +98,11 @@
             title: "CORE64 Records",
             about: "CORE64 Records — незалежний музичний лейбл, заснований у 2024 році. Ми спеціалізуємося на найважчих жанрах електронної музики: Neurofunk, Techstep, Darkstep та Breakbeat.",
             mission: "Наша місія — підтримувати андерграунд сцену та виводити Drum & Bass на новий рівень. Кожен реліз — це унікальна історія, закодована в звуках синтезаторів та ритмах барабанів.",
-            email: "demo@core64.records"
+            email: "demo@core64.records",
+            instagramUrl: "#",
+            youtubeUrl: "#",
+            soundcloudUrl: "#",
+            radioUrl: "#"
         },
         contactRequests: []
     };
@@ -135,7 +139,10 @@
                 releases: parsed.releases || [],
                 artists: parsed.artists || [],
                 events: parsed.events || [],
-                settings: parsed.settings || deepClone(DEFAULT_DATA.settings),
+                settings: {
+                    ...deepClone(DEFAULT_DATA.settings),
+                    ...(parsed.settings || {})
+                },
                 contactRequests: parsed.contactRequests || []
             };
         } catch (error) {

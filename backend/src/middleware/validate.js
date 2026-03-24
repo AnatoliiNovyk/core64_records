@@ -36,7 +36,11 @@ export const settingsSchema = z.object({
   title: z.string().min(1),
   about: z.string().optional().default(""),
   mission: z.string().optional().default(""),
-  email: z.string().email()
+  email: z.string().email(),
+  instagramUrl: z.string().optional().default("#"),
+  youtubeUrl: z.string().optional().default("#"),
+  soundcloudUrl: z.string().optional().default("#"),
+  radioUrl: z.string().optional().default("#")
 });
 
 export const contactRequestSchema = z.object({

@@ -179,6 +179,72 @@ function loadAbout(settings) {
     }
 }
 
+function decodeHtmlEntities(text) {
+    let decodedText = text === null || text === undefined ? "" : String(text);
+    for (let i = 0; i < 5; i += 1) {
+        const nextDecodedText = decodedText
+            .replace(/&amp;/gi, "&")
+            .replace(/&lt;/gi, "<")
+            .replace(/&gt;/gi, ">")
+            .replace(/&quot;/gi, '"')
+            .replace(/&#039;/gi, "'");
+        if (nextDecodedText === decodedText) break;
+        decodedText = nextDecodedText;
+    }
+    return decodedText;
+}
+
+function normalizeSocialUrl(value, options = {}) {
+    const { platform = "" } = options || {};
+    const decodedValue = decodeHtmlEntities(value).trim();
+    if (!decodedValue || decodedValue === "#") return "#";
+
+    const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(decodedValue)
+        ? decodedValue
+        : (decodedValue.startsWith("www.") ? `https://${decodedValue}` : decodedValue);
+
+    let parsedUrl;
+    try {
+        parsedUrl = new URL(withProtocol);
+    } catch (_error) {
+        return "#";
+    }
+
+    if (!/^https?:$/i.test(parsedUrl.protocol)) {
+        return "#";
+    }
+
+    if (platform === "youtube" && parsedUrl.hostname.toLowerCase() === "music.youtube.com" && parsedUrl.pathname.startsWith("/@")) {
+        parsedUrl.hostname = "www.youtube.com";
+    }
+
+    return parsedUrl.toString();
+}
+
+function applyHeroSocialLinks(settings) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const links = {
+        instagram: normalizeSocialUrl(source.instagramUrl, { platform: "instagram" }),
+        youtube: normalizeSocialUrl(source.youtubeUrl, { platform: "youtube" }),
+        soundcloud: normalizeSocialUrl(source.soundcloudUrl, { platform: "soundcloud" }),
+        radio: normalizeSocialUrl(source.radioUrl, { platform: "radio" })
+    };
+
+    const targets = {
+        instagram: document.getElementById("hero-social-instagram"),
+        youtube: document.getElementById("hero-social-youtube"),
+        soundcloud: document.getElementById("hero-social-soundcloud"),
+        radio: document.getElementById("hero-social-radio")
+    };
+
+    Object.entries(targets).forEach(([key, el]) => {
+        if (!el) return;
+        el.href = links[key];
+        el.target = "_blank";
+        el.rel = "noopener noreferrer";
+    });
+}
+
 function initContactForm() {
     const form = document.getElementById("contact-form");
     if (!form) return;
@@ -235,6 +301,7 @@ async function bootstrap() {
         renderArtists(data);
         renderEvents(data);
         loadAbout(data.settings || {});
+        applyHeroSocialLinks(data.settings || {});
     } catch (error) {
         console.error("Failed to load site data", error);
         if (requireApi) {
@@ -247,6 +314,7 @@ async function bootstrap() {
         renderArtists(fallback);
         renderEvents(fallback);
         loadAbout(fallback.settings);
+        applyHeroSocialLinks(fallback.settings);
     }
 
     initContactForm();
