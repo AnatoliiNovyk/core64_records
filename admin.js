@@ -119,6 +119,14 @@ function normalizeAuditFilterOptionValues(values) {
         .sort();
 }
 
+const AUDIT_DATE_PRESET_ALLOWED_VALUES = ["all", "today", "24h", "7d", "custom"];
+
+function normalizeAuditDatePreset(value, fallback = "all") {
+    if (typeof value !== "string") return fallback;
+    const normalized = value.trim();
+    return AUDIT_DATE_PRESET_ALLOWED_VALUES.includes(normalized) ? normalized : fallback;
+}
+
 function normalizeContactsPage(value, fallback = CONTACTS_MIN_PAGE) {
     return clampBoundedInteger(value, {
         fallback,
@@ -1148,7 +1156,7 @@ function saveAuditUiState() {
         entity: entityEl && entityEl.isConnected ? normalizeAuditFilterSelectValue(entityEl.value, "all") : "all",
         dateFrom: dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "",
         dateTo: dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "",
-        datePreset: datePresetEl && datePresetEl.isConnected ? datePresetEl.value || "all" : "all",
+        datePreset: datePresetEl && datePresetEl.isConnected ? normalizeAuditDatePreset(datePresetEl.value, "all") : "all",
         ecoMode: ecoModeEl && ecoModeEl.isConnected ? !!ecoModeEl.checked : false,
         limit: String(normalizedLimit),
         refreshInterval: String(normalizedRefreshInterval),
@@ -1191,7 +1199,9 @@ function loadAuditUiState() {
         if (dateToEl && dateToEl.isConnected) {
             dateToEl.value = normalizeIsoDateFilter(state.dateTo);
         }
-        if (datePresetEl && datePresetEl.isConnected && typeof state.datePreset === "string") datePresetEl.value = state.datePreset;
+        if (datePresetEl && datePresetEl.isConnected) {
+            datePresetEl.value = normalizeAuditDatePreset(state.datePreset, "all");
+        }
         if (ecoModeEl && ecoModeEl.isConnected) ecoModeEl.checked = !!state.ecoMode;
         if (limitEl && limitEl.isConnected) {
             limitEl.value = String(normalizeAuditLimit(state.limit, AUDIT_PAGE_SIZE));
@@ -2478,8 +2488,28 @@ function handleAuditLoadError(error, fallbackMessage) {
 function validateAuditDateRange() {
     const dateFromEl = document.getElementById("audit-date-from");
     const dateToEl = document.getElementById("audit-date-to");
-    const from = dateFromEl && dateFromEl.isConnected ? dateFromEl.value : "";
-    const to = dateToEl && dateToEl.isConnected ? dateToEl.value : "";
+    const rawFrom = dateFromEl && dateFromEl.isConnected ? String(dateFromEl.value || "") : "";
+    const rawTo = dateToEl && dateToEl.isConnected ? String(dateToEl.value || "") : "";
+    const from = normalizeIsoDateFilter(rawFrom);
+    const to = normalizeIsoDateFilter(rawTo);
+
+    if (rawFrom && !from) {
+        showAuditError("Помилка аудиту: некоректна дата 'Від'.");
+        return false;
+    }
+
+    if (rawTo && !to) {
+        showAuditError("Помилка аудиту: некоректна дата 'До'.");
+        return false;
+    }
+
+    if (dateFromEl && dateFromEl.isConnected && dateFromEl.value !== from) {
+        dateFromEl.value = from;
+    }
+
+    if (dateToEl && dateToEl.isConnected && dateToEl.value !== to) {
+        dateToEl.value = to;
+    }
 
     if (from && to && from > to) {
         showAuditError("Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.");
@@ -2786,7 +2816,10 @@ function applyAuditDatePreset() {
     if (!presetEl || !fromEl || !toEl) return;
     if (!presetEl.isConnected || !fromEl.isConnected || !toEl.isConnected) return;
 
-    const preset = presetEl.value;
+    const preset = normalizeAuditDatePreset(presetEl.value, "all");
+    if (presetEl.value !== preset) {
+        presetEl.value = preset;
+    }
     const now = new Date();
 
     if (preset === "all") {
@@ -2806,6 +2839,9 @@ function applyAuditDatePreset() {
         toEl.value = toDateInputValue(now);
     }
 
+    fromEl.value = normalizeIsoDateFilter(fromEl.value);
+    toEl.value = normalizeIsoDateFilter(toEl.value);
+
     if (currentSection !== sectionAtPreset) return;
     if (currentSection !== "audit") return;
     const auditSectionEl = document.getElementById("section-audit");
@@ -2815,9 +2851,17 @@ function applyAuditDatePreset() {
 
 function onAuditDateInputChange() {
     const sectionAtInput = currentSection;
+    const fromEl = document.getElementById("audit-date-from");
+    const toEl = document.getElementById("audit-date-to");
+    if (fromEl && fromEl.isConnected) {
+        fromEl.value = normalizeIsoDateFilter(fromEl.value);
+    }
+    if (toEl && toEl.isConnected) {
+        toEl.value = normalizeIsoDateFilter(toEl.value);
+    }
     const presetEl = document.getElementById("audit-date-preset");
     if (presetEl && presetEl.isConnected) {
-        presetEl.value = "custom";
+        presetEl.value = normalizeAuditDatePreset("custom", "custom");
     }
     if (currentSection !== sectionAtInput) return;
     if (currentSection !== "audit") return;
