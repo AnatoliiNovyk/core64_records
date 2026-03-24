@@ -3999,11 +3999,11 @@ function normalizeCrudFormFieldValue(entityType, key, value) {
 
         const numericYear = Number(trimmedYear);
         if (Number.isFinite(numericYear)) {
-            return clampBoundedInteger(numericYear, {
+            return String(clampBoundedInteger(numericYear, {
                 fallback: 2024,
                 min: 1900,
                 max: 9999
-            });
+            }));
         }
 
         return sanitizedValue;
