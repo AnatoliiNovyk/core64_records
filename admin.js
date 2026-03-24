@@ -50,6 +50,8 @@ let settingsUnsavedToastPausedByWindowBlur = false;
 let settingsUnsavedToastPausedByVisibility = false;
 let settingsUnsavedToastTouchActive = false;
 let globalEventListenersBound = false;
+let modalFormMissingWarned = false;
+let modalOverlayMissingWarned = false;
 const SETTINGS_UNSAVED_TOAST_DURATION_MS = 1800;
 const SETTINGS_UNSAVED_TOAST_MIN_REMAINING_MS = 200;
 const SETTINGS_UNSAVED_TOAST_QUEUE_LIMIT = 5;
@@ -1566,6 +1568,7 @@ async function logout() {
 }
 
 function setActiveSection(section) {
+    if (typeof section !== "string" || !section) return;
     const sectionEl = document.getElementById(`section-${section}`);
     if (!sectionEl || !sectionEl.isConnected) return;
 
@@ -1587,6 +1590,7 @@ function setActiveSection(section) {
 }
 
 async function showSection(section) {
+    if (typeof section !== "string" || !section) return;
     const transitionFromSection = currentSection;
     const sectionNavigationSeqAtStart = ++sectionNavigationSeq;
     const targetSectionEl = document.getElementById(`section-${section}`);
@@ -2932,7 +2936,11 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
 }
 
 function openModal(type, id) {
-    editingId = id || null;
+    if (typeof type !== "string" || !type) return;
+    if (!["release", "artist", "event"].includes(type)) return;
+    const normalizedId = typeof id === "string" ? id.trim() : id;
+    if (normalizedId !== null && normalizedId !== undefined && typeof normalizedId !== "string" && typeof normalizedId !== "number") return;
+    editingId = normalizedId || null;
     editingType = type;
 
     const modal = document.getElementById("modal");
@@ -2971,9 +2979,12 @@ function closeModal() {
 function handleFileUpload(input) {
     const sectionAtUpload = currentSection;
     if (!input || input.isConnected === false) return;
+    if (typeof input.tagName !== "string" || input.tagName.toUpperCase() !== "INPUT") return;
     const sectionEl = document.getElementById(`section-${sectionAtUpload}`);
     if (!sectionEl || !sectionEl.isConnected) return;
-    const file = input.files[0];
+    const files = input.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
     if (!file) return;
     const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
@@ -3006,7 +3017,9 @@ function handleFileUpload(input) {
         if (currentSection !== sectionAtUpload) return;
         if (!sectionEl || !sectionEl.isConnected) return;
         if (!input || input.isConnected === false) return;
-        const base64 = e.target.result;
+        const loadTarget = e && e.target;
+        if (!loadTarget || typeof loadTarget.result !== "string") return;
+        const base64 = loadTarget.result;
         const container = input.closest("div");
         if (!container || container.isConnected === false) return;
         const imageInput = container.querySelector('input[name="image"]');
@@ -3179,7 +3192,10 @@ if (modalFormEl && modalFormEl.isConnected) {
         const editingIdAtSubmit = editingId;
         const isEditMode = !!editingIdAtSubmit;
 
-        const formData = new FormData(e.target);
+        const formEl = e.target;
+        if (!formEl || formEl.isConnected === false) return;
+        if (typeof formEl.tagName !== "string" || formEl.tagName.toUpperCase() !== "FORM") return;
+        const formData = new FormData(formEl);
         const item = { id: editingIdAtSubmit || Date.now() };
         formData.forEach((value, key) => {
             item[key] = sanitizeInput(value);
@@ -3218,14 +3234,25 @@ if (modalFormEl && modalFormEl.isConnected) {
         });
     }
 } else {
-    console.warn("Modal form element is unavailable; submit listener was not registered");
+    if (!modalFormMissingWarned) {
+        console.warn("Modal form element is unavailable; submit listener was not registered");
+        modalFormMissingWarned = true;
+    }
 }
 
 function editItem(type, id) {
+    if (typeof type !== "string" || !["release", "artist", "event"].includes(type)) return;
+    if (id === null || id === undefined) return;
+    if (typeof id === "string" && !id.trim()) return;
+    if (typeof id === "number" && !Number.isFinite(id)) return;
     openModal(type, id);
 }
 
 async function deleteItem(type, id) {
+    if (typeof type !== "string" || !["release", "artist", "event"].includes(type)) return;
+    if (id === null || id === undefined) return;
+    if (typeof id === "string" && !id.trim()) return;
+    if (typeof id === "number" && !Number.isFinite(id)) return;
     const sectionAtDelete = currentSection;
     const navigationSeqAtDelete = sectionNavigationSeq;
     const typeName = getTypeName(type);
@@ -3389,9 +3416,15 @@ if (modalOverlayEl && modalOverlayEl.isConnected) {
             if (!e || e.defaultPrevented) return;
             if (e.currentTarget && e.currentTarget.isConnected === false) return;
             if (e.target && e.target.isConnected === false) return;
+            if (e.currentTarget && e.currentTarget.id !== "modal") return;
             if (e.target !== e.currentTarget) return;
             if (typeof e.button === "number" && e.button !== 0) return;
             closeModal();
         });
+    }
+} else {
+    if (!modalOverlayMissingWarned) {
+        console.warn("Modal overlay element is unavailable; click listener was not registered");
+        modalOverlayMissingWarned = true;
     }
 }
