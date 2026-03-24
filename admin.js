@@ -3738,6 +3738,47 @@ function hasUsableEntityId(id) {
     return false;
 }
 
+function normalizeCrudFormFieldValue(entityType, key, value) {
+    const rawValue = typeof value === "string" ? value : String(value ?? "");
+    const sanitizedValue = sanitizeInput(rawValue);
+
+    if (entityType === "release" && key === "year") {
+        const trimmedYear = rawValue.trim();
+        if (!trimmedYear) return "";
+
+        const numericYear = Number(trimmedYear);
+        if (Number.isFinite(numericYear)) {
+            return clampBoundedInteger(numericYear, {
+                fallback: 2024,
+                min: 1900,
+                max: 9999
+            });
+        }
+
+        return sanitizedValue;
+    }
+
+    if (entityType === "event" && key === "date") {
+        return normalizeIsoDateFilter(rawValue) || sanitizedValue;
+    }
+
+    return sanitizedValue;
+}
+
+function buildCrudItemFromFormData(entityType, formData, baseItem = {}) {
+    const item = {
+        ...(baseItem && typeof baseItem === "object" ? baseItem : {})
+    };
+    if (!(formData instanceof FormData)) return item;
+
+    formData.forEach((value, key) => {
+        if (typeof key !== "string" || !key.trim()) return;
+        item[key] = normalizeCrudFormFieldValue(entityType, key, value);
+    });
+
+    return item;
+}
+
 function serializeInlineEntityIdArg(id) {
     const normalizedId = normalizeEntityId(id);
     if (!hasUsableEntityId(normalizedId)) return null;
@@ -3766,9 +3807,8 @@ if (modalFormEl && modalFormEl.isConnected) {
         if (!formEl || formEl.isConnected === false) return;
         if (typeof formEl.tagName !== "string" || formEl.tagName.toUpperCase() !== "FORM") return;
         const formData = new FormData(formEl);
-        const item = { id: isEditMode ? editingIdAtSubmit : Date.now() };
-        formData.forEach((value, key) => {
-            item[key] = sanitizeInput(value);
+        const item = buildCrudItemFromFormData(editingTypeAtSubmit, formData, {
+            id: isEditMode ? editingIdAtSubmit : Date.now()
         });
 
         const updateItemMethod = getAdapterMethod("updateItem");
