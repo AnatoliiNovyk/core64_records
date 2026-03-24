@@ -29,6 +29,7 @@ let auditAutoRefreshTimer = null;
 let auditRefreshCountdownTimer = null;
 let auditRefreshRemainingSec = 0;
 let auditSearchDebounceTimer = null;
+let contactsFilterDebounceTimer = null;
 let auditRequestSeq = 0;
 let auditRequestController = null;
 let auditShortcutToastTimer = null;
@@ -1974,11 +1975,7 @@ async function showSection(section) {
         stopAuditAutoRefresh();
         cancelAuditRequest();
         setAuditLoading(false);
-
-        if (auditSearchDebounceTimer) {
-            clearTimeout(auditSearchDebounceTimer);
-            auditSearchDebounceTimer = null;
-        }
+        cancelPendingAuditFiltersApply();
 
         if (auditShortcutToastTimer) {
             clearTimeout(auditShortcutToastTimer);
@@ -2024,6 +2021,10 @@ async function showSection(section) {
         if (forceRefreshSpinner && forceRefreshSpinner.isConnected) {
             forceRefreshSpinner.classList.add("hidden");
         }
+    }
+
+    if (section !== "contacts") {
+        cancelPendingContactsFiltersApply();
     }
 
     setActiveSection(section);
@@ -2873,6 +2874,7 @@ function changeAuditLimit() {
     if (currentSection !== sectionAtChange || currentSection !== "audit") return;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
+    cancelPendingAuditFiltersApply();
     const limitEl = document.getElementById("audit-limit");
     normalizeAuditLimitControlValue(limitEl);
     auditPage = 1;
@@ -2903,24 +2905,43 @@ function changeAuditRefreshInterval() {
     updateAuditRefreshBadge();
 }
 
-function handleAuditSearchInput() {
-    const sectionAtInput = currentSection;
-    const navigationSeqAtInput = sectionNavigationSeq;
-    const searchEl = document.getElementById("audit-search");
-    normalizeAuditSearchControlValue(searchEl);
-    if (auditSearchDebounceTimer) {
-        clearTimeout(auditSearchDebounceTimer);
-    }
+function cancelPendingAuditFiltersApply() {
+    if (!auditSearchDebounceTimer) return;
+    clearTimeout(auditSearchDebounceTimer);
+    auditSearchDebounceTimer = null;
+}
 
-    auditSearchDebounceTimer = setTimeout(() => {
+function scheduleAuditFiltersApply(delayMs = 0) {
+    const sectionAtFilterChange = currentSection;
+    const navigationSeqAtFilterChange = sectionNavigationSeq;
+    const normalizedDelayMs = Math.max(0, Number(delayMs) || 0);
+
+    cancelPendingAuditFiltersApply();
+
+    const applyFilters = () => {
         auditSearchDebounceTimer = null;
-        if (sectionNavigationSeq !== navigationSeqAtInput) return;
-        if (currentSection !== sectionAtInput) return;
+        if (sectionNavigationSeq !== navigationSeqAtFilterChange) return;
+        if (currentSection !== sectionAtFilterChange) return;
         if (currentSection !== "audit") return;
         const auditSectionEl = document.getElementById("section-audit");
         if (!auditSectionEl || !auditSectionEl.isConnected) return;
+
+        getNormalizedAuditFilters();
         resetAuditPageAndRender();
-    }, 300);
+    };
+
+    if (!normalizedDelayMs) {
+        applyFilters();
+        return;
+    }
+
+    auditSearchDebounceTimer = setTimeout(applyFilters, normalizedDelayMs);
+}
+
+function handleAuditSearchInput() {
+    const searchEl = document.getElementById("audit-search");
+    normalizeAuditSearchControlValue(searchEl);
+    scheduleAuditFiltersApply(300);
 }
 
 function toDateInputValue(date) {
@@ -2963,9 +2984,7 @@ function applyAuditDatePreset() {
 
     if (currentSection !== sectionAtPreset) return;
     if (currentSection !== "audit") return;
-    const auditSectionEl = document.getElementById("section-audit");
-    if (!auditSectionEl || !auditSectionEl.isConnected) return;
-    resetAuditPageAndRender();
+    scheduleAuditFiltersApply(0);
 }
 
 function onAuditDateInputChange() {
@@ -2984,20 +3003,11 @@ function onAuditDateInputChange() {
     }
     if (currentSection !== sectionAtInput) return;
     if (currentSection !== "audit") return;
-    const auditSectionEl = document.getElementById("section-audit");
-    if (!auditSectionEl || !auditSectionEl.isConnected) return;
-    resetAuditPageAndRender();
+    scheduleAuditFiltersApply(0);
 }
 
 function handleAuditFilterChange() {
-    const sectionAtFilterChange = currentSection;
-    if (currentSection !== sectionAtFilterChange) return;
-    if (currentSection !== "audit") return;
-    const auditSectionEl = document.getElementById("section-audit");
-    if (!auditSectionEl || !auditSectionEl.isConnected) return;
-
-    getNormalizedAuditFilters();
-    resetAuditPageAndRender();
+    scheduleAuditFiltersApply(0);
 }
 
 function clearAuditFilters() {
@@ -3022,6 +3032,7 @@ function clearAuditFilters() {
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
 
+    cancelPendingAuditFiltersApply();
     auditPage = 1;
     saveAuditUiState();
     loadAuditLogs().catch((error) => {
@@ -3402,22 +3413,53 @@ function changeContactsPage(delta) {
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
     const container = document.getElementById("contacts-list");
     if (!container || !container.isConnected) return;
+    cancelPendingContactsFiltersApply();
     contactsPage = normalizeContactsPage(contactsPage + normalizedDelta, CONTACTS_MIN_PAGE);
     renderContacts();
 }
 
-function handleContactsFilterChange() {
-    const sectionAtFilterChange = currentSection;
-    if (currentSection !== sectionAtFilterChange) return;
-    if (currentSection !== "contacts") return;
-    const contactsSectionEl = document.getElementById("section-contacts");
-    const contactsListEl = document.getElementById("contacts-list");
-    if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
-    if (!contactsListEl || !contactsListEl.isConnected) return;
+function cancelPendingContactsFiltersApply() {
+    if (!contactsFilterDebounceTimer) return;
+    clearTimeout(contactsFilterDebounceTimer);
+    contactsFilterDebounceTimer = null;
+}
 
-    getNormalizedContactsFilters();
-    contactsPage = CONTACTS_MIN_PAGE;
-    renderContacts();
+function scheduleContactsFiltersApply(delayMs = 0) {
+    const sectionAtFilterChange = currentSection;
+    const navigationSeqAtFilterChange = sectionNavigationSeq;
+    const normalizedDelayMs = Math.max(0, Number(delayMs) || 0);
+
+    cancelPendingContactsFiltersApply();
+
+    const applyFilters = () => {
+        contactsFilterDebounceTimer = null;
+        if (sectionNavigationSeq !== navigationSeqAtFilterChange) return;
+        if (currentSection !== sectionAtFilterChange) return;
+        if (currentSection !== "contacts") return;
+        const contactsSectionEl = document.getElementById("section-contacts");
+        const contactsListEl = document.getElementById("contacts-list");
+        if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
+        if (!contactsListEl || !contactsListEl.isConnected) return;
+
+        getNormalizedContactsFilters();
+        contactsPage = CONTACTS_MIN_PAGE;
+        renderContacts();
+    };
+
+    if (!normalizedDelayMs) {
+        applyFilters();
+        return;
+    }
+
+    contactsFilterDebounceTimer = setTimeout(applyFilters, normalizedDelayMs);
+}
+
+function handleContactsFilterChange() {
+    scheduleContactsFiltersApply(0);
+}
+
+function handleContactsSearchInput() {
+    scheduleContactsFiltersApply(250);
 }
 
 const CONTACT_REQUEST_ALLOWED_STATUSES = ["new", "in_progress", "done"];
