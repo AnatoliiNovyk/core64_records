@@ -127,6 +127,26 @@ function normalizeAuditDatePreset(value, fallback = "all") {
     return AUDIT_DATE_PRESET_ALLOWED_VALUES.includes(normalized) ? normalized : fallback;
 }
 
+function normalizeAuditLimitControlValue(limitEl) {
+    if (!limitEl || !limitEl.isConnected) return AUDIT_PAGE_SIZE;
+    const normalizedLimit = normalizeAuditLimit(limitEl.value, AUDIT_PAGE_SIZE);
+    const normalizedText = String(normalizedLimit);
+    if (limitEl.value !== normalizedText) {
+        limitEl.value = normalizedText;
+    }
+    return normalizedLimit;
+}
+
+function normalizeAuditRefreshControlValue(refreshEl) {
+    if (!refreshEl || !refreshEl.isConnected) return 0;
+    const normalizedRefreshSeconds = normalizeAuditRefreshSeconds(refreshEl.value);
+    const normalizedText = String(normalizedRefreshSeconds);
+    if (refreshEl.value !== normalizedText) {
+        refreshEl.value = normalizedText;
+    }
+    return normalizedRefreshSeconds;
+}
+
 function normalizeContactsPage(value, fallback = CONTACTS_MIN_PAGE) {
     return clampBoundedInteger(value, {
         fallback,
@@ -137,6 +157,36 @@ function normalizeContactsPage(value, fallback = CONTACTS_MIN_PAGE) {
 
 function normalizeContactsStatusFilter(value) {
     return normalizeSupportedContactRequestStatus(value) || "all";
+}
+
+function normalizeContactsStatusControlValue(statusFilterEl) {
+    if (!statusFilterEl || !statusFilterEl.isConnected) return "all";
+    const normalizedStatusFilter = normalizeContactsStatusFilter(statusFilterEl.value);
+    if (statusFilterEl.value !== normalizedStatusFilter) {
+        statusFilterEl.value = normalizedStatusFilter;
+    }
+    return normalizedStatusFilter;
+}
+
+function normalizeContactsDateControlValue(dateFilterEl) {
+    if (!dateFilterEl || !dateFilterEl.isConnected) return "";
+    const normalizedDateFilter = normalizeIsoDateFilter(dateFilterEl.value);
+    if (dateFilterEl.value !== normalizedDateFilter) {
+        dateFilterEl.value = normalizedDateFilter;
+    }
+    return normalizedDateFilter;
+}
+
+function getNormalizedContactsFilters() {
+    const statusFilterEl = document.getElementById("contacts-filter-status");
+    const dateFilterEl = document.getElementById("contacts-filter-date");
+    const searchEl = document.getElementById("contacts-search");
+
+    return {
+        statusFilter: normalizeContactsStatusControlValue(statusFilterEl),
+        dateFilter: normalizeContactsDateControlValue(dateFilterEl),
+        query: normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "")
+    };
 }
 
 function normalizeIsoDateFilter(value) {
@@ -1143,12 +1193,8 @@ function saveAuditUiState() {
     const ecoModeEl = document.getElementById("audit-eco-mode");
     const limitEl = document.getElementById("audit-limit");
     const refreshEl = document.getElementById("audit-refresh-interval");
-    const normalizedLimit = limitEl && limitEl.isConnected
-        ? normalizeAuditLimit(limitEl.value)
-        : AUDIT_PAGE_SIZE;
-    const normalizedRefreshInterval = refreshEl && refreshEl.isConnected
-        ? normalizeAuditRefreshSeconds(refreshEl.value)
-        : 0;
+    const normalizedLimit = normalizeAuditLimitControlValue(limitEl);
+    const normalizedRefreshInterval = normalizeAuditRefreshControlValue(refreshEl);
 
     const state = {
         search: searchEl && searchEl.isConnected ? searchEl.value || "" : "",
@@ -1248,8 +1294,7 @@ function isAbortError(error) {
 
 function getAuditRefreshSeconds() {
     const intervalEl = document.getElementById("audit-refresh-interval");
-    if (!intervalEl || !intervalEl.isConnected) return 0;
-    return normalizeAuditRefreshSeconds(intervalEl.value);
+    return normalizeAuditRefreshControlValue(intervalEl);
 }
 
 function isAuditEcoModeEnabled() {
@@ -2758,9 +2803,7 @@ function changeAuditLimit() {
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
     const limitEl = document.getElementById("audit-limit");
-    if (limitEl && limitEl.isConnected) {
-        limitEl.value = String(normalizeAuditLimit(limitEl.value));
-    }
+    normalizeAuditLimitControlValue(limitEl);
     auditPage = 1;
     saveAuditUiState();
     loadAuditLogs().catch((error) => {
@@ -2779,6 +2822,9 @@ function changeAuditRefreshInterval() {
     if (currentSection !== sectionAtChange || currentSection !== "audit") return;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
+    const refreshEl = document.getElementById("audit-refresh-interval");
+    normalizeAuditRefreshControlValue(refreshEl);
+    saveAuditUiState();
     setupAuditAutoRefresh();
     if (sectionNavigationSeq !== navigationSeqAtChange) return;
     if (currentSection !== sectionAtChange || currentSection !== "audit") return;
@@ -3053,9 +3099,7 @@ function renderAuditLogs() {
 
     const filtered = getFilteredAuditLogs();
     const limitEl = document.getElementById("audit-limit");
-    const effectiveLimit = limitEl && limitEl.isConnected
-        ? normalizeAuditLimit(limitEl.value)
-        : AUDIT_PAGE_SIZE;
+    const effectiveLimit = normalizeAuditLimitControlValue(limitEl);
     const normalizedTotal = Math.max(0, Number(auditTotal) || 0);
     const totalPages = Math.max(1, Math.ceil(normalizedTotal / effectiveLimit));
 
@@ -3114,12 +3158,7 @@ function getStatusLabel(status) {
 }
 
 function getFilteredContacts() {
-    const statusFilterEl = document.getElementById("contacts-filter-status");
-    const dateFilterEl = document.getElementById("contacts-filter-date");
-    const searchEl = document.getElementById("contacts-search");
-    const statusFilter = normalizeContactsStatusFilter(statusFilterEl && statusFilterEl.isConnected ? statusFilterEl.value : "all");
-    const dateFilter = normalizeIsoDateFilter(dateFilterEl && dateFilterEl.isConnected ? dateFilterEl.value : "");
-    const query = normalizeSearchText(searchEl && searchEl.isConnected ? searchEl.value : "");
+    const { statusFilter, dateFilter, query } = getNormalizedContactsFilters();
 
     if (!Array.isArray(cache.contactRequests)) return [];
 
@@ -3283,6 +3322,20 @@ function changeContactsPage(delta) {
     const container = document.getElementById("contacts-list");
     if (!container || !container.isConnected) return;
     contactsPage = normalizeContactsPage(contactsPage + normalizedDelta, CONTACTS_MIN_PAGE);
+    renderContacts();
+}
+
+function handleContactsFilterChange() {
+    const sectionAtFilterChange = currentSection;
+    if (currentSection !== sectionAtFilterChange) return;
+    if (currentSection !== "contacts") return;
+    const contactsSectionEl = document.getElementById("section-contacts");
+    const contactsListEl = document.getElementById("contacts-list");
+    if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
+    if (!contactsListEl || !contactsListEl.isConnected) return;
+
+    getNormalizedContactsFilters();
+    contactsPage = CONTACTS_MIN_PAGE;
     renderContacts();
 }
 

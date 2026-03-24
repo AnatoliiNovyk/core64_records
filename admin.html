@@ -321,7 +321,7 @@
                 <div class="card p-4 rounded mb-4 grid md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за статусом</label>
-                        <select id="contacts-filter-status" class="form-input w-full p-3 rounded" onchange="renderContacts()" title="Фільтр за статусом звернень">
+                        <select id="contacts-filter-status" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" title="Фільтр за статусом звернень">
                             <option value="all">Усі</option>
                             <option value="new">Нові</option>
                             <option value="in_progress">В роботі</option>
@@ -330,11 +330,11 @@
                     </div>
                     <div>
                         <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за датою</label>
-                        <input id="contacts-filter-date" type="date" class="form-input w-full p-3 rounded" onchange="renderContacts()" title="Фільтр за датою звернення" placeholder="Оберіть дату">
+                        <input id="contacts-filter-date" type="date" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" title="Фільтр за датою звернення" placeholder="Оберіть дату">
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-gray-400 mb-2 uppercase text-xs">Пошук (тема, email, ім'я)</label>
-                        <input id="contacts-search" type="text" class="form-input w-full p-3 rounded" oninput="renderContacts()" title="Пошук по зверненнях" placeholder="Введіть тему, email або ім'я">
+                        <input id="contacts-search" type="text" class="form-input w-full p-3 rounded" oninput="handleContactsFilterChange()" title="Пошук по зверненнях" placeholder="Введіть тему, email або ім'я">
                     </div>
                 </div>
                 <div id="contacts-list" class="space-y-4"></div>
