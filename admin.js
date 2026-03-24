@@ -1493,6 +1493,7 @@ function handleAuditVisibilityChange() {
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
     if (sectionNavigationSeq !== navigationSeqAtVisibility) return;
 
+    cancelPendingAuditFiltersApply();
     setupAuditAutoRefresh();
     if (sectionNavigationSeq !== navigationSeqAtVisibility) return;
     loadAuditLogs().catch((error) => {
@@ -2897,6 +2898,7 @@ function changeAuditRefreshInterval() {
     if (currentSection !== sectionAtChange || currentSection !== "audit") return;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
+    cancelPendingAuditFiltersApply();
     const refreshEl = document.getElementById("audit-refresh-interval");
     normalizeAuditRefreshControlValue(refreshEl);
     saveAuditUiState();
@@ -3516,6 +3518,7 @@ async function changeContactStatus(id, status) {
     const contactsListEl = document.getElementById("contacts-list");
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
     if (!contactsListEl || !contactsListEl.isConnected) return;
+    cancelPendingContactsFiltersApply();
     const updateContactRequestStatusMethod = getAdapterMethod("updateContactRequestStatus");
     const getContactRequestsMethod = getAdapterMethod("getContactRequests");
     if (!updateContactRequestStatusMethod || !getContactRequestsMethod) {
@@ -3589,6 +3592,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
     const contactsListEl = document.getElementById("contacts-list");
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
     if (!contactsListEl || !contactsListEl.isConnected) return;
+    cancelPendingContactsFiltersApply();
     const updateContactRequestStatusMethod = getAdapterMethod("updateContactRequestStatus");
     const getContactRequestsMethod = getAdapterMethod("getContactRequests");
     if (!updateContactRequestStatusMethod || !getContactRequestsMethod) {
