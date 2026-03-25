@@ -3948,7 +3948,9 @@ function handleFileUpload(input) {
         const container = input.closest("div");
         if (!container || container.isConnected === false) return;
         const imageInput = container.querySelector('input[name="image"], input[name="logo"]');
-        const preview = container.parentElement ? container.parentElement.querySelector(".image-preview") : null;
+        const previewInContainer = container.parentElement ? container.parentElement.querySelector(".image-preview") : null;
+        const previewInForm = container.closest("form") ? container.closest("form").querySelector(".image-preview") : null;
+        const preview = previewInContainer || previewInForm;
 
         if (imageInput && imageInput.isConnected) imageInput.value = base64;
         if (preview && preview.isConnected) {
