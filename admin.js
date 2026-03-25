@@ -3947,7 +3947,7 @@ function handleFileUpload(input) {
         const base64 = loadTarget.result;
         const container = input.closest("div");
         if (!container || container.isConnected === false) return;
-        const imageInput = container.querySelector('input[name="image"]');
+        const imageInput = container.querySelector('input[name="image"], input[name="logo"]');
         const preview = container.parentElement ? container.parentElement.querySelector(".image-preview") : null;
 
         if (imageInput && imageInput.isConnected) imageInput.value = base64;
@@ -4146,7 +4146,14 @@ function generateFields(type, item) {
             <div class="grid grid-cols-2 gap-4">
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">URL логотипа</label>
-                    <input type="url" name="logo" value="${fieldValues.logo}" class="form-input w-full p-3 rounded" placeholder="https://..." required>
+                    <div class="flex gap-2 mb-2">
+                        <input type="url" name="logo" value="${fieldValues.logo}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл" required>
+                        <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            <span>Файл</span>
+                            <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(this)">
+                        </label>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">Порядок у каруселі</label>
@@ -4160,7 +4167,7 @@ function generateFields(type, item) {
             <div>
                 <label class="block text-gray-400 mb-2 text-sm uppercase">Превʼю логотипа</label>
                 <div class="h-28 rounded border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
-                    <img src="${fieldValues.logo}" class="w-full h-full object-contain ${fieldValues.logo ? '' : 'hidden'}" alt="logo preview">
+                    <img src="${fieldValues.logo}" class="image-preview w-full h-full object-contain ${fieldValues.logo ? '' : 'hidden'}" alt="logo preview">
                 </div>
             </div>
         `
