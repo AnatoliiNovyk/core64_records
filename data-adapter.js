@@ -190,6 +190,23 @@
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
+    function extractValidationErrorMessage(payload) {
+        if (!payload || typeof payload !== "object") return "";
+        const details = payload.details;
+        if (!details || typeof details !== "object") return "";
+        const fieldErrors = details.fieldErrors;
+        if (!fieldErrors || typeof fieldErrors !== "object") return "";
+
+        for (const key of Object.keys(fieldErrors)) {
+            const messages = fieldErrors[key];
+            if (!Array.isArray(messages)) continue;
+            const firstMessage = messages.find((entry) => typeof entry === "string" && entry.trim());
+            if (firstMessage) return firstMessage.trim();
+        }
+
+        return "";
+    }
+
     async function apiRequest(path, options) {
         const token = sessionStorage.getItem(STORAGE_TOKEN_KEY);
         const headers = Object.assign({ "Content-Type": "application/json" }, options && options.headers ? options.headers : {});
@@ -208,7 +225,8 @@
             let details = `HTTP ${response.status}`;
             try {
                 const payload = await response.json();
-                details = payload.error || payload.message || details;
+                const validationMessage = extractValidationErrorMessage(payload);
+                details = validationMessage || payload.error || payload.message || details;
             } catch (_err) {
                 // No-op: use fallback message.
             }

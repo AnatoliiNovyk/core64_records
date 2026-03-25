@@ -4149,7 +4149,7 @@ function generateFields(type, item) {
                 <div>
                     <label class="block text-gray-400 mb-2 text-sm uppercase">URL логотипа</label>
                     <div class="flex gap-2 mb-2">
-                        <input type="url" name="logo" value="${fieldValues.logo}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл" required>
+                        <input type="text" name="logo" value="${fieldValues.logo}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл" required>
                         <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                             <i data-lucide="upload" class="w-4 h-4"></i>
                             <span>Файл</span>
@@ -4336,6 +4336,15 @@ if (modalFormEl && modalFormEl.isConnected) {
             id: isEditMode ? editingIdAtSubmit : Date.now()
         });
 
+        if (editingTypeAtSubmit === "sponsor") {
+            const shortDescriptionText = String(item.shortDescription || "").trim();
+            const wordsCount = shortDescriptionText ? shortDescriptionText.split(/\s+/).filter(Boolean).length : 0;
+            if (wordsCount < 3 || wordsCount > 5) {
+                alert("Короткий опис партнера має містити від 3 до 5 слів.");
+                return;
+            }
+        }
+
         const updateItemMethod = getAdapterMethod("updateItem");
         const createItemMethod = getAdapterMethod("createItem");
         if ((isEditMode && !updateItemMethod) || (!isEditMode && !createItemMethod)) {
@@ -4380,7 +4389,11 @@ if (modalFormEl && modalFormEl.isConnected) {
             if (currentSection !== sectionAtSubmit) return;
             const sectionEl = document.getElementById(`section-${sectionAtSubmit}`);
             if (!sectionEl || !sectionEl.isConnected) return;
-            alert("Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.");
+            const details = error && typeof error.message === "string" ? error.message.trim() : "";
+            const message = details
+                ? `Не вдалося зберегти запис: ${details}`
+                : "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.";
+            alert(message);
         }
         });
     }
