@@ -1,6 +1,7 @@
 # CORE64 Records
 
 DB-first web app for CORE64 label with:
+
 - public showcase page
 - admin panel for content management
 - API backend with PostgreSQL
@@ -45,8 +46,33 @@ API default URL: `http://localhost:3000/api`
 Serve project root with any static server (for example VS Code Live Server).
 
 The frontend adapter mode is auto:
+
 - if API is available, reads/writes through backend
 - if API is unavailable, falls back to localStorage
+
+## Captcha Configuration
+
+Contact form supports two providers:
+
+- hCaptcha
+- reCAPTCHA v2
+
+Captcha is managed from admin settings and includes:
+
+- enable/disable flag
+- active provider
+- site and secret keys for both providers
+- allowed domain
+- custom validation messages
+
+Public API returns only safe captcha fields (no secret keys).
+
+Optional environment fallback values (used when admin settings are not configured):
+
+```dotenv
+CONTACT_CAPTCHA_PROVIDER=none
+CONTACT_CAPTCHA_SECRET=
+```
 
 ## Auth Flow
 
