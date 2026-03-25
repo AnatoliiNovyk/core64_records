@@ -26,6 +26,152 @@ function updateContactStatus(message, isError) {
         : "mt-3 text-sm text-green-400";
 }
 
+function getContactConfig() {
+    const source = window.CORE64_CONFIG && typeof window.CORE64_CONFIG === "object" ? window.CORE64_CONFIG : {};
+    const captchaSource = source.contactCaptcha && typeof source.contactCaptcha === "object" ? source.contactCaptcha : {};
+    return {
+        maxFileBytes: Number(source.contactMaxFileBytes) > 0 ? Number(source.contactMaxFileBytes) : 15 * 1024 * 1024,
+        captchaProvider: String(captchaSource.provider || "none").trim().toLowerCase(),
+        captchaSiteKey: String(captchaSource.siteKey || "").trim()
+    };
+}
+
+function formatBytesSize(bytes) {
+    const numeric = Number(bytes);
+    if (!Number.isFinite(numeric) || numeric <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const power = Math.min(Math.floor(Math.log(numeric) / Math.log(1024)), units.length - 1);
+    const value = numeric / (1024 ** power);
+    return `${value.toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
+}
+
+function isDemoSubject(subject) {
+    const normalized = String(subject || "").trim().toLowerCase();
+    return normalized === "демо запис" || normalized === "demo" || normalized.includes("демо");
+}
+
+function readFileAsDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === "string") {
+                resolve(reader.result);
+                return;
+            }
+            reject(new Error("Failed to encode file"));
+        };
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+    });
+}
+
+const contactCaptchaState = {
+    ready: false,
+    enabled: false,
+    provider: "none",
+    token: "",
+    widgetId: null
+};
+
+function resetContactCaptcha() {
+    if (!contactCaptchaState.enabled) return;
+    contactCaptchaState.token = "";
+    if (contactCaptchaState.provider !== "turnstile") return;
+    if (!window.turnstile || contactCaptchaState.widgetId === null || contactCaptchaState.widgetId === undefined) return;
+    try {
+        window.turnstile.reset(contactCaptchaState.widgetId);
+    } catch (_error) {
+        // Ignore widget reset errors.
+    }
+}
+
+function loadTurnstileScript() {
+    return new Promise((resolve, reject) => {
+        if (window.turnstile && typeof window.turnstile.render === "function") {
+            resolve();
+            return;
+        }
+
+        const existing = document.querySelector('script[data-core64-turnstile="1"]');
+        if (existing) {
+            existing.addEventListener("load", () => resolve(), { once: true });
+            existing.addEventListener("error", () => reject(new Error("Turnstile script failed")), { once: true });
+            return;
+        }
+
+        const script = document.createElement("script");
+        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.async = true;
+        script.defer = true;
+        script.dataset.core64Turnstile = "1";
+        script.addEventListener("load", () => resolve(), { once: true });
+        script.addEventListener("error", () => reject(new Error("Turnstile script failed")), { once: true });
+        document.head.appendChild(script);
+    });
+}
+
+async function initContactCaptcha() {
+    const config = getContactConfig();
+    const wrap = document.getElementById("contact-captcha-wrap");
+    const widget = document.getElementById("contact-captcha-widget");
+    const hint = document.getElementById("contact-captcha-hint");
+    if (!wrap || !widget || !hint) return;
+
+    contactCaptchaState.enabled = false;
+    contactCaptchaState.provider = "none";
+    contactCaptchaState.token = "";
+    contactCaptchaState.ready = false;
+    contactCaptchaState.widgetId = null;
+
+    const provider = config.captchaProvider;
+    if (provider === "none") {
+        wrap.classList.add("hidden");
+        hint.classList.add("hidden");
+        return;
+    }
+
+    wrap.classList.remove("hidden");
+
+    if (provider !== "turnstile") {
+        hint.textContent = "Поточний провайдер капчі не підтримується на фронтенді.";
+        hint.classList.remove("hidden");
+        return;
+    }
+
+    if (!config.captchaSiteKey) {
+        hint.textContent = "Captcha увімкнена, але не вказано site key.";
+        hint.classList.remove("hidden");
+        return;
+    }
+
+    try {
+        await loadTurnstileScript();
+        widget.innerHTML = "";
+        const widgetId = window.turnstile.render(widget, {
+            sitekey: config.captchaSiteKey,
+            theme: "dark",
+            callback: (token) => {
+                contactCaptchaState.token = String(token || "").trim();
+            },
+            "expired-callback": () => {
+                contactCaptchaState.token = "";
+            },
+            "error-callback": () => {
+                contactCaptchaState.token = "";
+            }
+        });
+
+        contactCaptchaState.enabled = true;
+        contactCaptchaState.provider = "turnstile";
+        contactCaptchaState.ready = true;
+        contactCaptchaState.widgetId = widgetId;
+        hint.classList.add("hidden");
+    } catch (_error) {
+        hint.textContent = "Не вдалося завантажити captcha. Оновіть сторінку або спробуйте пізніше.";
+        hint.classList.remove("hidden");
+    }
+}
+
 function getSocialBrandIconSvg(platform, sizeClass) {
     const iconClass = typeof sizeClass === "string" && sizeClass.trim() ? sizeClass.trim() : "w-4 h-4";
 
@@ -432,25 +578,67 @@ function initContactForm() {
     const form = document.getElementById("contact-form");
     if (!form) return;
 
+    initContactCaptcha();
+
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
         updateContactStatus("Відправка повідомлення...", false);
 
         const formData = new FormData(form);
+        const config = getContactConfig();
+        const subject = String(formData.get("subject") || "");
+        const demoFile = formData.get("demoFile");
+
+        let attachmentName = "";
+        let attachmentType = "";
+        let attachmentDataUrl = "";
+
+        if (demoFile instanceof File && demoFile.size > 0) {
+            if (demoFile.size > config.maxFileBytes) {
+                updateContactStatus(`Файл завеликий. Максимум: ${formatBytesSize(config.maxFileBytes)}.`, true);
+                return;
+            }
+
+            try {
+                attachmentDataUrl = await readFileAsDataUrl(demoFile);
+                attachmentName = demoFile.name || "";
+                attachmentType = demoFile.type || "application/octet-stream";
+            } catch (_error) {
+                updateContactStatus("Не вдалося прочитати файл. Спробуйте інший файл.", true);
+                return;
+            }
+        }
+
+        if (isDemoSubject(subject) && !attachmentDataUrl) {
+            updateContactStatus("Для теми 'Демо запис' потрібно додати файл.", true);
+            return;
+        }
+
+        if (contactCaptchaState.enabled && !contactCaptchaState.token) {
+            updateContactStatus("Підтвердіть, що ви не робот.", true);
+            return;
+        }
+
         const payload = {
             name: formData.get("name"),
             email: formData.get("email"),
-            subject: formData.get("subject"),
-            message: formData.get("message")
+            subject,
+            message: formData.get("message"),
+            attachmentName,
+            attachmentType,
+            attachmentDataUrl,
+            captchaToken: contactCaptchaState.token || ""
         };
 
         try {
             await adapter.submitContactRequest(payload);
             form.reset();
+            resetContactCaptcha();
             updateContactStatus("Дякуємо за повідомлення. Запит успішно збережено.", false);
         } catch (error) {
             console.error("Contact request failed", error);
-            updateContactStatus("Не вдалося зберегти запит. Спробуйте пізніше.", true);
+            const details = error && typeof error.message === "string" ? error.message.trim() : "";
+            updateContactStatus(details ? `Не вдалося зберегти запит: ${details}` : "Не вдалося зберегти запит. Спробуйте пізніше.", true);
         }
     });
 }

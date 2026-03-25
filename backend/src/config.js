@@ -23,5 +23,7 @@ export const config = {
   dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
   jwtSecret: process.env.JWT_SECRET || "change-me",
   corsOrigin: (process.env.CORS_ORIGIN || "*").split(",").map((v) => v.trim()),
-  adminPassword: process.env.ADMIN_PASSWORD || "core64admin"
+  adminPassword: process.env.ADMIN_PASSWORD || "core64admin",
+  contactCaptchaProvider: process.env.CONTACT_CAPTCHA_PROVIDER || "none",
+  contactCaptchaSecret: process.env.CONTACT_CAPTCHA_SECRET || ""
 };

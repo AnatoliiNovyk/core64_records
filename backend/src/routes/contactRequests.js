@@ -2,6 +2,7 @@ import { Router } from "express";
 import { contactRequestSchema, contactRequestStatusSchema } from "../middleware/validate.js";
 import { createContactRequest, listContactRequests, updateContactRequestStatus, writeAuditLog } from "../db/repository.js";
 import { requireAuth } from "../middleware/auth.js";
+import { verifyContactCaptcha } from "../services/captcha.js";
 
 const router = Router();
 
@@ -17,6 +18,19 @@ router.get("/contact-requests", requireAuth, async (_req, res, next) => {
 router.post("/contact-requests", async (req, res, next) => {
   try {
     const validated = contactRequestSchema.parse(req.body);
+    const captchaCheck = await verifyContactCaptcha(validated.captchaToken, req.ip);
+    if (!captchaCheck.ok) {
+      return res.status(400).json({
+        error: "Validation failed",
+        details: {
+          formErrors: [],
+          fieldErrors: {
+            captchaToken: [captchaCheck.message || "Captcha verification failed"]
+          }
+        }
+      });
+    }
+
     const data = await createContactRequest(validated);
     res.status(201).json({ data });
   } catch (error) {

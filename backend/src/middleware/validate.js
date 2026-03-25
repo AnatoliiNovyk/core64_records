@@ -64,7 +64,31 @@ export const contactRequestSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   subject: z.string().min(1),
-  message: z.string().min(1)
+  message: z.string().min(1),
+  attachmentName: z.string().trim().max(255).optional().default(""),
+  attachmentType: z.string().trim().max(120).optional().default(""),
+  attachmentDataUrl: z.string().trim().max(15_000_000).optional().default(""),
+  captchaToken: z.string().trim().max(4096).optional().default("")
+}).superRefine((payload, ctx) => {
+  const subject = String(payload.subject || "").trim().toLowerCase();
+  const isDemo = subject === "демо запис" || subject === "demo" || subject.includes("демо");
+  const hasAttachment = typeof payload.attachmentDataUrl === "string" && payload.attachmentDataUrl.startsWith("data:");
+
+  if (payload.attachmentDataUrl && !hasAttachment) {
+    ctx.addIssue({
+      path: ["attachmentDataUrl"],
+      code: z.ZodIssueCode.custom,
+      message: "attachmentDataUrl must be a valid data URL"
+    });
+  }
+
+  if (isDemo && !hasAttachment) {
+    ctx.addIssue({
+      path: ["attachmentDataUrl"],
+      code: z.ZodIssueCode.custom,
+      message: "Demo requests must include an attachment"
+    });
+  }
 });
 
 export const contactRequestStatusSchema = z.object({

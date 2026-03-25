@@ -406,6 +406,16 @@
                         <label class="block text-cyan-400 mb-2 uppercase text-sm tracking-wider">Повідомлення</label>
                         <textarea rows="5" name="message" title="Текст повідомлення" placeholder="Опишіть ваше звернення..." class="w-full bg-gray-900 border border-cyan-500/30 p-3 text-white focus:border-cyan-400 focus:outline-none transition-colors" required></textarea>
                     </div>
+                    <div>
+                        <label class="block text-cyan-400 mb-2 uppercase text-sm tracking-wider">Файл (для демо-запису)</label>
+                        <input type="file" name="demoFile" title="Демо файл" accept="audio/*,.wav,.aiff,.flac,.mp3,.zip,.rar,.7z" class="w-full bg-gray-900 border border-cyan-500/30 p-3 text-white focus:border-cyan-400 focus:outline-none transition-colors">
+                        <p class="mt-2 text-xs text-gray-400">Додавайте аудіо або архів матеріалів. Для теми "Демо запис" файл є обов'язковим.</p>
+                    </div>
+                    <div id="contact-captcha-wrap" class="hidden">
+                        <label class="block text-cyan-400 mb-2 uppercase text-sm tracking-wider">Перевірка</label>
+                        <div id="contact-captcha-widget" class="min-h-[68px] flex items-center"></div>
+                        <p id="contact-captcha-hint" class="mt-2 text-xs text-gray-400 hidden"></p>
+                    </div>
                     <button type="submit" class="w-full btn-primary py-4">
                         Відправити
                     </button>
@@ -445,7 +455,12 @@
         window.CORE64_CONFIG = {
             dataMode: "auto",
             apiBaseUrl: "http://localhost:3000/api",
-            requireApiOnPublic: false
+            requireApiOnPublic: false,
+            contactMaxFileBytes: 15728640,
+            contactCaptcha: {
+                provider: "none",
+                siteKey: ""
+            }
         };
     </script>
     <script src="data-adapter.js"></script>

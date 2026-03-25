@@ -183,22 +183,30 @@ export async function saveSettings(payload) {
 
 export async function createContactRequest(payload) {
   const result = await pool.query(
-    "INSERT INTO contact_requests (name, email, subject, message, status) VALUES ($1, $2, $3, $4, 'new') RETURNING *",
-    [payload.name, payload.email, payload.subject, payload.message]
+    "INSERT INTO contact_requests (name, email, subject, message, attachment_name, attachment_type, attachment_data, status) VALUES ($1, $2, $3, $4, $5, $6, $7, 'new') RETURNING *",
+    [
+      payload.name,
+      payload.email,
+      payload.subject,
+      payload.message,
+      payload.attachmentName || "",
+      payload.attachmentType || "",
+      payload.attachmentDataUrl || ""
+    ]
   );
   return result.rows[0];
 }
 
 export async function listContactRequests() {
   const result = await pool.query(
-    "SELECT id, name, email, subject, message, status, created_at FROM contact_requests ORDER BY created_at DESC"
+    "SELECT id, name, email, subject, message, attachment_name AS \"attachmentName\", attachment_type AS \"attachmentType\", attachment_data AS \"attachmentDataUrl\", status, created_at FROM contact_requests ORDER BY created_at DESC"
   );
   return result.rows;
 }
 
 export async function updateContactRequestStatus(id, status) {
   const result = await pool.query(
-    "UPDATE contact_requests SET status = $1 WHERE id = $2 RETURNING id, name, email, subject, message, status, created_at",
+    "UPDATE contact_requests SET status = $1 WHERE id = $2 RETURNING id, name, email, subject, message, attachment_name AS \"attachmentName\", attachment_type AS \"attachmentType\", attachment_data AS \"attachmentDataUrl\", status, created_at",
     [status, id]
   );
   return result.rows[0] || null;

@@ -364,7 +364,11 @@
                 name: sanitizeText(payload.name),
                 email: sanitizeText(payload.email),
                 subject: sanitizeText(payload.subject),
-                message: sanitizeText(payload.message)
+                message: sanitizeText(payload.message),
+                attachmentName: String(payload.attachmentName || "").trim(),
+                attachmentType: String(payload.attachmentType || "").trim(),
+                attachmentDataUrl: String(payload.attachmentDataUrl || "").trim(),
+                captchaToken: String(payload.captchaToken || "").trim()
             };
 
             if (await shouldUseApi()) {
