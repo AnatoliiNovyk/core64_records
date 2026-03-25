@@ -10,7 +10,7 @@ async function seed() {
   );
 
   await pool.query(
-    "INSERT INTO settings (title, about, mission, email, instagram_url, youtube_url, soundcloud_url, radio_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) ON CONFLICT DO NOTHING",
+    "INSERT INTO settings (title, about, mission, email, instagram_url, youtube_url, soundcloud_url, radio_url) SELECT $1, $2, $3, $4, $5, $6, $7, $8 WHERE NOT EXISTS (SELECT 1 FROM settings)",
     [
       "CORE64 Records",
       "CORE64 Records — незалежний музичний лейбл, заснований у 2024 році.",

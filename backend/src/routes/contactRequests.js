@@ -18,7 +18,11 @@ router.get("/contact-requests", requireAuth, async (_req, res, next) => {
 router.post("/contact-requests", async (req, res, next) => {
   try {
     const validated = contactRequestSchema.parse(req.body);
-    const captchaCheck = await verifyContactCaptcha(validated.captchaToken, req.ip);
+    const captchaCheck = await verifyContactCaptcha(validated.captchaToken, {
+      remoteIp: req.ip,
+      origin: req.headers.origin || "",
+      host: req.headers.host || ""
+    });
     if (!captchaCheck.ok) {
       return res.status(400).json({
         error: "Validation failed",

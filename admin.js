@@ -2155,6 +2155,23 @@ function normalizeSettingsUrlInput(value, options = {}) {
     return parsedUrl.toString();
 }
 
+function normalizeCaptchaProviderValue(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "hcaptcha" || normalized === "recaptcha_v2" || normalized === "none") return normalized;
+    return "none";
+}
+
+function normalizeSettingsPlainText(value, fallback = "") {
+    const decoded = decodeHtmlEntities(value);
+    const normalized = String(decoded || "").trim();
+    return normalized || fallback;
+}
+
+function normalizeSettingsHostname(value) {
+    const normalized = normalizeSettingsPlainText(value, "").toLowerCase().replace(/^https?:\/\//i, "").split("/")[0];
+    return /^[a-z0-9.-]+$/i.test(normalized) ? normalized : "";
+}
+
 async function refreshCache() {
     const sectionAtRefresh = currentSection;
     const navigationSeqAtRefresh = sectionNavigationSeq;
@@ -2493,6 +2510,16 @@ async function loadSettings() {
     const youtubeInputEl = document.getElementById("setting-social-youtube");
     const soundcloudInputEl = document.getElementById("setting-social-soundcloud");
     const radioInputEl = document.getElementById("setting-social-radio");
+    const captchaEnabledEl = document.getElementById("setting-captcha-enabled");
+    const captchaProviderEl = document.getElementById("setting-captcha-provider");
+    const captchaDomainEl = document.getElementById("setting-captcha-domain");
+    const hcaptchaSiteKeyEl = document.getElementById("setting-captcha-hcaptcha-site-key");
+    const hcaptchaSecretKeyEl = document.getElementById("setting-captcha-hcaptcha-secret-key");
+    const recaptchaSiteKeyEl = document.getElementById("setting-captcha-recaptcha-site-key");
+    const recaptchaSecretKeyEl = document.getElementById("setting-captcha-recaptcha-secret-key");
+    const captchaErrorMessageEl = document.getElementById("setting-captcha-error-message");
+    const captchaMissingTokenMessageEl = document.getElementById("setting-captcha-missing-token-message");
+    const captchaInvalidDomainMessageEl = document.getElementById("setting-captcha-invalid-domain-message");
     if (titleInputEl && titleInputEl.isConnected) {
         titleInputEl.value = cache.settings.title || "";
     }
@@ -2516,6 +2543,36 @@ async function loadSettings() {
     }
     if (radioInputEl && radioInputEl.isConnected) {
         radioInputEl.value = decodeHtmlEntities(cache.settings.radioUrl || "");
+    }
+    if (captchaEnabledEl && captchaEnabledEl.isConnected) {
+        captchaEnabledEl.value = cache.settings.contactCaptchaEnabled ? "1" : "0";
+    }
+    if (captchaProviderEl && captchaProviderEl.isConnected) {
+        captchaProviderEl.value = normalizeCaptchaProviderValue(cache.settings.contactCaptchaActiveProvider);
+    }
+    if (captchaDomainEl && captchaDomainEl.isConnected) {
+        captchaDomainEl.value = decodeHtmlEntities(cache.settings.contactCaptchaAllowedDomain || "");
+    }
+    if (hcaptchaSiteKeyEl && hcaptchaSiteKeyEl.isConnected) {
+        hcaptchaSiteKeyEl.value = decodeHtmlEntities(cache.settings.contactCaptchaHcaptchaSiteKey || "");
+    }
+    if (hcaptchaSecretKeyEl && hcaptchaSecretKeyEl.isConnected) {
+        hcaptchaSecretKeyEl.value = decodeHtmlEntities(cache.settings.contactCaptchaHcaptchaSecretKey || "");
+    }
+    if (recaptchaSiteKeyEl && recaptchaSiteKeyEl.isConnected) {
+        recaptchaSiteKeyEl.value = decodeHtmlEntities(cache.settings.contactCaptchaRecaptchaSiteKey || "");
+    }
+    if (recaptchaSecretKeyEl && recaptchaSecretKeyEl.isConnected) {
+        recaptchaSecretKeyEl.value = decodeHtmlEntities(cache.settings.contactCaptchaRecaptchaSecretKey || "");
+    }
+    if (captchaErrorMessageEl && captchaErrorMessageEl.isConnected) {
+        captchaErrorMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaErrorMessage || "Не вдалося пройти перевірку captcha.");
+    }
+    if (captchaMissingTokenMessageEl && captchaMissingTokenMessageEl.isConnected) {
+        captchaMissingTokenMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaMissingTokenMessage || "Підтвердіть, що ви не робот.");
+    }
+    if (captchaInvalidDomainMessageEl && captchaInvalidDomainMessageEl.isConnected) {
+        captchaInvalidDomainMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaInvalidDomainMessage || "Відправка з цього домену заборонена.");
     }
     const persisted = getNormalizedLatencyThresholds(cache.settings || {});
     const goodMaxInputEl = document.getElementById("setting-audit-latency-good-max");
@@ -4466,8 +4523,46 @@ async function saveSettings(options = {}) {
     const youtubeInputEl = document.getElementById("setting-social-youtube");
     const soundcloudInputEl = document.getElementById("setting-social-soundcloud");
     const radioInputEl = document.getElementById("setting-social-radio");
-    if (!titleInputEl || !aboutInputEl || !missionInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected) {
+    const captchaEnabledEl = document.getElementById("setting-captcha-enabled");
+    const captchaProviderEl = document.getElementById("setting-captcha-provider");
+    const captchaDomainEl = document.getElementById("setting-captcha-domain");
+    const hcaptchaSiteKeyEl = document.getElementById("setting-captcha-hcaptcha-site-key");
+    const hcaptchaSecretKeyEl = document.getElementById("setting-captcha-hcaptcha-secret-key");
+    const recaptchaSiteKeyEl = document.getElementById("setting-captcha-recaptcha-site-key");
+    const recaptchaSecretKeyEl = document.getElementById("setting-captcha-recaptcha-secret-key");
+    const captchaErrorMessageEl = document.getElementById("setting-captcha-error-message");
+    const captchaMissingTokenMessageEl = document.getElementById("setting-captcha-missing-token-message");
+    const captchaInvalidDomainMessageEl = document.getElementById("setting-captcha-invalid-domain-message");
+    if (!titleInputEl || !aboutInputEl || !missionInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !captchaEnabledEl || !captchaProviderEl || !captchaDomainEl || !hcaptchaSiteKeyEl || !hcaptchaSecretKeyEl || !recaptchaSiteKeyEl || !recaptchaSecretKeyEl || !captchaErrorMessageEl || !captchaMissingTokenMessageEl || !captchaInvalidDomainMessageEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected || !captchaEnabledEl.isConnected || !captchaProviderEl.isConnected || !captchaDomainEl.isConnected || !hcaptchaSiteKeyEl.isConnected || !hcaptchaSecretKeyEl.isConnected || !recaptchaSiteKeyEl.isConnected || !recaptchaSecretKeyEl.isConnected || !captchaErrorMessageEl.isConnected || !captchaMissingTokenMessageEl.isConnected || !captchaInvalidDomainMessageEl.isConnected) {
         console.warn("Core settings inputs are unavailable during settings save");
+        return false;
+    }
+
+    const contactCaptchaEnabled = String(captchaEnabledEl.value || "0") === "1";
+    const contactCaptchaActiveProvider = normalizeCaptchaProviderValue(captchaProviderEl.value);
+    const contactCaptchaAllowedDomain = normalizeSettingsHostname(captchaDomainEl.value);
+    const contactCaptchaHcaptchaSiteKey = normalizeSettingsPlainText(hcaptchaSiteKeyEl.value, "");
+    const contactCaptchaHcaptchaSecretKey = normalizeSettingsPlainText(hcaptchaSecretKeyEl.value, "");
+    const contactCaptchaRecaptchaSiteKey = normalizeSettingsPlainText(recaptchaSiteKeyEl.value, "");
+    const contactCaptchaRecaptchaSecretKey = normalizeSettingsPlainText(recaptchaSecretKeyEl.value, "");
+
+    if (contactCaptchaEnabled && contactCaptchaActiveProvider === "none") {
+        alert("Оберіть активного captcha-провайдера, якщо captcha увімкнена.");
+        return false;
+    }
+
+    if (contactCaptchaEnabled && contactCaptchaActiveProvider === "hcaptcha" && (!contactCaptchaHcaptchaSiteKey || !contactCaptchaHcaptchaSecretKey)) {
+        alert("Для hCaptcha потрібно заповнити Site Key і Secret Key.");
+        return false;
+    }
+
+    if (contactCaptchaEnabled && contactCaptchaActiveProvider === "recaptcha_v2" && (!contactCaptchaRecaptchaSiteKey || !contactCaptchaRecaptchaSecretKey)) {
+        alert("Для reCAPTCHA v2 потрібно заповнити Site Key і Secret Key.");
+        return false;
+    }
+
+    if (String(captchaDomainEl.value || "").trim() && !contactCaptchaAllowedDomain) {
+        alert("Домен має бути валідним hostname, наприклад core64.online.");
         return false;
     }
     const goodInputEl = document.getElementById("setting-audit-latency-good-max");
@@ -4500,6 +4595,16 @@ async function saveSettings(options = {}) {
         youtubeUrl: normalizeSettingsUrlInput(youtubeInputEl.value, { platform: "youtube" }),
         soundcloudUrl: normalizeSettingsUrlInput(soundcloudInputEl.value, { platform: "soundcloud" }),
         radioUrl: normalizeSettingsUrlInput(radioInputEl.value, { platform: "radio" }),
+        contactCaptchaEnabled,
+        contactCaptchaActiveProvider,
+        contactCaptchaHcaptchaSiteKey,
+        contactCaptchaHcaptchaSecretKey,
+        contactCaptchaRecaptchaSiteKey,
+        contactCaptchaRecaptchaSecretKey,
+        contactCaptchaErrorMessage: normalizeSettingsPlainText(captchaErrorMessageEl.value, "Не вдалося пройти перевірку captcha."),
+        contactCaptchaMissingTokenMessage: normalizeSettingsPlainText(captchaMissingTokenMessageEl.value, "Підтвердіть, що ви не робот."),
+        contactCaptchaInvalidDomainMessage: normalizeSettingsPlainText(captchaInvalidDomainMessageEl.value, "Відправка з цього домену заборонена."),
+        contactCaptchaAllowedDomain,
         auditLatencyGoodMaxMs: goodMax,
         auditLatencyWarnMaxMs: warnMax
     };

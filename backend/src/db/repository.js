@@ -159,26 +159,162 @@ export async function deleteByType(type, id) {
   await pool.query(`DELETE FROM ${config.table} WHERE id = $1`, [id]);
 }
 
-export async function getSettings() {
-  const result = await pool.query("SELECT title, about, mission, email, instagram_url AS \"instagramUrl\", youtube_url AS \"youtubeUrl\", soundcloud_url AS \"soundcloudUrl\", radio_url AS \"radioUrl\" FROM settings LIMIT 1");
+const PUBLIC_SETTINGS_SELECT = `
+  SELECT
+    title,
+    about,
+    mission,
+    email,
+    instagram_url AS "instagramUrl",
+    youtube_url AS "youtubeUrl",
+    soundcloud_url AS "soundcloudUrl",
+    radio_url AS "radioUrl",
+    contact_captcha_enabled AS "contactCaptchaEnabled",
+    contact_captcha_active_provider AS "contactCaptchaActiveProvider",
+    contact_captcha_hcaptcha_site_key AS "contactCaptchaHcaptchaSiteKey",
+    contact_captcha_recaptcha_site_key AS "contactCaptchaRecaptchaSiteKey",
+    contact_captcha_error_message AS "contactCaptchaErrorMessage",
+    contact_captcha_missing_token_message AS "contactCaptchaMissingTokenMessage",
+    contact_captcha_invalid_domain_message AS "contactCaptchaInvalidDomainMessage",
+    contact_captcha_allowed_domain AS "contactCaptchaAllowedDomain"
+  FROM settings
+  ORDER BY id ASC
+  LIMIT 1
+`;
+
+const ADMIN_SETTINGS_SELECT = `
+  SELECT
+    title,
+    about,
+    mission,
+    email,
+    instagram_url AS "instagramUrl",
+    youtube_url AS "youtubeUrl",
+    soundcloud_url AS "soundcloudUrl",
+    radio_url AS "radioUrl",
+    contact_captcha_enabled AS "contactCaptchaEnabled",
+    contact_captcha_active_provider AS "contactCaptchaActiveProvider",
+    contact_captcha_hcaptcha_site_key AS "contactCaptchaHcaptchaSiteKey",
+    contact_captcha_hcaptcha_secret_key AS "contactCaptchaHcaptchaSecretKey",
+    contact_captcha_recaptcha_site_key AS "contactCaptchaRecaptchaSiteKey",
+    contact_captcha_recaptcha_secret_key AS "contactCaptchaRecaptchaSecretKey",
+    contact_captcha_error_message AS "contactCaptchaErrorMessage",
+    contact_captcha_missing_token_message AS "contactCaptchaMissingTokenMessage",
+    contact_captcha_invalid_domain_message AS "contactCaptchaInvalidDomainMessage",
+    contact_captcha_allowed_domain AS "contactCaptchaAllowedDomain"
+  FROM settings
+  ORDER BY id ASC
+  LIMIT 1
+`;
+
+export async function getPublicSettings() {
+  const result = await pool.query(PUBLIC_SETTINGS_SELECT);
+  return result.rows[0] || null;
+}
+
+export async function getAdminSettings() {
+  const result = await pool.query(ADMIN_SETTINGS_SELECT);
   return result.rows[0] || null;
 }
 
 export async function saveSettings(payload) {
-  const existing = await getSettings();
+  const existing = await getAdminSettings();
   if (!existing) {
     const insert = await pool.query(
-      "INSERT INTO settings (title, about, mission, email, instagram_url, youtube_url, soundcloud_url, radio_url) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING title, about, mission, email, instagram_url AS \"instagramUrl\", youtube_url AS \"youtubeUrl\", soundcloud_url AS \"soundcloudUrl\", radio_url AS \"radioUrl\"",
-      [payload.title, payload.about, payload.mission, payload.email, payload.instagramUrl, payload.youtubeUrl, payload.soundcloudUrl, payload.radioUrl]
+      `INSERT INTO settings (
+        title,
+        about,
+        mission,
+        email,
+        instagram_url,
+        youtube_url,
+        soundcloud_url,
+        radio_url,
+        contact_captcha_enabled,
+        contact_captcha_active_provider,
+        contact_captcha_hcaptcha_site_key,
+        contact_captcha_hcaptcha_secret_key,
+        contact_captcha_recaptcha_site_key,
+        contact_captcha_recaptcha_secret_key,
+        contact_captcha_error_message,
+        contact_captcha_missing_token_message,
+        contact_captcha_invalid_domain_message,
+        contact_captcha_allowed_domain
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+      ) RETURNING *`,
+      [
+        payload.title,
+        payload.about,
+        payload.mission,
+        payload.email,
+        payload.instagramUrl,
+        payload.youtubeUrl,
+        payload.soundcloudUrl,
+        payload.radioUrl,
+        payload.contactCaptchaEnabled,
+        payload.contactCaptchaActiveProvider,
+        payload.contactCaptchaHcaptchaSiteKey,
+        payload.contactCaptchaHcaptchaSecretKey,
+        payload.contactCaptchaRecaptchaSiteKey,
+        payload.contactCaptchaRecaptchaSecretKey,
+        payload.contactCaptchaErrorMessage,
+        payload.contactCaptchaMissingTokenMessage,
+        payload.contactCaptchaInvalidDomainMessage,
+        payload.contactCaptchaAllowedDomain
+      ]
     );
-    return insert.rows[0];
+    return await getAdminSettings();
   }
 
   const updated = await pool.query(
-    "UPDATE settings SET title = $1, about = $2, mission = $3, email = $4, instagram_url = $5, youtube_url = $6, soundcloud_url = $7, radio_url = $8, updated_at = NOW() WHERE id = (SELECT id FROM settings LIMIT 1) RETURNING title, about, mission, email, instagram_url AS \"instagramUrl\", youtube_url AS \"youtubeUrl\", soundcloud_url AS \"soundcloudUrl\", radio_url AS \"radioUrl\"",
-    [payload.title, payload.about, payload.mission, payload.email, payload.instagramUrl, payload.youtubeUrl, payload.soundcloudUrl, payload.radioUrl]
+    `UPDATE settings SET
+      title = $1,
+      about = $2,
+      mission = $3,
+      email = $4,
+      instagram_url = $5,
+      youtube_url = $6,
+      soundcloud_url = $7,
+      radio_url = $8,
+      contact_captcha_enabled = $9,
+      contact_captcha_active_provider = $10,
+      contact_captcha_hcaptcha_site_key = $11,
+      contact_captcha_hcaptcha_secret_key = $12,
+      contact_captcha_recaptcha_site_key = $13,
+      contact_captcha_recaptcha_secret_key = $14,
+      contact_captcha_error_message = $15,
+      contact_captcha_missing_token_message = $16,
+      contact_captcha_invalid_domain_message = $17,
+      contact_captcha_allowed_domain = $18,
+      updated_at = NOW()
+    WHERE id = (SELECT id FROM settings ORDER BY id ASC LIMIT 1)
+    RETURNING id`,
+    [
+      payload.title,
+      payload.about,
+      payload.mission,
+      payload.email,
+      payload.instagramUrl,
+      payload.youtubeUrl,
+      payload.soundcloudUrl,
+      payload.radioUrl,
+      payload.contactCaptchaEnabled,
+      payload.contactCaptchaActiveProvider,
+      payload.contactCaptchaHcaptchaSiteKey,
+      payload.contactCaptchaHcaptchaSecretKey,
+      payload.contactCaptchaRecaptchaSiteKey,
+      payload.contactCaptchaRecaptchaSecretKey,
+      payload.contactCaptchaErrorMessage,
+      payload.contactCaptchaMissingTokenMessage,
+      payload.contactCaptchaInvalidDomainMessage,
+      payload.contactCaptchaAllowedDomain
+    ]
   );
-  return updated.rows[0];
+  const updatedId = updated.rows[0] && updated.rows[0].id;
+  if (!updatedId) return null;
+  return await getAdminSettings();
 }
 
 export async function createContactRequest(payload) {

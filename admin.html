@@ -342,6 +342,65 @@
                             <span id="setting-audit-latency-dirty" class="hidden ml-3 px-2 py-1 rounded text-xs border border-amber-500/40 text-amber-300 bg-amber-500/10" role="status" aria-live="polite">Незбережені зміни порогів</span>
                         </div>
                     </div>
+                    <div class="pt-2 border-t border-cyan-500/20">
+                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3">Captcha для форми зв'язку</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">Captcha увімкнено</label>
+                                <select id="setting-captcha-enabled" class="form-input w-full p-3 rounded" title="Увімкнення captcha">
+                                    <option value="0">Вимкнено</option>
+                                    <option value="1">Увімкнено</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">Активний провайдер</label>
+                                <select id="setting-captcha-provider" class="form-input w-full p-3 rounded" title="Активний captcha-провайдер">
+                                    <option value="none">None</option>
+                                    <option value="hcaptcha">hCaptcha</option>
+                                    <option value="recaptcha_v2">reCAPTCHA v2</option>
+                                </select>
+                            </div>
+                            <div class="md:col-span-2">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">Дозволений домен (опціонально)</label>
+                                <input type="text" id="setting-captcha-domain" class="form-input w-full p-3 rounded" title="Дозволений домен captcha" placeholder="core64.online">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">hCaptcha Site Key</label>
+                                <input type="text" id="setting-captcha-hcaptcha-site-key" class="form-input w-full p-3 rounded" title="hCaptcha Site Key" placeholder="10000000-ffff-ffff-ffff-000000000001">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">hCaptcha Secret Key</label>
+                                <input type="text" id="setting-captcha-hcaptcha-secret-key" class="form-input w-full p-3 rounded" title="hCaptcha Secret Key" placeholder="0x0000000000000000000000000000000000000000">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">reCAPTCHA v2 Site Key</label>
+                                <input type="text" id="setting-captcha-recaptcha-site-key" class="form-input w-full p-3 rounded" title="reCAPTCHA Site Key" placeholder="6Lc...">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">reCAPTCHA v2 Secret Key</label>
+                                <input type="text" id="setting-captcha-recaptcha-secret-key" class="form-input w-full p-3 rounded" title="reCAPTCHA Secret Key" placeholder="6Lc...">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-4 mt-4">
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">Текст: загальна помилка captcha</label>
+                                <input type="text" id="setting-captcha-error-message" class="form-input w-full p-3 rounded" title="Повідомлення загальної помилки captcha" placeholder="Не вдалося пройти перевірку captcha.">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">Текст: токен відсутній</label>
+                                <input type="text" id="setting-captcha-missing-token-message" class="form-input w-full p-3 rounded" title="Повідомлення коли токен captcha відсутній" placeholder="Підтвердіть, що ви не робот.">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs">Текст: домен не дозволений</label>
+                                <input type="text" id="setting-captcha-invalid-domain-message" class="form-input w-full p-3 rounded" title="Повідомлення коли домен не дозволений" placeholder="Відправка з цього домену заборонена.">
+                            </div>
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">Secret keys доступні лише в адмінці. На публічний сайт передаються тільки безпечні поля.</p>
+                    </div>
                     <div class="flex gap-4">
                         <button onclick="saveSettings()" class="btn-cyan px-6 py-3 rounded">Зберегти</button>
                         <button onclick="resetData()" class="btn-danger px-6 py-3 rounded">Скинути всі дані</button>

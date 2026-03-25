@@ -1,60 +1,109 @@
-import { config } from "../config.js";
+import { getAdminSettings } from "../db/repository.js";
 
-const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify";
+const RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
 
-function getCaptchaProvider() {
-  const provider = String(config.contactCaptchaProvider || "none").trim().toLowerCase();
-  return provider || "none";
+function normalizeCaptchaSettings(settings) {
+  const source = settings && typeof settings === "object" ? settings : {};
+  return {
+    enabled: !!source.contactCaptchaEnabled,
+    provider: String(source.contactCaptchaActiveProvider || "none").trim().toLowerCase(),
+    hcaptchaSecret: String(source.contactCaptchaHcaptchaSecretKey || "").trim(),
+    recaptchaSecret: String(source.contactCaptchaRecaptchaSecretKey || "").trim(),
+    errorMessage: String(source.contactCaptchaErrorMessage || "").trim() || "Не вдалося пройти перевірку captcha.",
+    missingTokenMessage: String(source.contactCaptchaMissingTokenMessage || "").trim() || "Підтвердіть, що ви не робот.",
+    invalidDomainMessage: String(source.contactCaptchaInvalidDomainMessage || "").trim() || "Відправка з цього домену заборонена.",
+    allowedDomain: String(source.contactCaptchaAllowedDomain || "").trim().toLowerCase()
+  };
 }
 
-export async function verifyContactCaptcha(token, remoteIp) {
-  const provider = getCaptchaProvider();
-  if (provider === "none") {
+function extractHostname(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  try {
+    const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(text) ? text : `https://${text}`;
+    return (new URL(candidate)).hostname.toLowerCase();
+  } catch (_error) {
+    return text.toLowerCase().replace(/^https?:\/\//i, "").split("/")[0];
+  }
+}
+
+function isAllowedDomain(sourceHost, allowedDomain) {
+  if (!allowedDomain) return true;
+  if (!sourceHost) return false;
+  return sourceHost === allowedDomain || sourceHost.endsWith(`.${allowedDomain}`);
+}
+
+async function verifyWithProvider({ verifyUrl, secret, token, remoteIp }) {
+  const params = new URLSearchParams();
+  params.set("secret", secret);
+  params.set("response", token);
+  if (remoteIp) params.set("remoteip", String(remoteIp));
+
+  const response = await fetch(verifyUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: params.toString()
+  });
+
+  const payload = await response.json();
+  if (!response.ok) {
+    return { success: false, errorCodes: ["http-error"] };
+  }
+
+  const success = !!(payload && payload.success === true);
+  const errorCodes = Array.isArray(payload && payload["error-codes"])
+    ? payload["error-codes"].filter((entry) => typeof entry === "string" && entry.trim())
+    : [];
+  return { success, errorCodes };
+}
+
+export async function verifyContactCaptcha(token, options = {}) {
+  const settings = await getAdminSettings();
+  const captchaSettings = normalizeCaptchaSettings(settings);
+
+  if (!captchaSettings.enabled || captchaSettings.provider === "none") {
     return { ok: true };
   }
 
-  if (provider !== "turnstile") {
-    return { ok: false, message: "Unsupported captcha provider" };
-  }
-
-  const secret = String(config.contactCaptchaSecret || "").trim();
-  if (!secret) {
-    return { ok: false, message: "Captcha is not configured on server" };
+  const requestDomain = extractHostname(options.origin || options.host || "");
+  if (!isAllowedDomain(requestDomain, captchaSettings.allowedDomain)) {
+    return { ok: false, message: captchaSettings.invalidDomainMessage, code: "domain_not_allowed" };
   }
 
   const trimmedToken = String(token || "").trim();
   if (!trimmedToken) {
-    return { ok: false, message: "Captcha token is required" };
+    return { ok: false, message: captchaSettings.missingTokenMessage, code: "token_required" };
+  }
+
+  let providerConfig = null;
+  if (captchaSettings.provider === "hcaptcha") {
+    providerConfig = { verifyUrl: HCAPTCHA_VERIFY_URL, secret: captchaSettings.hcaptchaSecret };
+  } else if (captchaSettings.provider === "recaptcha_v2") {
+    providerConfig = { verifyUrl: RECAPTCHA_VERIFY_URL, secret: captchaSettings.recaptchaSecret };
+  }
+
+  if (!providerConfig || !providerConfig.secret) {
+    return { ok: false, message: captchaSettings.errorMessage, code: "provider_not_configured" };
   }
 
   try {
-    const params = new URLSearchParams();
-    params.set("secret", secret);
-    params.set("response", trimmedToken);
-    if (remoteIp) params.set("remoteip", String(remoteIp));
-
-    const response = await fetch(TURNSTILE_VERIFY_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: params.toString()
+    const verification = await verifyWithProvider({
+      verifyUrl: providerConfig.verifyUrl,
+      secret: providerConfig.secret,
+      token: trimmedToken,
+      remoteIp: options.remoteIp
     });
 
-    const payload = await response.json();
-    if (!response.ok) {
-      return { ok: false, message: "Captcha verification request failed" };
-    }
-
-    if (payload && payload.success === true) {
+    if (verification.success) {
       return { ok: true };
     }
 
-    const errorCodes = Array.isArray(payload && payload["error-codes"])
-      ? payload["error-codes"].filter((entry) => typeof entry === "string" && entry.trim())
-      : [];
-
-    const suffix = errorCodes.length ? ` (${errorCodes.join(", ")})` : "";
-    return { ok: false, message: `Captcha verification failed${suffix}` };
+    const suffix = verification.errorCodes && verification.errorCodes.length
+      ? ` (${verification.errorCodes.join(", ")})`
+      : "";
+    return { ok: false, message: `${captchaSettings.errorMessage}${suffix}`, code: "verification_failed" };
   } catch (_error) {
-    return { ok: false, message: "Captcha verification failed" };
+    return { ok: false, message: captchaSettings.errorMessage, code: "verification_exception" };
   }
 }

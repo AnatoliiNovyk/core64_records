@@ -3,6 +3,7 @@
 const adapter = window.Core64DataAdapter;
 let sponsorCarouselAutoplayTimer = null;
 let sponsorCarouselVisibilityListenerBound = false;
+let contactRuntimeSettings = {};
 
 function showPublicApiStatus(message) {
     const statusEl = document.getElementById("public-api-status");
@@ -28,11 +29,24 @@ function updateContactStatus(message, isError) {
 
 function getContactConfig() {
     const source = window.CORE64_CONFIG && typeof window.CORE64_CONFIG === "object" ? window.CORE64_CONFIG : {};
-    const captchaSource = source.contactCaptcha && typeof source.contactCaptcha === "object" ? source.contactCaptcha : {};
+    const settingsSource = contactRuntimeSettings && typeof contactRuntimeSettings === "object" ? contactRuntimeSettings : {};
+    const fallbackCaptchaSource = source.contactCaptcha && typeof source.contactCaptcha === "object" ? source.contactCaptcha : {};
+    const enabled = typeof settingsSource.contactCaptchaEnabled === "boolean"
+        ? settingsSource.contactCaptchaEnabled
+        : false;
+    const provider = String(settingsSource.contactCaptchaActiveProvider || fallbackCaptchaSource.provider || "none").trim().toLowerCase();
+    const hcaptchaSiteKey = String(settingsSource.contactCaptchaHcaptchaSiteKey || "").trim();
+    const recaptchaSiteKey = String(settingsSource.contactCaptchaRecaptchaSiteKey || "").trim();
+
     return {
         maxFileBytes: Number(source.contactMaxFileBytes) > 0 ? Number(source.contactMaxFileBytes) : 15 * 1024 * 1024,
-        captchaProvider: String(captchaSource.provider || "none").trim().toLowerCase(),
-        captchaSiteKey: String(captchaSource.siteKey || "").trim()
+        captchaEnabled: enabled,
+        captchaProvider: provider,
+        captchaSiteKey: provider === "hcaptcha"
+            ? hcaptchaSiteKey
+            : (provider === "recaptcha_v2" ? recaptchaSiteKey : String(fallbackCaptchaSource.siteKey || "").trim()),
+        captchaErrorMessage: String(settingsSource.contactCaptchaErrorMessage || "Не вдалося пройти перевірку captcha.").trim(),
+        captchaMissingTokenMessage: String(settingsSource.contactCaptchaMissingTokenMessage || "Підтвердіть, що ви не робот.").trim()
     };
 }
 
@@ -76,37 +90,92 @@ const contactCaptchaState = {
 function resetContactCaptcha() {
     if (!contactCaptchaState.enabled) return;
     contactCaptchaState.token = "";
-    if (contactCaptchaState.provider !== "turnstile") return;
-    if (!window.turnstile || contactCaptchaState.widgetId === null || contactCaptchaState.widgetId === undefined) return;
+    const widgetId = contactCaptchaState.widgetId;
+    if (widgetId === null || widgetId === undefined) return;
+
     try {
-        window.turnstile.reset(contactCaptchaState.widgetId);
+        if (contactCaptchaState.provider === "hcaptcha" && window.hcaptcha && typeof window.hcaptcha.reset === "function") {
+            window.hcaptcha.reset(widgetId);
+        }
+        if (contactCaptchaState.provider === "recaptcha_v2" && window.grecaptcha && typeof window.grecaptcha.reset === "function") {
+            window.grecaptcha.reset(widgetId);
+        }
     } catch (_error) {
         // Ignore widget reset errors.
     }
 }
 
-function loadTurnstileScript() {
+function loadScriptOnce({ selector, src, marker }) {
     return new Promise((resolve, reject) => {
-        if (window.turnstile && typeof window.turnstile.render === "function") {
-            resolve();
-            return;
-        }
-
-        const existing = document.querySelector('script[data-core64-turnstile="1"]');
+        const existing = document.querySelector(selector);
         if (existing) {
             existing.addEventListener("load", () => resolve(), { once: true });
-            existing.addEventListener("error", () => reject(new Error("Turnstile script failed")), { once: true });
+            existing.addEventListener("error", () => reject(new Error("Captcha script failed")), { once: true });
             return;
         }
 
         const script = document.createElement("script");
-        script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+        script.src = src;
         script.async = true;
         script.defer = true;
-        script.dataset.core64Turnstile = "1";
+        script.dataset[marker] = "1";
         script.addEventListener("load", () => resolve(), { once: true });
-        script.addEventListener("error", () => reject(new Error("Turnstile script failed")), { once: true });
+        script.addEventListener("error", () => reject(new Error("Captcha script failed")), { once: true });
         document.head.appendChild(script);
+    });
+}
+
+function loadHcaptchaScript() {
+    if (window.hcaptcha && typeof window.hcaptcha.render === "function") {
+        return Promise.resolve();
+    }
+    return loadScriptOnce({
+        selector: 'script[data-core64-hcaptcha="1"]',
+        src: "https://js.hcaptcha.com/1/api.js?render=explicit",
+        marker: "core64Hcaptcha"
+    });
+}
+
+function loadRecaptchaScript() {
+    if (window.grecaptcha && typeof window.grecaptcha.render === "function") {
+        return Promise.resolve();
+    }
+    return loadScriptOnce({
+        selector: 'script[data-core64-recaptcha="1"]',
+        src: "https://www.google.com/recaptcha/api.js?render=explicit",
+        marker: "core64Recaptcha"
+    });
+}
+
+function renderHcaptchaWidget(widgetEl, siteKey) {
+    return window.hcaptcha.render(widgetEl, {
+        sitekey: siteKey,
+        theme: "dark",
+        callback: (token) => {
+            contactCaptchaState.token = String(token || "").trim();
+        },
+        "expired-callback": () => {
+            contactCaptchaState.token = "";
+        },
+        "error-callback": () => {
+            contactCaptchaState.token = "";
+        }
+    });
+}
+
+function renderRecaptchaWidget(widgetEl, siteKey) {
+    return window.grecaptcha.render(widgetEl, {
+        sitekey: siteKey,
+        theme: "dark",
+        callback: (token) => {
+            contactCaptchaState.token = String(token || "").trim();
+        },
+        "expired-callback": () => {
+            contactCaptchaState.token = "";
+        },
+        "error-callback": () => {
+            contactCaptchaState.token = "";
+        }
     });
 }
 
@@ -123,16 +192,16 @@ async function initContactCaptcha() {
     contactCaptchaState.ready = false;
     contactCaptchaState.widgetId = null;
 
-    const provider = config.captchaProvider;
-    if (provider === "none") {
+    if (!config.captchaEnabled || config.captchaProvider === "none") {
         wrap.classList.add("hidden");
         hint.classList.add("hidden");
         return;
     }
 
+    const provider = config.captchaProvider;
     wrap.classList.remove("hidden");
 
-    if (provider !== "turnstile") {
+    if (provider !== "hcaptcha" && provider !== "recaptcha_v2") {
         hint.textContent = "Поточний провайдер капчі не підтримується на фронтенді.";
         hint.classList.remove("hidden");
         return;
@@ -145,24 +214,19 @@ async function initContactCaptcha() {
     }
 
     try {
-        await loadTurnstileScript();
+        if (provider === "hcaptcha") {
+            await loadHcaptchaScript();
+        }
+        if (provider === "recaptcha_v2") {
+            await loadRecaptchaScript();
+        }
         widget.innerHTML = "";
-        const widgetId = window.turnstile.render(widget, {
-            sitekey: config.captchaSiteKey,
-            theme: "dark",
-            callback: (token) => {
-                contactCaptchaState.token = String(token || "").trim();
-            },
-            "expired-callback": () => {
-                contactCaptchaState.token = "";
-            },
-            "error-callback": () => {
-                contactCaptchaState.token = "";
-            }
-        });
+        const widgetId = provider === "hcaptcha"
+            ? renderHcaptchaWidget(widget, config.captchaSiteKey)
+            : renderRecaptchaWidget(widget, config.captchaSiteKey);
 
         contactCaptchaState.enabled = true;
-        contactCaptchaState.provider = "turnstile";
+        contactCaptchaState.provider = provider;
         contactCaptchaState.ready = true;
         contactCaptchaState.widgetId = widgetId;
         hint.classList.add("hidden");
@@ -615,7 +679,7 @@ function initContactForm() {
         }
 
         if (contactCaptchaState.enabled && !contactCaptchaState.token) {
-            updateContactStatus("Підтвердіть, що ви не робот.", true);
+            updateContactStatus(config.captchaMissingTokenMessage || "Підтвердіть, що ви не робот.", true);
             return;
         }
 
@@ -672,6 +736,7 @@ async function bootstrap() {
         renderArtists(data);
         renderEvents(data);
         renderSponsors(data);
+        contactRuntimeSettings = data.settings || {};
         loadAbout(data.settings || {});
         applyHeroSocialLinks(data.settings || {});
     } catch (error) {
@@ -686,6 +751,7 @@ async function bootstrap() {
         renderArtists(fallback);
         renderEvents(fallback);
         renderSponsors(fallback);
+        contactRuntimeSettings = fallback.settings || {};
         loadAbout(fallback.settings);
         applyHeroSocialLinks(fallback.settings);
     }

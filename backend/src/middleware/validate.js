@@ -57,7 +57,72 @@ export const settingsSchema = z.object({
   instagramUrl: z.string().optional().default("#"),
   youtubeUrl: z.string().optional().default("#"),
   soundcloudUrl: z.string().optional().default("#"),
-  radioUrl: z.string().optional().default("#")
+  radioUrl: z.string().optional().default("#"),
+  contactCaptchaEnabled: z.boolean().optional().default(false),
+  contactCaptchaActiveProvider: z.enum(["none", "hcaptcha", "recaptcha_v2"]).optional().default("none"),
+  contactCaptchaHcaptchaSiteKey: z.string().trim().max(1024).optional().default(""),
+  contactCaptchaHcaptchaSecretKey: z.string().trim().max(4096).optional().default(""),
+  contactCaptchaRecaptchaSiteKey: z.string().trim().max(1024).optional().default(""),
+  contactCaptchaRecaptchaSecretKey: z.string().trim().max(4096).optional().default(""),
+  contactCaptchaErrorMessage: z.string().trim().max(255).optional().default("Не вдалося пройти перевірку captcha."),
+  contactCaptchaMissingTokenMessage: z.string().trim().max(255).optional().default("Підтвердіть, що ви не робот."),
+  contactCaptchaInvalidDomainMessage: z.string().trim().max(255).optional().default("Відправка з цього домену заборонена."),
+  contactCaptchaAllowedDomain: z.string().trim().max(255).optional().default("")
+}).superRefine((payload, ctx) => {
+  if (!payload.contactCaptchaEnabled) return;
+
+  const provider = payload.contactCaptchaActiveProvider;
+  if (provider === "none") {
+    ctx.addIssue({
+      path: ["contactCaptchaActiveProvider"],
+      code: z.ZodIssueCode.custom,
+      message: "Provider is required when captcha is enabled"
+    });
+    return;
+  }
+
+  if (provider === "hcaptcha") {
+    if (!payload.contactCaptchaHcaptchaSiteKey) {
+      ctx.addIssue({
+        path: ["contactCaptchaHcaptchaSiteKey"],
+        code: z.ZodIssueCode.custom,
+        message: "hCaptcha site key is required"
+      });
+    }
+    if (!payload.contactCaptchaHcaptchaSecretKey) {
+      ctx.addIssue({
+        path: ["contactCaptchaHcaptchaSecretKey"],
+        code: z.ZodIssueCode.custom,
+        message: "hCaptcha secret key is required"
+      });
+    }
+  }
+
+  if (provider === "recaptcha_v2") {
+    if (!payload.contactCaptchaRecaptchaSiteKey) {
+      ctx.addIssue({
+        path: ["contactCaptchaRecaptchaSiteKey"],
+        code: z.ZodIssueCode.custom,
+        message: "reCAPTCHA site key is required"
+      });
+    }
+    if (!payload.contactCaptchaRecaptchaSecretKey) {
+      ctx.addIssue({
+        path: ["contactCaptchaRecaptchaSecretKey"],
+        code: z.ZodIssueCode.custom,
+        message: "reCAPTCHA secret key is required"
+      });
+    }
+  }
+
+  const domain = String(payload.contactCaptchaAllowedDomain || "").trim();
+  if (domain && !/^[a-z0-9.-]+$/i.test(domain)) {
+    ctx.addIssue({
+      path: ["contactCaptchaAllowedDomain"],
+      code: z.ZodIssueCode.custom,
+      message: "Allowed domain must be a valid hostname"
+    });
+  }
 });
 
 export const contactRequestSchema = z.object({

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listByType, getSettings } from "../db/repository.js";
+import { listByType, getPublicSettings } from "../db/repository.js";
 
 const router = Router();
 
@@ -10,7 +10,7 @@ router.get("/public", async (_req, res, next) => {
       listByType("artists"),
       listByType("events"),
       listByType("sponsors"),
-      getSettings()
+      getPublicSettings()
     ]);
 
     res.json({

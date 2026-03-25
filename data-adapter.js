@@ -136,7 +136,17 @@
             instagramUrl: "#",
             youtubeUrl: "#",
             soundcloudUrl: "#",
-            radioUrl: "#"
+            radioUrl: "#",
+            contactCaptchaEnabled: false,
+            contactCaptchaActiveProvider: "none",
+            contactCaptchaHcaptchaSiteKey: "",
+            contactCaptchaHcaptchaSecretKey: "",
+            contactCaptchaRecaptchaSiteKey: "",
+            contactCaptchaRecaptchaSecretKey: "",
+            contactCaptchaErrorMessage: "Не вдалося пройти перевірку captcha.",
+            contactCaptchaMissingTokenMessage: "Підтвердіть, що ви не робот.",
+            contactCaptchaInvalidDomainMessage: "Відправка з цього домену заборонена.",
+            contactCaptchaAllowedDomain: ""
         },
         contactRequests: []
     };
