@@ -345,7 +345,22 @@ function buildReleaseFallbackUrl(releaseTitle, releaseArtist) {
 function openReleaseLink(releaseLink, releaseTitle, releaseArtist) {
     const normalizedUrl = normalizeReleaseOutboundUrl(releaseLink);
     const targetUrl = normalizedUrl || buildReleaseFallbackUrl(releaseTitle, releaseArtist);
-    window.open(targetUrl, "_blank", "noopener,noreferrer");
+    const openedWindow = window.open(targetUrl, "_blank", "noopener,noreferrer");
+    if (!openedWindow) {
+        // Fallback when popup blockers prevent opening a new tab.
+        window.location.href = targetUrl;
+    }
+}
+
+function attachImageFallback(container, selector, fallbackSrc) {
+    if (!container || !selector || !fallbackSrc) return;
+    const imageNodes = container.querySelectorAll(selector);
+    imageNodes.forEach((imgEl) => {
+        imgEl.addEventListener("error", () => {
+            if (imgEl.getAttribute("src") === fallbackSrc) return;
+            imgEl.src = fallbackSrc;
+        }, { once: true });
+    });
 }
 
 function bindReleaseInteractions() {
@@ -420,7 +435,7 @@ function renderReleases(data) {
         <article class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}" aria-label="Відкрити реліз ${safeReleaseTitle}" role="button" tabindex="0">
             <div class="relative aspect-square overflow-hidden bg-gray-900">
                 <img src="${safeImage}" alt="${safeReleaseTitle}" class="w-full h-full object-cover vinyl-spin" data-release-image="1" loading="lazy">
-                <div class="absolute inset-0 bg-black/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                <div class="absolute inset-0 bg-black/35 md:bg-black/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
                     <button class="p-3 bg-cyan-400 rounded-full text-black hover:scale-110 transition-transform" aria-label="Play release" data-release-action="play" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}">
                         <i data-lucide="play" class="w-6 h-6 fill-current"></i>
                     </button>
@@ -441,13 +456,7 @@ function renderReleases(data) {
     `;
     }).join("");
 
-    const releaseImages = grid.querySelectorAll('img[data-release-image="1"]');
-    releaseImages.forEach((imgEl) => {
-        imgEl.addEventListener("error", () => {
-            if (imgEl.getAttribute("src") === RELEASE_IMAGE_FALLBACK) return;
-            imgEl.src = RELEASE_IMAGE_FALLBACK;
-        }, { once: true });
-    });
+    attachImageFallback(grid, 'img[data-release-image="1"]', RELEASE_IMAGE_FALLBACK);
 
     const statEl = document.getElementById("stat-releases");
     if (statEl) statEl.textContent = String((data.releases || []).length);
@@ -460,7 +469,7 @@ function renderArtists(data) {
     grid.innerHTML = (data.artists || []).map((artist) => `
         <div class="card rounded-lg overflow-hidden group">
             <div class="relative aspect-[4/3] overflow-hidden">
-                <img src="${artist.image}" alt="${artist.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110">
+                <img src="${artist.image}" alt="${artist.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-artist-image="1" loading="lazy">
                 <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent"></div>
                 <div class="absolute bottom-0 left-0 right-0 p-6">
                     <span class="inline-block px-3 py-1 bg-pink-500/20 border border-pink-500/50 text-pink-400 text-xs rounded uppercase tracking-wider mb-2">
@@ -483,6 +492,8 @@ function renderArtists(data) {
         </div>
     `).join("");
 
+    attachImageFallback(grid, 'img[data-artist-image="1"]', RELEASE_IMAGE_FALLBACK);
+
     const statEl = document.getElementById("stat-artists");
     if (statEl) statEl.textContent = String((data.artists || []).length);
 }
@@ -503,7 +514,7 @@ function renderEvents(data) {
         return `
             <div class="flex flex-col md:flex-row gap-6 p-6 border border-green-500/20 rounded-lg hover:border-green-500/50 transition-colors bg-black/30">
                 <div class="flex-shrink-0 w-full md:w-48 h-32 overflow-hidden rounded border border-green-500/30">
-                    <img src="${event.image}" alt="${event.title}" class="w-full h-full object-cover">
+                    <img src="${event.image}" alt="${event.title}" class="w-full h-full object-cover" data-event-image="1" loading="lazy">
                 </div>
                 <div class="flex-1">
                     <div class="flex flex-col md:flex-row md:items-center justify-between mb-2">
@@ -527,6 +538,8 @@ function renderEvents(data) {
             </div>
         `;
     }).join("");
+
+    attachImageFallback(list, 'img[data-event-image="1"]', RELEASE_IMAGE_FALLBACK);
 }
 
 function getSponsorsCarouselStep(trackEl) {
@@ -625,7 +638,7 @@ function renderSponsors(data) {
         const sponsorLink = sponsor.link || "#";
         const cardContent = `
             <div class="h-[75%] rounded-lg border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
-                <img src="${sponsorLogo}" alt="${sponsorName}" class="h-full w-full object-contain" loading="lazy">
+                <img src="${sponsorLogo}" alt="${sponsorName}" class="h-full w-full object-contain" data-sponsor-image="1" loading="lazy">
             </div>
             <div class="h-[25%] pt-3 flex flex-col justify-start overflow-hidden">
                 <h3 class="text-lg font-bold text-white truncate">${sponsorName}</h3>
@@ -647,6 +660,8 @@ function renderSponsors(data) {
             </a>
         `;
     }).join("");
+
+    attachImageFallback(track, 'img[data-sponsor-image="1"]', RELEASE_IMAGE_FALLBACK);
 
     setupSponsorsCarousel();
 }
