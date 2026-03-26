@@ -21,6 +21,12 @@ param(
     [switch]$DoNotEnforceAdmins,
 
     [Parameter(Mandatory = $false)]
+    [switch]$SkipCheckContextValidation,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$DryRun,
+
+    [Parameter(Mandatory = $false)]
     [string]$Token
 )
 
@@ -39,6 +45,7 @@ if ($RequiredApprovals -lt 1 -or $RequiredApprovals -gt 6) {
     throw "RequiredApprovals must be between 1 and 6."
 }
 
+$baseUri = "https://api.github.com/repos/$Owner/$Repo"
 $uri = "https://api.github.com/repos/$Owner/$Repo/branches/$Branch/protection"
 
 $body = @{
@@ -68,9 +75,34 @@ $headers = @{
     "X-GitHub-Api-Version" = "2022-11-28"
 }
 
+if (-not $SkipCheckContextValidation.IsPresent) {
+    $checkRunsUri = "$baseUri/commits/$Branch/check-runs?per_page=100"
+    $checkRunsResponse = Invoke-RestMethod -Method Get -Uri $checkRunsUri -Headers $headers
+    $knownChecks = @($checkRunsResponse.check_runs | ForEach-Object { $_.name })
+    if (-not ($knownChecks -contains $CheckContext)) {
+        $knownChecksList = if ($knownChecks.Count -gt 0) {
+            ($knownChecks | Sort-Object -Unique) -join ", "
+        }
+        else {
+            "none"
+        }
+        throw "Check context '$CheckContext' was not found on recent check runs for '$Branch'. Known checks: $knownChecksList. Run workflow first or pass -SkipCheckContextValidation."
+    }
+}
+
 Write-Host "Applying branch protection for $Owner/$Repo on '$Branch' with check '$CheckContext'..."
 
-$response = Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -Body ($body | ConvertTo-Json -Depth 10) -ContentType "application/json"
+$bodyJson = $body | ConvertTo-Json -Depth 10
+
+if ($DryRun.IsPresent) {
+    Write-Host "Dry run mode enabled. No changes were sent to GitHub."
+    Write-Host "Target URI: $uri"
+    Write-Host "Payload:"
+    Write-Host $bodyJson
+    return
+}
+
+$response = Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -Body $bodyJson -ContentType "application/json"
 
 Write-Host "Branch protection applied successfully."
 Write-Host "Required checks:" ($response.required_status_checks.contexts -join ", ")

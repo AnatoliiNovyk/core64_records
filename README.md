@@ -84,6 +84,18 @@ $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/set-branch-protection.ps1
 ```
 
+Preview payload without applying changes:
+
+```powershell
+pwsh -File scripts/set-branch-protection.ps1 -DryRun
+```
+
+Emergency rollback (temporarily relax required checks/reviews/admin enforcement):
+
+```powershell
+pwsh -File scripts/relax-branch-protection.ps1
+```
+
 ## CI Smoke Automation
 
 GitHub Actions workflow is available at:

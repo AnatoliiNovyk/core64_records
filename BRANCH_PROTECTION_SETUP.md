@@ -23,6 +23,18 @@ pwsh -File scripts/set-branch-protection.ps1
 
 Script file: `scripts/set-branch-protection.ps1`
 
+Useful options:
+
+- `-DryRun` to print payload without applying changes.
+- `-CheckContext "smoke"` to target a specific required status check.
+- `-SkipCheckContextValidation` if workflow checks are not yet visible on the branch.
+
+Example dry run:
+
+```powershell
+pwsh -File scripts/set-branch-protection.ps1 -DryRun
+```
+
 ## Configure Rule
 
 1. Open repository on GitHub.
@@ -69,6 +81,11 @@ If both appear, select the exact check context GitHub suggests in autocomplete.
 
 If protection blocks urgent hotfixes unexpectedly:
 
-1. Temporarily uncheck strict options in the same branch rule.
+1. Run emergency relax script:
+
+```powershell
+pwsh -File scripts/relax-branch-protection.ps1
+```
+
 2. Merge hotfix.
-3. Re-enable protection and rerun smoke validation.
+3. Re-apply protection with `scripts/set-branch-protection.ps1` and rerun smoke validation.
