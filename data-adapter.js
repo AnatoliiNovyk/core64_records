@@ -10,8 +10,8 @@
                 releaseType: "single",
                 releaseDate: "2024-01-10",
                 year: "2024",
-                image: "http://static.photos/technology/640x360/1",
-                link: "#",
+                image: "./images/Screenshot_1.png",
+                link: "https://soundcloud.com/",
                 ticketLink: ""
             },
             {
@@ -22,8 +22,8 @@
                 releaseType: "ep",
                 releaseDate: "2024-03-15",
                 year: "2024",
-                image: "http://static.photos/abstract/640x360/2",
-                link: "#",
+                image: "./images/Screenshot_9.png",
+                link: "https://www.youtube.com/",
                 ticketLink: ""
             },
             {
@@ -34,8 +34,8 @@
                 releaseType: "album",
                 releaseDate: "2023-09-22",
                 year: "2023",
-                image: "http://static.photos/industry/640x360/3",
-                link: "#",
+                image: "./images/Screenshot_1.png",
+                link: "https://music.apple.com/",
                 ticketLink: ""
             },
             {
@@ -46,8 +46,8 @@
                 releaseType: "single",
                 releaseDate: "2024-06-01",
                 year: "2024",
-                image: "http://static.photos/technology/640x360/4",
-                link: "#",
+                image: "./images/Screenshot_9.png",
+                link: "https://open.spotify.com/",
                 ticketLink: ""
             }
         ],

@@ -4,6 +4,8 @@ const adapter = window.Core64DataAdapter;
 let sponsorCarouselAutoplayTimer = null;
 let sponsorCarouselVisibilityListenerBound = false;
 let contactRuntimeSettings = {};
+let releaseInteractionsBound = false;
+const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
 
 function showPublicApiStatus(message) {
     const statusEl = document.getElementById("public-api-status");
@@ -310,6 +312,71 @@ function formatReleaseDateLabel(release) {
     return yearText || "-";
 }
 
+function escapeHtmlAttribute(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/"/g, "&quot;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+}
+
+function normalizeReleaseOutboundUrl(value) {
+    const rawValue = String(value ?? "").trim();
+    if (!rawValue || rawValue === "#") return "";
+
+    let parsed;
+    try {
+        parsed = new URL(rawValue, window.location.origin);
+    } catch (_error) {
+        return "";
+    }
+
+    if (!/^https?:$/i.test(parsed.protocol)) return "";
+    return parsed.toString();
+}
+
+function buildReleaseFallbackUrl(releaseTitle, releaseArtist) {
+    const title = String(releaseTitle || "").trim();
+    const artist = String(releaseArtist || "").trim();
+    const query = [title, artist].filter(Boolean).join(" ").trim() || "CORE64 release";
+    return `https://soundcloud.com/search?q=${encodeURIComponent(query)}`;
+}
+
+function openReleaseLink(releaseLink, releaseTitle, releaseArtist) {
+    const normalizedUrl = normalizeReleaseOutboundUrl(releaseLink);
+    const targetUrl = normalizedUrl || buildReleaseFallbackUrl(releaseTitle, releaseArtist);
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+}
+
+function bindReleaseInteractions() {
+    if (releaseInteractionsBound) return;
+    const grid = document.getElementById("releases-grid");
+    if (!grid) return;
+
+    grid.addEventListener("click", (event) => {
+        const playButton = event.target instanceof Element
+            ? event.target.closest('[data-release-action="play"]')
+            : null;
+
+        if (playButton) {
+            const releaseLink = playButton.getAttribute("data-release-link") || "";
+            const releaseTitle = playButton.getAttribute("data-release-title") || "";
+            const releaseArtist = playButton.getAttribute("data-release-artist") || "";
+            openReleaseLink(releaseLink, releaseTitle, releaseArtist);
+            return;
+        }
+
+        const card = event.target instanceof Element ? event.target.closest(".release-card") : null;
+        if (!card) return;
+        const releaseLink = card.getAttribute("data-release-link") || "";
+        const releaseTitle = card.getAttribute("data-release-title") || "";
+        const releaseArtist = card.getAttribute("data-release-artist") || "";
+        openReleaseLink(releaseLink, releaseTitle, releaseArtist);
+    });
+
+    releaseInteractionsBound = true;
+}
+
 function renderReleases(data) {
     const grid = document.getElementById("releases-grid");
     if (!grid) return;
@@ -317,13 +384,21 @@ function renderReleases(data) {
     grid.innerHTML = (data.releases || []).map((release) => {
         const releaseTypeLabel = getReleaseTypeLabel(release.releaseType || release.release_type);
         const releaseDateLabel = formatReleaseDateLabel(release);
+        const releaseTitle = String(release.title || "Реліз");
+        const releaseLink = normalizeReleaseOutboundUrl(release.link || release.releaseLink || "");
+        const releaseImage = String(release.image || "").trim() || RELEASE_IMAGE_FALLBACK;
+        const releaseArtist = String(release.artist || "");
+        const safeReleaseTitle = escapeHtmlAttribute(releaseTitle);
+        const safeReleaseLink = escapeHtmlAttribute(releaseLink);
+        const safeImage = escapeHtmlAttribute(releaseImage);
+        const safeReleaseArtist = escapeHtmlAttribute(releaseArtist);
 
         return `
-        <div class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer">
+        <article class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}" aria-label="Відкрити реліз ${safeReleaseTitle}">
             <div class="relative aspect-square overflow-hidden bg-gray-900">
-                <img src="${release.image}" alt="${release.title}" class="w-full h-full object-cover vinyl-spin">
+                <img src="${safeImage}" alt="${safeReleaseTitle}" class="w-full h-full object-cover vinyl-spin" data-release-image="1" loading="lazy">
                 <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                    <button class="p-3 bg-cyan-400 rounded-full text-black hover:scale-110 transition-transform" aria-label="Play release">
+                    <button class="p-3 bg-cyan-400 rounded-full text-black hover:scale-110 transition-transform" aria-label="Play release" data-release-action="play" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}">
                         <i data-lucide="play" class="w-6 h-6 fill-current"></i>
                     </button>
                 </div>
@@ -332,16 +407,24 @@ function renderReleases(data) {
                 </div>
             </div>
             <div class="p-4">
-                <h3 class="text-xl font-bold text-white mb-1 group-hover:text-cyan-400 transition-colors">${release.title}</h3>
+                <h3 class="text-xl font-bold text-white mb-1 group-hover:text-cyan-400 transition-colors">${releaseTitle}</h3>
                 <p class="text-gray-400 text-sm mb-2">${release.artist}</p>
                 <div class="flex justify-between items-center text-xs text-gray-500 uppercase tracking-wider">
                     <span>${releaseDateLabel}</span>
                     <span class="text-cyan-400">${release.genre}</span>
                 </div>
             </div>
-        </div>
+        </article>
     `;
     }).join("");
+
+    const releaseImages = grid.querySelectorAll('img[data-release-image="1"]');
+    releaseImages.forEach((imgEl) => {
+        imgEl.addEventListener("error", () => {
+            if (imgEl.getAttribute("src") === RELEASE_IMAGE_FALLBACK) return;
+            imgEl.src = RELEASE_IMAGE_FALLBACK;
+        }, { once: true });
+    });
 
     const statEl = document.getElementById("stat-releases");
     if (statEl) statEl.textContent = String((data.releases || []).length);
@@ -724,6 +807,7 @@ function scrollToSection(id) {
 
 async function bootstrap() {
     adapter.ensureLocalDefaults();
+    bindReleaseInteractions();
     const isProdHost = !["localhost", "127.0.0.1"].includes(window.location.hostname);
     const requireApi = (window.CORE64_CONFIG && typeof window.CORE64_CONFIG.requireApiOnPublic === "boolean")
         ? window.CORE64_CONFIG.requireApiOnPublic
