@@ -75,6 +75,7 @@ CORE64_SMOKE_TIMEOUT_MS=10000
 Release procedure and rollback checklist:
 
 - See `RELEASE_RUNBOOK.md`
+- See `BRANCH_PROTECTION_SETUP.md`
 
 ## CI Smoke Automation
 
