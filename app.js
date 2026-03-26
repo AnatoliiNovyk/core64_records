@@ -374,6 +374,29 @@ function bindReleaseInteractions() {
         openReleaseLink(releaseLink, releaseTitle, releaseArtist);
     });
 
+    grid.addEventListener("keydown", (event) => {
+        if (!(event instanceof KeyboardEvent)) return;
+        if (event.defaultPrevented) return;
+        if (event.isComposing) return;
+
+        const key = String(event.key || "");
+        const isActivationKey = key === "Enter" || key === " ";
+        if (!isActivationKey) return;
+
+        const targetEl = event.target instanceof Element ? event.target : null;
+        if (!targetEl) return;
+        if (targetEl.closest('[data-release-action="play"]')) return;
+
+        const card = targetEl.closest(".release-card");
+        if (!card) return;
+
+        event.preventDefault();
+        const releaseLink = card.getAttribute("data-release-link") || "";
+        const releaseTitle = card.getAttribute("data-release-title") || "";
+        const releaseArtist = card.getAttribute("data-release-artist") || "";
+        openReleaseLink(releaseLink, releaseTitle, releaseArtist);
+    });
+
     releaseInteractionsBound = true;
 }
 
@@ -394,10 +417,10 @@ function renderReleases(data) {
         const safeReleaseArtist = escapeHtmlAttribute(releaseArtist);
 
         return `
-        <article class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}" aria-label="Відкрити реліз ${safeReleaseTitle}">
+        <article class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}" aria-label="Відкрити реліз ${safeReleaseTitle}" role="button" tabindex="0">
             <div class="relative aspect-square overflow-hidden bg-gray-900">
                 <img src="${safeImage}" alt="${safeReleaseTitle}" class="w-full h-full object-cover vinyl-spin" data-release-image="1" loading="lazy">
-                <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
+                <div class="absolute inset-0 bg-black/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
                     <button class="p-3 bg-cyan-400 rounded-full text-black hover:scale-110 transition-transform" aria-label="Play release" data-release-action="play" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}">
                         <i data-lucide="play" class="w-6 h-6 fill-current"></i>
                     </button>
