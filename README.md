@@ -50,6 +50,28 @@ The frontend adapter mode is auto:
 - if API is available, reads/writes through backend
 - if API is unavailable, falls back to localStorage
 
+## Smoke Check (Public + Admin)
+
+Run a one-shot smoke verification from project root:
+
+```bash
+node scripts/smoke-check.mjs
+```
+
+The script checks:
+
+- `/api/health`
+- `/api/public` payload quality (missing media, `static.photos`, bad release links)
+- admin auth flow (`/api/auth/login`, `/api/auth/me`, `/api/settings`)
+
+Optional environment overrides:
+
+```bash
+CORE64_API_BASE=http://localhost:3000/api
+CORE64_ADMIN_PASSWORD=core64admin
+CORE64_SMOKE_TIMEOUT_MS=10000
+```
+
 ## Captcha Configuration
 
 Contact form supports two providers:
