@@ -1816,10 +1816,13 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     hideApiStatus();
     try {
-        await checkAuth();
+        const isAuthenticated = await checkAuth();
         if (sectionNavigationSeq !== navigationSeqAtBootstrap) return;
         if (currentSection !== sectionAtBootstrap) return;
         if (!dashboardSectionEl.isConnected) return;
+        if (!isAuthenticated) {
+            return;
+        }
         await loadDashboard();
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtBootstrap) return;
@@ -1838,22 +1841,23 @@ async function checkAuth() {
     if (!isAuthenticatedMethod) {
         console.warn("Adapter isAuthenticated method is unavailable");
         if (sectionNavigationSeq !== navigationSeqAtAuth) return;
-        if (!loginScreen || !loginScreen.isConnected) return;
-        if (currentSection !== sectionAtAuth) return;
+        if (!loginScreen || !loginScreen.isConnected) return false;
+        if (currentSection !== sectionAtAuth) return false;
         loginScreen.classList.remove("hidden");
-        return;
+        return false;
     }
     const isAuth = await isAuthenticatedMethod.call(adapter);
     if (sectionNavigationSeq !== navigationSeqAtAuth) return;
-    if (!loginScreen || !loginScreen.isConnected) return;
-    if (currentSection !== sectionAtAuth) return;
+    if (!loginScreen || !loginScreen.isConnected) return false;
+    if (currentSection !== sectionAtAuth) return false;
 
     if (isAuth) {
         loginScreen.classList.add("hidden");
-        return;
+        return true;
     }
 
     loginScreen.classList.remove("hidden");
+    return false;
 }
 
 async function handleLogin(e) {
