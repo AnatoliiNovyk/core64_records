@@ -76,6 +76,18 @@ Release procedure and rollback checklist:
 
 - See `RELEASE_RUNBOOK.md`
 
+## CI Smoke Automation
+
+GitHub Actions workflow is available at:
+
+- `.github/workflows/smoke-check.yml`
+
+It runs as a manual pre-release gate (`workflow_dispatch`) with inputs:
+
+- `core64_api_base` (example: `https://your-domain/api`)
+- `core64_admin_password`
+- `core64_smoke_timeout_ms` (optional, default `15000`)
+
 ## Captcha Configuration
 
 Contact form supports two providers:

@@ -1,0 +1,54 @@
+name: Smoke Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      core64_api_base:
+        description: API base URL for smoke-check
+        required: true
+        type: string
+      core64_admin_password:
+        description: Admin password used by smoke-check auth flow
+        required: true
+        type: string
+      core64_smoke_timeout_ms:
+        description: Request timeout in milliseconds
+        required: false
+        default: "15000"
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate required inputs
+        env:
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
+        run: |
+          if [ -z "$CORE64_API_BASE" ]; then
+            echo "Missing required input: core64_api_base"
+            exit 1
+          fi
+
+          if [ -z "$CORE64_ADMIN_PASSWORD" ]; then
+            echo "Missing required input: core64_admin_password"
+            exit 1
+          fi
+
+      - name: Run smoke-check
+        env:
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+        run: node scripts/smoke-check.mjs
