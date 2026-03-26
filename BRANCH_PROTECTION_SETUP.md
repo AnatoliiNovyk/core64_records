@@ -12,6 +12,17 @@ Prevent direct unstable changes from reaching production by requiring smoke vali
 - Repository admins have access to Settings.
 - At least one successful run of `Smoke Check` workflow exists in Actions history.
 
+## Optional: Apply via Script
+
+If you prefer API-based setup instead of UI clicks:
+
+```powershell
+$env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
+pwsh -File scripts/set-branch-protection.ps1
+```
+
+Script file: `scripts/set-branch-protection.ps1`
+
 ## Configure Rule
 
 1. Open repository on GitHub.

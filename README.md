@@ -77,6 +77,13 @@ Release procedure and rollback checklist:
 - See `RELEASE_RUNBOOK.md`
 - See `BRANCH_PROTECTION_SETUP.md`
 
+Optional automation for GitHub branch protection:
+
+```powershell
+$env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
+pwsh -File scripts/set-branch-protection.ps1
+```
+
 ## CI Smoke Automation
 
 GitHub Actions workflow is available at:
