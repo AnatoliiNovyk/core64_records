@@ -345,11 +345,15 @@ function buildReleaseFallbackUrl(releaseTitle, releaseArtist) {
 function openReleaseLink(releaseLink, releaseTitle, releaseArtist) {
     const normalizedUrl = normalizeReleaseOutboundUrl(releaseLink);
     const targetUrl = normalizedUrl || buildReleaseFallbackUrl(releaseTitle, releaseArtist);
-    const openedWindow = window.open(targetUrl, "_blank", "noopener,noreferrer");
-    if (!openedWindow) {
-        // Fallback when popup blockers prevent opening a new tab.
-        window.location.href = targetUrl;
+    const openedWindow = window.open(targetUrl, "_blank");
+    if (openedWindow) {
+        // Explicitly detach opener for security without relying on feature-string behavior.
+        openedWindow.opener = null;
+        return;
     }
+
+    // Fallback when popup blockers prevent opening a new tab.
+    window.location.assign(targetUrl);
 }
 
 function attachImageFallback(container, selector, fallbackSrc) {
