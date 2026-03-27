@@ -98,6 +98,18 @@ Emergency rollback (temporarily relax required checks/reviews/admin enforcement)
 pwsh -File scripts/relax-branch-protection.ps1
 ```
 
+Read current branch protection status:
+
+```powershell
+pwsh -File scripts/get-branch-protection.ps1
+```
+
+Raw API output:
+
+```powershell
+pwsh -File scripts/get-branch-protection.ps1 -AsJson
+```
+
 ## CI Smoke Automation
 
 GitHub Actions workflow is available at:

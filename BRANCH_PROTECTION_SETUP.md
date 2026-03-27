@@ -37,6 +37,18 @@ pwsh -File scripts/set-branch-protection.ps1 -DryRun
 
 Dry run does not require `GITHUB_TOKEN`.
 
+Read current protection status (read-only):
+
+```powershell
+pwsh -File scripts/get-branch-protection.ps1
+```
+
+For full raw response:
+
+```powershell
+pwsh -File scripts/get-branch-protection.ps1 -AsJson
+```
+
 ## Configure Rule
 
 1. Open repository on GitHub.
