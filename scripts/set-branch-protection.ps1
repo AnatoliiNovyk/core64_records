@@ -33,6 +33,36 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+if ($DryRun.IsPresent) {
+    $previewBody = @{
+        required_status_checks = @{
+            strict   = $true
+            contexts = @($CheckContext)
+        }
+        enforce_admins = (-not $DoNotEnforceAdmins.IsPresent)
+        required_pull_request_reviews = @{
+            dismiss_stale_reviews           = $true
+            require_code_owner_reviews      = $false
+            required_approving_review_count = $RequiredApprovals
+        }
+        restrictions = $null
+        required_linear_history = $false
+        allow_force_pushes = $false
+        allow_deletions = $false
+        block_creations = $false
+        required_conversation_resolution = $RequireConversationResolution.IsPresent
+        lock_branch = $false
+        allow_fork_syncing = $true
+    }
+
+    $previewUri = "https://api.github.com/repos/$Owner/$Repo/branches/$Branch/protection"
+    Write-Host "Dry run mode enabled. No changes were sent to GitHub."
+    Write-Host "Target URI: $previewUri"
+    Write-Host "Payload:"
+    Write-Host ($previewBody | ConvertTo-Json -Depth 10)
+    return
+}
+
 if ([string]::IsNullOrWhiteSpace($Token)) {
     $Token = $env:GITHUB_TOKEN
 }
@@ -93,14 +123,6 @@ if (-not $SkipCheckContextValidation.IsPresent) {
 Write-Host "Applying branch protection for $Owner/$Repo on '$Branch' with check '$CheckContext'..."
 
 $bodyJson = $body | ConvertTo-Json -Depth 10
-
-if ($DryRun.IsPresent) {
-    Write-Host "Dry run mode enabled. No changes were sent to GitHub."
-    Write-Host "Target URI: $uri"
-    Write-Host "Payload:"
-    Write-Host $bodyJson
-    return
-}
 
 $response = Invoke-RestMethod -Method Put -Uri $uri -Headers $headers -Body $bodyJson -ContentType "application/json"
 

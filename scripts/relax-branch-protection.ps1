@@ -18,6 +18,22 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+$baseUri = "https://api.github.com/repos/$Owner/$Repo/branches/$Branch/protection"
+
+if ($DryRun.IsPresent) {
+    $operations = @(
+        @{ Name = "required status checks"; Uri = "$baseUri/required_status_checks" },
+        @{ Name = "required pull request reviews"; Uri = "$baseUri/required_pull_request_reviews" },
+        @{ Name = "admin enforcement"; Uri = "$baseUri/enforce_admins" }
+    )
+
+    Write-Host "Dry run mode enabled. No changes were sent to GitHub."
+    $operations | ForEach-Object {
+        Write-Host "Would disable $($_.Name) via DELETE $($_.Uri)"
+    }
+    return
+}
+
 if ([string]::IsNullOrWhiteSpace($Token)) {
     $Token = $env:GITHUB_TOKEN
 }
@@ -25,8 +41,6 @@ if ([string]::IsNullOrWhiteSpace($Token)) {
 if ([string]::IsNullOrWhiteSpace($Token)) {
     throw "GitHub token is missing. Set GITHUB_TOKEN env var or pass -Token."
 }
-
-$baseUri = "https://api.github.com/repos/$Owner/$Repo/branches/$Branch/protection"
 
 $headers = @{
     Authorization = "Bearer $Token"
@@ -39,14 +53,6 @@ $operations = @(
     @{ Name = "required pull request reviews"; Uri = "$baseUri/required_pull_request_reviews" },
     @{ Name = "admin enforcement"; Uri = "$baseUri/enforce_admins" }
 )
-
-if ($DryRun.IsPresent) {
-    Write-Host "Dry run mode enabled. No changes were sent to GitHub."
-    $operations | ForEach-Object {
-        Write-Host "Would disable $($_.Name) via DELETE $($_.Uri)"
-    }
-    return
-}
 
 foreach ($op in $operations) {
     try {

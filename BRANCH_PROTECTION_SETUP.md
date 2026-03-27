@@ -35,6 +35,8 @@ Example dry run:
 pwsh -File scripts/set-branch-protection.ps1 -DryRun
 ```
 
+Dry run does not require `GITHUB_TOKEN`.
+
 ## Configure Rule
 
 1. Open repository on GitHub.

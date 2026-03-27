@@ -90,6 +90,8 @@ Preview payload without applying changes:
 pwsh -File scripts/set-branch-protection.ps1 -DryRun
 ```
 
+`-DryRun` can be executed without `GITHUB_TOKEN`.
+
 Emergency rollback (temporarily relax required checks/reviews/admin enforcement):
 
 ```powershell
