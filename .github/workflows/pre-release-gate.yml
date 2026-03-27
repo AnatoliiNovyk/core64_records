@@ -1,0 +1,116 @@
+name: Pre-Release Gate
+
+on:
+  workflow_dispatch:
+    inputs:
+      core64_api_base:
+        description: API base URL for smoke-check
+        required: true
+        type: string
+      core64_admin_password:
+        description: Admin password used by smoke-check auth flow
+        required: true
+        type: string
+      core64_smoke_timeout_ms:
+        description: Request timeout in milliseconds
+        required: false
+        default: "15000"
+        type: string
+      owner:
+        description: Repository owner for branch protection verification
+        required: false
+        default: AnatoliiNovyk
+        type: string
+      repo:
+        description: Repository name for branch protection verification
+        required: false
+        default: core64_records
+        type: string
+      branch:
+        description: Branch name for branch protection verification
+        required: false
+        default: main
+        type: string
+      expected_check_contexts:
+        description: Comma-separated accepted status check contexts
+        required: false
+        default: smoke,Smoke Check / smoke
+        type: string
+      minimum_approvals:
+        description: Minimum required PR approvals
+        required: false
+        default: "1"
+        type: string
+      expected_conversation_resolution:
+        description: Conversation resolution expectation (any|true|false)
+        required: false
+        default: any
+        type: choice
+        options:
+          - any
+          - true
+          - false
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate required inputs
+        env:
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
+        run: |
+          if [ -z "$CORE64_API_BASE" ]; then
+            echo "Missing required input: core64_api_base"
+            exit 1
+          fi
+
+          if [ -z "$CORE64_ADMIN_PASSWORD" ]; then
+            echo "Missing required input: core64_admin_password"
+            exit 1
+          fi
+
+      - name: Validate workflow secret
+        env:
+          BRANCH_PROTECTION_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
+        run: |
+          if [ -z "$BRANCH_PROTECTION_TOKEN" ]; then
+            echo "Missing required secret: BRANCH_PROTECTION_TOKEN"
+            exit 1
+          fi
+
+      - name: Run smoke-check
+        env:
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+        run: node scripts/smoke-check.mjs
+
+      - name: Verify branch protection policy
+        shell: pwsh
+        env:
+          BRANCH_PROTECTION_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
+        run: |
+          $expectedContexts = "${{ github.event.inputs.expected_check_contexts }}".Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
+          if ($expectedContexts.Count -eq 0) {
+            throw "Input expected_check_contexts must contain at least one value."
+          }
+
+          ./scripts/verify-branch-protection.ps1 `
+            -Owner "${{ github.event.inputs.owner }}" `
+            -Repo "${{ github.event.inputs.repo }}" `
+            -Branch "${{ github.event.inputs.branch }}" `
+            -ExpectedCheckContexts $expectedContexts `
+            -MinimumApprovals ([int]"${{ github.event.inputs.minimum_approvals }}") `
+            -ExpectedConversationResolution "${{ github.event.inputs.expected_conversation_resolution }}" `
+            -Token "$env:BRANCH_PROTECTION_TOKEN"

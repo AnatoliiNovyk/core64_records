@@ -47,6 +47,13 @@ The release is considered healthy only if output contains:
 - no `static.photos` references
 - no bad release links
 
+CI alternative (single gate run):
+
+- Run GitHub Actions workflow `Pre-Release Gate`.
+- Provide `core64_api_base` and `core64_admin_password` inputs.
+- Ensure repository secret `BRANCH_PROTECTION_TOKEN` is configured.
+- Proceed only when workflow finishes successfully.
+
 ## 4. Manual UI Spot Check
 
 - Open public page: <http://localhost:5500/index.html>

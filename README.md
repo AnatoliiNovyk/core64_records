@@ -159,6 +159,21 @@ Common inputs:
 - `minimum_approvals` (default `1`)
 - `expected_conversation_resolution` (`any`, `true`, or `false`)
 
+## CI Unified Pre-Release Gate
+
+GitHub Actions workflow is available at:
+
+- `.github/workflows/pre-release-gate.yml`
+
+It runs both checks in one run and returns a single release verdict:
+
+- `smoke-check` (`scripts/smoke-check.mjs`)
+- branch protection policy verification (`scripts/verify-branch-protection.ps1`)
+
+Required repository secret:
+
+- `BRANCH_PROTECTION_TOKEN`
+
 ## Captcha Configuration
 
 Contact form supports two providers:
