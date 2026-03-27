@@ -134,6 +134,25 @@ It runs as a manual pre-release gate (`workflow_dispatch`) with inputs:
 - `core64_admin_password`
 - `core64_smoke_timeout_ms` (optional, default `15000`)
 
+## CI Branch Protection Verification
+
+GitHub Actions workflow is available at:
+
+- `.github/workflows/branch-protection-verify.yml`
+
+It runs manually (`workflow_dispatch`) and validates branch protection policy with pass/fail output.
+
+Required repository secret:
+
+- `BRANCH_PROTECTION_TOKEN` (GitHub PAT with permissions to read branch protection)
+
+Common inputs:
+
+- `owner`, `repo`, `branch`
+- `expected_check_context` (default `smoke`)
+- `minimum_approvals` (default `1`)
+- `expected_conversation_resolution` (`any`, `true`, or `false`)
+
 ## Captcha Configuration
 
 Contact form supports two providers:

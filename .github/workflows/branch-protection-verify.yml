@@ -1,0 +1,71 @@
+name: Branch Protection Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      owner:
+        description: Repository owner
+        required: false
+        default: AnatoliiNovyk
+        type: string
+      repo:
+        description: Repository name
+        required: false
+        default: core64_records
+        type: string
+      branch:
+        description: Branch to verify
+        required: false
+        default: main
+        type: string
+      expected_check_context:
+        description: Required status check context
+        required: false
+        default: smoke
+        type: string
+      minimum_approvals:
+        description: Minimum required PR approvals
+        required: false
+        default: "1"
+        type: string
+      expected_conversation_resolution:
+        description: Conversation resolution expectation (any|true|false)
+        required: false
+        default: any
+        type: choice
+        options:
+          - any
+          - true
+          - false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate workflow secret
+        env:
+          BRANCH_PROTECTION_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
+        run: |
+          if [ -z "$BRANCH_PROTECTION_TOKEN" ]; then
+            echo "Missing required secret: BRANCH_PROTECTION_TOKEN"
+            exit 1
+          fi
+
+      - name: Verify branch protection policy
+        shell: pwsh
+        env:
+          BRANCH_PROTECTION_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
+        run: |
+          ./scripts/verify-branch-protection.ps1 `
+            -Owner "${{ github.event.inputs.owner }}" `
+            -Repo "${{ github.event.inputs.repo }}" `
+            -Branch "${{ github.event.inputs.branch }}" `
+            -ExpectedCheckContext "${{ github.event.inputs.expected_check_context }}" `
+            -MinimumApprovals ([int]"${{ github.event.inputs.minimum_approvals }}") `
+            -ExpectedConversationResolution "${{ github.event.inputs.expected_conversation_resolution }}" `
+            -Token "$env:BRANCH_PROTECTION_TOKEN"

@@ -9,8 +9,10 @@ Prevent direct unstable changes from reaching production by requiring smoke vali
 ## Prerequisites
 
 - Workflow exists: `.github/workflows/smoke-check.yml`
+- Workflow exists: `.github/workflows/branch-protection-verify.yml`
 - Repository admins have access to Settings.
 - At least one successful run of `Smoke Check` workflow exists in Actions history.
+- Repository secret `BRANCH_PROTECTION_TOKEN` is configured for verification workflow.
 
 ## Optional: Apply via Script
 
@@ -60,6 +62,12 @@ Optional stricter verification example (require conversation resolution):
 ```powershell
 pwsh -File scripts/verify-branch-protection.ps1 -ExpectedConversationResolution true
 ```
+
+GitHub Actions alternative:
+
+- Run workflow `Branch Protection Verify` from Actions tab.
+- Use inputs to match your policy.
+- The workflow fails if policy does not match expected values.
 
 ## Configure Rule
 
