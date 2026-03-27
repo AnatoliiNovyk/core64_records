@@ -54,6 +54,13 @@ CI alternative (single gate run):
 - Ensure repository secret `BRANCH_PROTECTION_TOKEN` is configured.
 - Proceed only when workflow finishes successfully.
 
+Local alternative (single gate command):
+
+```powershell
+$env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
+pwsh -File scripts/pre-release-gate-local.ps1
+```
+
 ## 4. Manual UI Spot Check
 
 - Open public page: <http://localhost:5500/index.html>

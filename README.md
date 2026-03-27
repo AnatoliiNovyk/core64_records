@@ -174,6 +174,20 @@ Required repository secret:
 
 - `BRANCH_PROTECTION_TOKEN`
 
+## Local Unified Pre-Release Gate
+
+Run both checks locally with one command:
+
+```powershell
+$env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
+pwsh -File scripts/pre-release-gate-local.ps1
+```
+
+This local gate runs:
+
+- `scripts/smoke-check.mjs`
+- `scripts/verify-branch-protection.ps1`
+
 ## Captcha Configuration
 
 Contact form supports two providers:
