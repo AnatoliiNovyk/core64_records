@@ -57,6 +57,12 @@ Verify policy with pass/fail output (exit code 0/1):
 pwsh -File scripts/verify-branch-protection.ps1
 ```
 
+Verify using multiple accepted check context names:
+
+```powershell
+pwsh -File scripts/verify-branch-protection.ps1 -ExpectedCheckContexts "smoke","Smoke Check / smoke"
+```
+
 Optional stricter verification example (require conversation resolution):
 
 ```powershell
@@ -67,6 +73,7 @@ GitHub Actions alternative:
 
 - Run workflow `Branch Protection Verify` from Actions tab.
 - Use inputs to match your policy.
+- Input `expected_check_contexts` accepts comma-separated values.
 - The workflow fails if policy does not match expected values.
 
 ## Configure Rule

@@ -9,7 +9,10 @@ param(
     [string]$Branch = "main",
 
     [Parameter(Mandatory = $false)]
-    [string]$ExpectedCheckContext = "smoke",
+    [string[]]$ExpectedCheckContexts = @("smoke", "Smoke Check / smoke"),
+
+    [Parameter(Mandatory = $false)]
+    [string]$ExpectedCheckContext,
 
     [Parameter(Mandatory = $false)]
     [int]$MinimumApprovals = 1,
@@ -30,6 +33,16 @@ $ErrorActionPreference = "Stop"
 
 if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
     throw "MinimumApprovals must be between 1 and 6."
+}
+
+if ($PSBoundParameters.ContainsKey("ExpectedCheckContext")) {
+    $ExpectedCheckContexts = @($ExpectedCheckContext)
+}
+
+$ExpectedCheckContexts = @($ExpectedCheckContexts | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
+
+if ($ExpectedCheckContexts.Count -eq 0) {
+    throw "ExpectedCheckContexts cannot be empty."
 }
 
 if ([string]::IsNullOrWhiteSpace($Token)) {
@@ -96,7 +109,8 @@ function Add-Check {
 
 Add-Check -Name "enforce_admins" -Expected "true" -Actual ([string][bool]$response.enforce_admins.enabled).ToLowerInvariant() -Passed ([bool]$response.enforce_admins.enabled)
 Add-Check -Name "required_status_checks.strict" -Expected "true" -Actual ([string][bool]$response.required_status_checks.strict).ToLowerInvariant() -Passed ([bool]$response.required_status_checks.strict)
-Add-Check -Name "required_status_check_context" -Expected $ExpectedCheckContext -Actual ($(if ($contexts.Count -gt 0) { $contexts -join "," } else { "none" })) -Passed ($contexts -contains $ExpectedCheckContext)
+$matchingContexts = @($ExpectedCheckContexts | Where-Object { $contexts -contains $_ })
+Add-Check -Name "required_status_check_context_any" -Expected ($ExpectedCheckContexts -join " | ") -Actual ($(if ($contexts.Count -gt 0) { $contexts -join "," } else { "none" })) -Passed ($matchingContexts.Count -gt 0)
 Add-Check -Name "required_approvals_minimum" -Expected (">= $MinimumApprovals") -Actual ([string]$requiredApprovals) -Passed ($requiredApprovals -ge $MinimumApprovals)
 Add-Check -Name "dismiss_stale_reviews" -Expected "true" -Actual ([string]$dismissStaleReviews).ToLowerInvariant() -Passed ($dismissStaleReviews)
 
@@ -112,6 +126,7 @@ $result = [pscustomobject]@{
     owner = $Owner
     repo = $Repo
     branch = $Branch
+    expectedCheckContexts = $ExpectedCheckContexts
     passed = $passed
     checks = $checks
 }

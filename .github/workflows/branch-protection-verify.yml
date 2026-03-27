@@ -18,10 +18,10 @@ on:
         required: false
         default: main
         type: string
-      expected_check_context:
-        description: Required status check context
+      expected_check_contexts:
+        description: Comma-separated accepted status check contexts
         required: false
-        default: smoke
+        default: smoke,Smoke Check / smoke
         type: string
       minimum_approvals:
         description: Minimum required PR approvals
@@ -61,11 +61,16 @@ jobs:
         env:
           BRANCH_PROTECTION_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
         run: |
+          $expectedContexts = "${{ github.event.inputs.expected_check_contexts }}".Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
+          if ($expectedContexts.Count -eq 0) {
+            throw "Input expected_check_contexts must contain at least one value."
+          }
+
           ./scripts/verify-branch-protection.ps1 `
             -Owner "${{ github.event.inputs.owner }}" `
             -Repo "${{ github.event.inputs.repo }}" `
             -Branch "${{ github.event.inputs.branch }}" `
-            -ExpectedCheckContext "${{ github.event.inputs.expected_check_context }}" `
+            -ExpectedCheckContexts $expectedContexts `
             -MinimumApprovals ([int]"${{ github.event.inputs.minimum_approvals }}") `
             -ExpectedConversationResolution "${{ github.event.inputs.expected_conversation_resolution }}" `
             -Token "$env:BRANCH_PROTECTION_TOKEN"

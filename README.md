@@ -116,6 +116,12 @@ Verify branch protection policy with pass/fail exit code:
 pwsh -File scripts/verify-branch-protection.ps1
 ```
 
+Verify with custom accepted check contexts:
+
+```powershell
+pwsh -File scripts/verify-branch-protection.ps1 -ExpectedCheckContexts "smoke","Smoke Check / smoke"
+```
+
 JSON verification output:
 
 ```powershell
@@ -149,7 +155,7 @@ Required repository secret:
 Common inputs:
 
 - `owner`, `repo`, `branch`
-- `expected_check_context` (default `smoke`)
+- `expected_check_contexts` (default `smoke,Smoke Check / smoke`)
 - `minimum_approvals` (default `1`)
 - `expected_conversation_resolution` (`any`, `true`, or `false`)
 
