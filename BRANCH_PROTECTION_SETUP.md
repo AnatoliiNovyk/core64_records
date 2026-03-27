@@ -49,6 +49,18 @@ For full raw response:
 pwsh -File scripts/get-branch-protection.ps1 -AsJson
 ```
 
+Verify policy with pass/fail output (exit code 0/1):
+
+```powershell
+pwsh -File scripts/verify-branch-protection.ps1
+```
+
+Optional stricter verification example (require conversation resolution):
+
+```powershell
+pwsh -File scripts/verify-branch-protection.ps1 -ExpectedConversationResolution true
+```
+
 ## Configure Rule
 
 1. Open repository on GitHub.

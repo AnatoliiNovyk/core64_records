@@ -110,6 +110,18 @@ Raw API output:
 pwsh -File scripts/get-branch-protection.ps1 -AsJson
 ```
 
+Verify branch protection policy with pass/fail exit code:
+
+```powershell
+pwsh -File scripts/verify-branch-protection.ps1
+```
+
+JSON verification output:
+
+```powershell
+pwsh -File scripts/verify-branch-protection.ps1 -AsJson
+```
+
 ## CI Smoke Automation
 
 GitHub Actions workflow is available at:
