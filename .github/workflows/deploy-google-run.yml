@@ -114,6 +114,48 @@ jobs:
         with:
           project_id: ${{ github.event.inputs.gcp_project_id }}
 
+      - name: Validate deploy inputs
+        env:
+          CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
+          CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
+          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
+          JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
+          ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
+          CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
+          RUN_DB_MIGRATE: ${{ github.event.inputs.run_db_migrate }}
+          RUN_DB_SEED: ${{ github.event.inputs.run_db_seed }}
+          RUN_POST_DEPLOY_SMOKE: ${{ github.event.inputs.run_post_deploy_smoke }}
+          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+        run: |
+          if [ -z "$CORS_ORIGIN" ]; then
+            echo "Missing required input: cors_origin"
+            exit 1
+          fi
+
+          if [[ "$CORS_ORIGIN" == *"*"* ]]; then
+            echo "Invalid cors_origin: wildcard '*' is not allowed for production deploy"
+            exit 1
+          fi
+
+          for secret_name in "$DATABASE_URL_SECRET_NAME" "$JWT_SECRET_NAME" "$ADMIN_PASSWORD_SECRET_NAME"; do
+            if [ -z "$secret_name" ]; then
+              echo "Secret name inputs for database/jwt/admin must not be empty"
+              exit 1
+            fi
+          done
+
+          if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ] && [ -z "$CONTACT_CAPTCHA_SECRET_NAME" ]; then
+            echo "contact_captcha_secret_name is required when contact_captcha_provider is not 'none'"
+            exit 1
+          fi
+
+          for flag in "$RUN_DB_MIGRATE" "$RUN_DB_SEED" "$RUN_POST_DEPLOY_SMOKE" "$CORE64_SMOKE_CONTACT"; do
+            if [ "$flag" != "true" ] && [ "$flag" != "false" ]; then
+              echo "Boolean inputs must be 'true' or 'false'"
+              exit 1
+            fi
+          done
+
       - name: Setup Node.js
         if: ${{ github.event.inputs.run_db_migrate == 'true' || github.event.inputs.run_db_seed == 'true' }}
         uses: actions/setup-node@v4

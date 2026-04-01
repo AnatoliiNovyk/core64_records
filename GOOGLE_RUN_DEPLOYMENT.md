@@ -47,6 +47,7 @@ Manual CI option:
 - Keep `run_post_deploy_smoke=true` for release runs.
 - Keep `run_db_migrate=true` for release runs.
 - Set `run_db_seed=true` only for first-time environment bootstrap.
+- Workflow performs fail-fast input validation (no wildcard CORS, non-empty required secret names, valid boolean flags).
 
 Set deployment variables in your shell:
 
