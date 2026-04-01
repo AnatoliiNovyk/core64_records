@@ -1,0 +1,132 @@
+name: Deploy Google Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_project_id:
+        description: GCP project ID
+        required: true
+        type: string
+      gcp_region:
+        description: Google Cloud region
+        required: false
+        default: europe-west1
+        type: string
+      service_name:
+        description: Cloud Run service name
+        required: false
+        default: core64-api
+        type: string
+      artifact_repo:
+        description: Artifact Registry repository name
+        required: false
+        default: core64
+        type: string
+      image_tag:
+        description: Image tag
+        required: false
+        default: manual
+        type: string
+      cors_origin:
+        description: Production CORS origin list (comma-separated)
+        required: true
+        type: string
+      contact_captcha_provider:
+        description: Contact captcha provider
+        required: false
+        default: none
+        type: choice
+        options:
+          - none
+          - hcaptcha
+          - recaptcha_v2
+      database_url_secret_name:
+        description: GCP Secret Manager secret name for DATABASE_URL
+        required: false
+        default: DATABASE_URL
+        type: string
+      jwt_secret_name:
+        description: GCP Secret Manager secret name for JWT_SECRET
+        required: false
+        default: JWT_SECRET
+        type: string
+      admin_password_secret_name:
+        description: GCP Secret Manager secret name for ADMIN_PASSWORD
+        required: false
+        default: ADMIN_PASSWORD
+        type: string
+      contact_captcha_secret_name:
+        description: GCP Secret Manager secret name for CONTACT_CAPTCHA_SECRET
+        required: false
+        default: CONTACT_CAPTCHA_SECRET
+        type: string
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required workflow secret
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -z "$GCP_SA_KEY" ]; then
+            echo "Missing required secret: GCP_SA_KEY"
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ github.event.inputs.gcp_project_id }}
+
+      - name: Configure Docker auth for Artifact Registry
+        run: gcloud auth configure-docker ${{ github.event.inputs.gcp_region }}-docker.pkg.dev --quiet
+
+      - name: Build and push backend image
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          ARTIFACT_REPO: ${{ github.event.inputs.artifact_repo }}
+          IMAGE_TAG: ${{ github.event.inputs.image_tag }}
+        run: |
+          IMAGE_URI="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPO/core64-backend:$IMAGE_TAG"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+          docker build -f backend/Dockerfile -t "$IMAGE_URI" backend
+          docker push "$IMAGE_URI"
+
+      - name: Deploy to Cloud Run
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+          CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
+          CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
+          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
+          JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
+          ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
+          CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
+        run: |
+          gcloud run deploy "$SERVICE_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --image "$IMAGE_URI" \
+            --platform managed \
+            --allow-unauthenticated \
+            --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=true,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER" \
+            --set-secrets "DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest,CONTACT_CAPTCHA_SECRET=$CONTACT_CAPTCHA_SECRET_NAME:latest" \
+            --port 3000 \
+            --cpu 1 \
+            --memory 512Mi \
+            --concurrency 80 \
+            --min-instances 0 \
+            --max-instances 4

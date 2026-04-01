@@ -39,6 +39,12 @@ pwsh -File scripts/pre-release-gate-local.ps1 -Core64SmokeContact $true
 
 ## 3. Deploy Backend to Google Run
 
+Manual CI option:
+
+- Run workflow `.github/workflows/deploy-google-run.yml` from GitHub Actions.
+- Required GitHub repository secret: `GCP_SA_KEY`.
+- Workflow builds image, pushes to Artifact Registry, and deploys to Cloud Run.
+
 Set deployment variables in your shell:
 
 ```powershell

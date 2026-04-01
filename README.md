@@ -195,6 +195,22 @@ Required repository secret:
 
 - `BRANCH_PROTECTION_TOKEN`
 
+## CI Deploy to Google Run
+
+GitHub Actions workflow is available at:
+
+- `.github/workflows/deploy-google-run.yml`
+
+It runs as manual deployment (`workflow_dispatch`) and performs:
+
+- backend container build (`backend/Dockerfile`)
+- image push to Artifact Registry
+- deploy to Cloud Run with production env and GCP Secret Manager references
+
+Required repository secret:
+
+- `GCP_SA_KEY` (service account JSON for Artifact Registry + Cloud Run deploy)
+
 ## Local Unified Pre-Release Gate
 
 Run both checks locally with one command:
