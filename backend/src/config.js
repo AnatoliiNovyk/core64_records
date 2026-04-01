@@ -27,3 +27,60 @@ export const config = {
   contactCaptchaProvider: process.env.CONTACT_CAPTCHA_PROVIDER || "none",
   contactCaptchaSecret: process.env.CONTACT_CAPTCHA_SECRET || ""
 };
+
+const weakSecrets = new Set([
+  "change-me",
+  "change-me-in-production",
+  "core64-local-dev-secret",
+  "core64admin",
+  "password",
+  "secret"
+]);
+
+const isWeakSecret = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !normalized || weakSecrets.has(normalized);
+};
+
+export const validateConfig = () => {
+  const errors = [];
+  const isProduction = config.nodeEnv === "production";
+
+  if (!config.databaseUrl) {
+    errors.push("DATABASE_URL is required.");
+  }
+
+  if (isProduction) {
+    if (config.corsOrigin.includes("*")) {
+      errors.push("CORS_ORIGIN must not include '*' in production.");
+    }
+
+    if (!config.dbSsl) {
+      errors.push("DB_SSL must be true in production.");
+    }
+
+    if (!config.dbSslRejectUnauthorized) {
+      errors.push("DB_SSL_REJECT_UNAUTHORIZED must be true in production.");
+    }
+
+    if (isWeakSecret(config.jwtSecret) || String(config.jwtSecret).trim().length < 24) {
+      errors.push("JWT_SECRET must be a strong non-default value (at least 24 characters) in production.");
+    }
+
+    if (isWeakSecret(config.adminPassword) || String(config.adminPassword).trim().length < 12) {
+      errors.push("ADMIN_PASSWORD must be a strong non-default value (at least 12 characters) in production.");
+    }
+
+    if (
+      ["hcaptcha", "recaptcha_v2"].includes(config.contactCaptchaProvider) &&
+      !String(config.contactCaptchaSecret || "").trim()
+    ) {
+      errors.push("CONTACT_CAPTCHA_SECRET is required when CONTACT_CAPTCHA_PROVIDER is hcaptcha or recaptcha_v2.");
+    }
+  }
+
+  if (errors.length > 0) {
+    const message = `Config validation failed:\n- ${errors.join("\n- ")}`;
+    throw new Error(message);
+  }
+};

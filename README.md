@@ -41,6 +41,15 @@ npm run dev
 
 API default URL: `http://localhost:3000/api`
 
+Production preflight guardrails are enforced on backend startup (`NODE_ENV=production`):
+
+- `DATABASE_URL` must be set
+- `CORS_ORIGIN` must not include `*`
+- `DB_SSL=true` and `DB_SSL_REJECT_UNAUTHORIZED=true`
+- `JWT_SECRET` must be strong and non-default (min 24 chars)
+- `ADMIN_PASSWORD` must be strong and non-default (min 12 chars)
+- `CONTACT_CAPTCHA_SECRET` is required when provider is `hcaptcha` or `recaptcha_v2`
+
 ## Frontend Setup
 
 Serve project root with any static server (for example VS Code Live Server).

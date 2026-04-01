@@ -8,6 +8,12 @@ This runbook defines a minimal release process for CORE64 web + API.
 - Backend environment variables are configured.
 - PostgreSQL is reachable.
 - Frontend static server is available.
+- Backend production env passes startup preflight:
+	- `DB_SSL=true`
+	- `DB_SSL_REJECT_UNAUTHORIZED=true`
+	- non-default strong `JWT_SECRET`
+	- non-default strong `ADMIN_PASSWORD`
+	- `CORS_ORIGIN` without `*`
 
 ## 2. Start Services
 

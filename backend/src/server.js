@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import { ZodError } from "zod";
-import { config } from "./config.js";
+import { config, validateConfig } from "./config.js";
 import healthRoutes from "./routes/health.js";
 import authRoutes from "./routes/auth.js";
 import collectionRoutes from "./routes/collections.js";
@@ -9,6 +9,8 @@ import settingsRoutes from "./routes/settings.js";
 import contactRoutes from "./routes/contactRequests.js";
 import publicRoutes from "./routes/public.js";
 import auditRoutes from "./routes/auditLogs.js";
+
+validateConfig();
 
 const app = express();
 
