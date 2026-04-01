@@ -5,6 +5,7 @@ This runbook defines a minimal release process for CORE64 web + API.
 Google Run + Supabase deployment playbook:
 
 - See `GOOGLE_RUN_DEPLOYMENT.md`
+- See `RELEASE_OWNERS_AND_ESCALATION.md`
 
 ## 1. Preconditions
 

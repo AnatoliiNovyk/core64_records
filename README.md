@@ -91,6 +91,7 @@ Release procedure and rollback checklist:
 - See `RELEASE_RUNBOOK.md`
 - See `BRANCH_PROTECTION_SETUP.md`
 - See `GOOGLE_RUN_DEPLOYMENT.md`
+- See `RELEASE_OWNERS_AND_ESCALATION.md`
 
 Optional automation for GitHub branch protection:
 
