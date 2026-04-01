@@ -334,6 +334,7 @@ jobs:
             --image "$IMAGE_URI" \
             --platform managed \
             --allow-unauthenticated \
+            --no-use-http2 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER" \
             --set-secrets "$SECRET_FLAGS" \

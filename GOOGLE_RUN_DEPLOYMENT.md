@@ -86,6 +86,7 @@ gcloud run deploy $env:GCP_SERVICE_NAME `
   --image $env:IMAGE_URI `
   --platform managed `
   --allow-unauthenticated `
+  --no-use-http2 `
   --service-account $env:RUNTIME_SERVICE_ACCOUNT `
   --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,CORS_ORIGIN=$env:CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$env:CONTACT_CAPTCHA_PROVIDER" `
   --set-secrets "DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest" `
@@ -102,6 +103,7 @@ Note:
 - Secret names in `--set-secrets` must exist in Secret Manager.
 - Runtime service account must have `roles/secretmanager.secretAccessor` on used secrets.
 - `ADMIN_PASSWORD` in Secret Manager must be strong and at least 12 characters (`core64admin` is rejected in production).
+- Keep `--no-use-http2` for Node/Express runtime to avoid upstream protocol reset errors from Cloud Run.
 - Supabase pooled endpoints may require `DB_SSL_ALLOW_SELF_SIGNED=true` on CI/Cloud Run when full CA chain verification is unavailable in runner/container trust store.
 - If captcha is disabled, keep `CONTACT_CAPTCHA_PROVIDER=none`; do not bind `CONTACT_CAPTCHA_SECRET` in deploy command.
 - Backend container source is `backend/Dockerfile`.
