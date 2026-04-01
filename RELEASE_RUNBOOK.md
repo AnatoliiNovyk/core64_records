@@ -53,6 +53,11 @@ The release is considered healthy only if output contains:
 - no `static.photos` references
 - no bad release links
 
+Optional extended check:
+
+- enable contact endpoint validation with `CORE64_SMOKE_CONTACT=true`
+- expected status can be overridden with `CORE64_SMOKE_CONTACT_EXPECTED_STATUS`
+
 CI alternative (single gate run):
 
 - Run GitHub Actions workflow `Pre-Release Gate`.

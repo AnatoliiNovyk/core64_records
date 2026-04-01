@@ -79,7 +79,12 @@ Optional environment overrides:
 CORE64_API_BASE=http://localhost:3000/api
 CORE64_ADMIN_PASSWORD=core64admin
 CORE64_SMOKE_TIMEOUT_MS=10000
+CORE64_SMOKE_CONTACT=false
+CORE64_SMOKE_CONTACT_EXPECTED_STATUS=201
+CORE64_SMOKE_CONTACT_CAPTCHA_TOKEN=
 ```
+
+Optional contact smoke-check is disabled by default.
 
 Release procedure and rollback checklist:
 
@@ -148,6 +153,7 @@ It runs as a manual pre-release gate (`workflow_dispatch`) with inputs:
 - `core64_api_base` (example: `https://your-domain/api`)
 - `core64_admin_password`
 - `core64_smoke_timeout_ms` (optional, default `15000`)
+- `core64_smoke_contact` (optional, default `false`)
 
 ## CI Branch Protection Verification
 
@@ -178,6 +184,11 @@ It runs both checks in one run and returns a single release verdict:
 
 - `smoke-check` (`scripts/smoke-check.mjs`)
 - branch protection policy verification (`scripts/verify-branch-protection.ps1`)
+
+For contact endpoint coverage, enable smoke contact check:
+
+- CI input: `core64_smoke_contact=true`
+- Local gate: `pwsh -File scripts/pre-release-gate-local.ps1 -Core64SmokeContact $true`
 
 Required repository secret:
 

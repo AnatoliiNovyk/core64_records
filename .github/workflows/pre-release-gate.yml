@@ -16,6 +16,11 @@ on:
         required: false
         default: "15000"
         type: string
+      core64_smoke_contact:
+        description: Enable optional contact endpoint smoke check (true/false)
+        required: false
+        default: "false"
+        type: string
       owner:
         description: Repository owner for branch protection verification
         required: false
@@ -94,6 +99,7 @@ jobs:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
           CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
         run: node scripts/smoke-check.mjs
 
       - name: Verify branch protection policy

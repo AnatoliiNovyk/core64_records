@@ -9,6 +9,9 @@ param(
     [int]$Core64SmokeTimeoutMs = 15000,
 
     [Parameter(Mandatory = $false)]
+    [bool]$Core64SmokeContact = $false,
+
+    [Parameter(Mandatory = $false)]
     [string]$Owner = "AnatoliiNovyk",
 
     [Parameter(Mandatory = $false)]
@@ -55,6 +58,7 @@ Write-Host "[1/2] Running smoke check..."
 $env:CORE64_API_BASE = $Core64ApiBase
 $env:CORE64_ADMIN_PASSWORD = $Core64AdminPassword
 $env:CORE64_SMOKE_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
+$env:CORE64_SMOKE_CONTACT = if ($Core64SmokeContact) { "true" } else { "false" }
 
 node scripts/smoke-check.mjs
 if ($LASTEXITCODE -ne 0) {

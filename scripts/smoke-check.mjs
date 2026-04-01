@@ -3,6 +3,8 @@
 const baseUrl = (process.env.CORE64_API_BASE || "http://localhost:3000/api").replace(/\/+$/, "");
 const adminPassword = process.env.CORE64_ADMIN_PASSWORD || "core64admin";
 const requestTimeoutMs = Number(process.env.CORE64_SMOKE_TIMEOUT_MS || 10000);
+const smokeContactEnabled = ["1", "true", "yes", "on"].includes(String(process.env.CORE64_SMOKE_CONTACT || "").trim().toLowerCase());
+const contactExpectedStatus = Number(process.env.CORE64_SMOKE_CONTACT_EXPECTED_STATUS || 201);
 
 const genericReleaseLinks = new Set([
     "https://soundcloud.com/",
@@ -147,6 +149,38 @@ async function run() {
     }
 
     report.checks.admin = adminChecks;
+
+    const contactChecks = {
+        enabled: smokeContactEnabled,
+        expectedStatus: contactExpectedStatus,
+        status: null,
+        ok: null
+    };
+
+    if (smokeContactEnabled) {
+        const contactPayload = {
+            name: "Smoke Check",
+            email: "smoke-check@core64.local",
+            subject: "Smoke Check",
+            message: `Automated smoke contact check at ${new Date().toISOString()}`,
+            captchaToken: process.env.CORE64_SMOKE_CONTACT_CAPTCHA_TOKEN || ""
+        };
+
+        const contact = await requestJson("/contact-requests", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(contactPayload)
+        });
+
+        contactChecks.status = contact.response.status;
+        contactChecks.ok = contact.response.status === contactExpectedStatus;
+
+        if (!contactChecks.ok) {
+            report.passed = false;
+        }
+    }
+
+    report.checks.contact = contactChecks;
 
     console.log(JSON.stringify(report, null, 2));
     if (!report.passed) {
