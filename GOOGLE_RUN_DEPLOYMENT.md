@@ -30,6 +30,12 @@ Run local pre-check for required env values:
 pwsh -File scripts/check-google-run-env.ps1
 ```
 
+Ensure required GCP APIs are enabled once (Project Owner action):
+
+```powershell
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com cloudbuild.googleapis.com --project <project-id>
+```
+
 Run unified quality gate:
 
 ```powershell
