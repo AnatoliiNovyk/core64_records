@@ -230,6 +230,37 @@ jobs:
         with:
           node-version: 20
 
+      - name: Validate runtime config from secrets
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
+          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
+          JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
+          ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
+          CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
+          CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
+        run: |
+          export NODE_ENV=production
+          export DB_SSL=true
+          export DB_SSL_REJECT_UNAUTHORIZED=false
+          export DB_SSL_ALLOW_SELF_SIGNED=true
+
+          export DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+          export JWT_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$JWT_SECRET_NAME")
+          export ADMIN_PASSWORD=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$ADMIN_PASSWORD_SECRET_NAME")
+          export CONTACT_CAPTCHA_PROVIDER
+          export CORS_ORIGIN
+
+          if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
+            export CONTACT_CAPTCHA_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$CONTACT_CAPTCHA_SECRET_NAME")
+          else
+            export CONTACT_CAPTCHA_SECRET=""
+          fi
+
+          cd backend
+          npm ci
+          node -e "import('./src/config.js').then((m) => { m.validateConfig(); console.log('Runtime config validation passed.'); })"
+
       - name: Run database migration/seed
         if: ${{ github.event.inputs.run_db_migrate == 'true' || github.event.inputs.run_db_seed == 'true' }}
         env:

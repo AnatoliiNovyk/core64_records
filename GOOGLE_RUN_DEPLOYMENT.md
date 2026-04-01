@@ -51,6 +51,7 @@ Manual CI option:
 - Run workflow `.github/workflows/deploy-google-run.yml` from GitHub Actions.
 - Required GitHub repository secret: `GCP_SA_KEY`.
 - Workflow builds image, pushes to Artifact Registry, deploys to Cloud Run, and can run post-deploy smoke-check.
+- Workflow validates production runtime config from Secret Manager before deploy (same rules as backend startup validation).
 - Keep `run_post_deploy_smoke=true` for release runs.
 - Keep `run_db_migrate=true` for release runs.
 - Set `run_db_seed=true` only for first-time environment bootstrap.
@@ -100,6 +101,7 @@ Note:
 
 - Secret names in `--set-secrets` must exist in Secret Manager.
 - Runtime service account must have `roles/secretmanager.secretAccessor` on used secrets.
+- `ADMIN_PASSWORD` in Secret Manager must be strong and at least 12 characters (`core64admin` is rejected in production).
 - Supabase pooled endpoints may require `DB_SSL_ALLOW_SELF_SIGNED=true` on CI/Cloud Run when full CA chain verification is unavailable in runner/container trust store.
 - If captcha is disabled, keep `CONTACT_CAPTCHA_PROVIDER=none`; do not bind `CONTACT_CAPTCHA_SECRET` in deploy command.
 - Backend container source is `backend/Dockerfile`.
