@@ -18,6 +18,11 @@ const toBoolean = (value, fallback) => {
 export const config = {
   port: toNumber(process.env.PORT, 3000),
   nodeEnv: process.env.NODE_ENV || "development",
+  defaultLanguage: String(process.env.DEFAULT_LANGUAGE || "uk").trim().toLowerCase(),
+  supportedLanguages: String(process.env.SUPPORTED_LANGUAGES || "uk,en")
+    .split(",")
+    .map((value) => String(value).trim().toLowerCase())
+    .filter(Boolean),
   databaseUrl: process.env.DATABASE_URL || "",
   dbSsl: toBoolean(process.env.DB_SSL, true),
   dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
@@ -46,6 +51,10 @@ const isWeakSecret = (value) => {
 export const validateConfig = () => {
   const errors = [];
   const isProduction = config.nodeEnv === "production";
+
+  if (!config.supportedLanguages.includes(config.defaultLanguage)) {
+    errors.push("DEFAULT_LANGUAGE must be included in SUPPORTED_LANGUAGES.");
+  }
 
   if (!config.databaseUrl) {
     errors.push("DATABASE_URL is required.");

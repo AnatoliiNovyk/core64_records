@@ -1,4 +1,6 @@
 import { pool } from "./pool.js";
+import { config } from "../config.js";
+import { resolveLanguage } from "../i18n/language.js";
 
 const tableConfig = {
   releases: {
@@ -16,6 +18,33 @@ const tableConfig = {
   sponsors: {
     table: "sponsors",
     columns: ["name", "short_description", "logo", "link", "sort_order"]
+  }
+};
+
+const i18nReadConfig = {
+  releases: {
+    table: "releases",
+    i18nTable: "releases_i18n",
+    i18nEntityId: "release_id",
+    translatedFields: ["title", "artist", "genre"]
+  },
+  artists: {
+    table: "artists",
+    i18nTable: "artists_i18n",
+    i18nEntityId: "artist_id",
+    translatedFields: ["name", "genre", "bio"]
+  },
+  events: {
+    table: "events",
+    i18nTable: "events_i18n",
+    i18nEntityId: "event_id",
+    translatedFields: ["title", "venue", "description"]
+  },
+  sponsors: {
+    table: "sponsors",
+    i18nTable: "sponsors_i18n",
+    i18nEntityId: "sponsor_id",
+    translatedFields: ["name", "short_description"]
   }
 };
 
@@ -102,10 +131,37 @@ function toDbValue(key, value) {
   return [key, value];
 }
 
-export async function listByType(type) {
-  const config = tableConfig[type];
+export async function listByType(type, requestedLanguage = config.defaultLanguage) {
+  const entityConfig = tableConfig[type];
+  const i18nConfig = i18nReadConfig[type];
+  const language = resolveLanguage(requestedLanguage);
+  const defaultLanguage = resolveLanguage(config.defaultLanguage);
   const orderClause = type === "sponsors" ? "ORDER BY sort_order ASC, id ASC" : "ORDER BY id ASC";
-  const result = await pool.query(`SELECT * FROM ${config.table} ${orderClause}`);
+
+  if (!i18nConfig) {
+    const result = await pool.query(`SELECT * FROM ${entityConfig.table} ${orderClause}`);
+    return result.rows.map((row) => fromDbRow(type, row));
+  }
+
+  const translatedSelect = i18nConfig.translatedFields
+    .map((field) => `COALESCE(i18n_lang.${field}, i18n_default.${field}, base.${field}) AS ${field}`)
+    .join(",\n      ");
+
+  const result = await pool.query(
+    `SELECT
+      base.*,
+      ${translatedSelect}
+    FROM ${i18nConfig.table} AS base
+    LEFT JOIN ${i18nConfig.i18nTable} AS i18n_lang
+      ON i18n_lang.${i18nConfig.i18nEntityId} = base.id
+      AND i18n_lang.language_code = $1
+    LEFT JOIN ${i18nConfig.i18nTable} AS i18n_default
+      ON i18n_default.${i18nConfig.i18nEntityId} = base.id
+      AND i18n_default.language_code = $2
+    ${orderClause}`,
+    [language, defaultLanguage]
+  );
+
   return result.rows.map((row) => fromDbRow(type, row));
 }
 
@@ -161,9 +217,9 @@ export async function deleteByType(type, id) {
 
 const PUBLIC_SETTINGS_SELECT = `
   SELECT
-    title,
-    about,
-    mission,
+    COALESCE(s_i18n_lang.title, s_i18n_default.title, s.title) AS title,
+    COALESCE(s_i18n_lang.about, s_i18n_default.about, s.about) AS about,
+    COALESCE(s_i18n_lang.mission, s_i18n_default.mission, s.mission) AS mission,
     email,
     instagram_url AS "instagramUrl",
     youtube_url AS "youtubeUrl",
@@ -173,12 +229,18 @@ const PUBLIC_SETTINGS_SELECT = `
     contact_captcha_active_provider AS "contactCaptchaActiveProvider",
     contact_captcha_hcaptcha_site_key AS "contactCaptchaHcaptchaSiteKey",
     contact_captcha_recaptcha_site_key AS "contactCaptchaRecaptchaSiteKey",
-    contact_captcha_error_message AS "contactCaptchaErrorMessage",
-    contact_captcha_missing_token_message AS "contactCaptchaMissingTokenMessage",
-    contact_captcha_invalid_domain_message AS "contactCaptchaInvalidDomainMessage",
+    COALESCE(s_i18n_lang.contact_captcha_error_message, s_i18n_default.contact_captcha_error_message, s.contact_captcha_error_message) AS "contactCaptchaErrorMessage",
+    COALESCE(s_i18n_lang.contact_captcha_missing_token_message, s_i18n_default.contact_captcha_missing_token_message, s.contact_captcha_missing_token_message) AS "contactCaptchaMissingTokenMessage",
+    COALESCE(s_i18n_lang.contact_captcha_invalid_domain_message, s_i18n_default.contact_captcha_invalid_domain_message, s.contact_captcha_invalid_domain_message) AS "contactCaptchaInvalidDomainMessage",
     contact_captcha_allowed_domain AS "contactCaptchaAllowedDomain"
-  FROM settings
-  ORDER BY id ASC
+  FROM settings AS s
+  LEFT JOIN settings_i18n AS s_i18n_lang
+    ON s_i18n_lang.settings_id = s.id
+    AND s_i18n_lang.language_code = $1
+  LEFT JOIN settings_i18n AS s_i18n_default
+    ON s_i18n_default.settings_id = s.id
+    AND s_i18n_default.language_code = $2
+  ORDER BY s.id ASC
   LIMIT 1
 `;
 
@@ -207,8 +269,10 @@ const ADMIN_SETTINGS_SELECT = `
   LIMIT 1
 `;
 
-export async function getPublicSettings() {
-  const result = await pool.query(PUBLIC_SETTINGS_SELECT);
+export async function getPublicSettings(requestedLanguage = config.defaultLanguage) {
+  const language = resolveLanguage(requestedLanguage);
+  const defaultLanguage = resolveLanguage(config.defaultLanguage);
+  const result = await pool.query(PUBLIC_SETTINGS_SELECT, [language, defaultLanguage]);
   return result.rows[0] || null;
 }
 

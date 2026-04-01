@@ -12,6 +12,7 @@ import {
   listByType,
   updateByType
 } from "../db/repository.js";
+import { resolveLanguage } from "../i18n/language.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
@@ -24,8 +25,9 @@ const schemaMap = {
 
 router.get("/:type(releases|artists|events|sponsors)", async (req, res, next) => {
   try {
-    const data = await listByType(req.params.type);
-    res.json({ data });
+    const language = resolveLanguage(req.query.lang);
+    const data = await listByType(req.params.type, language);
+    res.json({ data, language });
   } catch (error) {
     next(error);
   }

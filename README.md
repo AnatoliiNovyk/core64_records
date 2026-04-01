@@ -41,6 +41,13 @@ npm run dev
 
 API default URL: `http://localhost:3000/api`
 
+Language-aware read endpoints (Phase 1 i18n foundation):
+
+- `GET /api/public?lang=uk|en`
+- `GET /api/releases?lang=uk|en` (same for `artists`, `events`, `sponsors`)
+
+When `lang` is missing or unsupported, backend falls back to default language (`uk`).
+
 Production preflight guardrails are enforced on backend startup (`NODE_ENV=production`):
 
 - `DATABASE_URL` must be set
