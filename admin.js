@@ -68,12 +68,105 @@ const AUDIT_LATENCY_WARN_MAX_MS = 800;
 const AUDIT_UI_STATE_KEY = "core64_audit_ui_state";
 let auditLatencyGoodMaxMs = AUDIT_LATENCY_GOOD_MAX_MS;
 let auditLatencyWarnMaxMs = AUDIT_LATENCY_WARN_MAX_MS;
+const ADMIN_I18N = {
+    uk: {
+        languageLabelUk: "Укр",
+        languageLabelEn: "Eng",
+        apiMissingMethod: "API недоступний. Відсутній метод перевірки у adapter.",
+        apiBackendDown: "API недоступний. Перевірте, що backend запущений на http://localhost:3000.",
+        apiAdminLoadFailed: "Не вдалося завантажити адмін-панель через API. Спробуйте перезапустити backend.",
+        authMissingMethod: "Помилка авторизації: відсутній метод adapter.",
+        authInvalidPassword: "Невірний пароль",
+        authGenericFailed: "Помилка авторизації. Спробуйте ще раз."
+    },
+    en: {
+        languageLabelUk: "Ukr",
+        languageLabelEn: "Eng",
+        apiMissingMethod: "API unavailable. Missing health-check method in adapter.",
+        apiBackendDown: "API unavailable. Verify that backend is running on http://localhost:3000.",
+        apiAdminLoadFailed: "Failed to load admin panel via API. Try restarting backend.",
+        authMissingMethod: "Authorization error: missing adapter method.",
+        authInvalidPassword: "Invalid password",
+        authGenericFailed: "Authorization failed. Please try again."
+    }
+};
 
 function getAdapterMethod(methodName) {
     if (!adapter || typeof adapter !== "object") return null;
     if (typeof methodName !== "string" || !methodName.trim()) return null;
     const method = adapter[methodName];
     return typeof method === "function" ? method : null;
+}
+
+function getActiveLanguage() {
+    const getLanguageMethod = getAdapterMethod("getLanguage");
+    if (!getLanguageMethod) return "uk";
+    return String(getLanguageMethod.call(adapter) || "uk").trim() || "uk";
+}
+
+function tAdmin(key) {
+    const language = getActiveLanguage();
+    const dictionary = ADMIN_I18N[language] || ADMIN_I18N.uk;
+    return dictionary[key] || ADMIN_I18N.uk[key] || key;
+}
+
+function getActiveLocaleTag() {
+    const getLocaleTagMethod = getAdapterMethod("getLocaleTag");
+    if (!getLocaleTagMethod) return "uk-UA";
+    return getLocaleTagMethod.call(adapter);
+}
+
+function applyLanguageFromQuery() {
+    const setLanguageMethod = getAdapterMethod("setLanguage");
+    if (!setLanguageMethod) return;
+    const params = new URLSearchParams(window.location.search);
+    const requestedLanguage = params.get("lang");
+    if (!requestedLanguage) return;
+    setLanguageMethod.call(adapter, requestedLanguage);
+}
+
+function syncDocumentLanguage() {
+    document.documentElement.setAttribute("lang", getActiveLanguage());
+}
+
+function setLanguageAndReload(language) {
+    const setLanguageMethod = getAdapterMethod("setLanguage");
+    if (!setLanguageMethod) return;
+    const resolved = setLanguageMethod.call(adapter, language);
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", resolved);
+    window.location.assign(url.toString());
+}
+
+function updateLanguageSwitcherUi() {
+    const language = getActiveLanguage();
+    const mapping = [
+        { id: "admin-lang-uk", code: "uk" },
+        { id: "admin-lang-en", code: "en" }
+    ];
+
+    mapping.forEach(({ id, code }) => {
+        const button = document.getElementById(id);
+        if (!button) return;
+        const isActive = language === code;
+        button.classList.toggle("bg-cyan-400", isActive);
+        button.classList.toggle("text-black", isActive);
+        button.classList.toggle("text-cyan-300", !isActive);
+        button.classList.toggle("font-bold", isActive);
+    });
+
+    const ukButton = document.getElementById("admin-lang-uk");
+    const enButton = document.getElementById("admin-lang-en");
+    if (ukButton) ukButton.textContent = tAdmin("languageLabelUk");
+    if (enButton) enButton.textContent = tAdmin("languageLabelEn");
+}
+
+function bindLanguageSwitcher() {
+    const ukButton = document.getElementById("admin-lang-uk");
+    const enButton = document.getElementById("admin-lang-en");
+    if (ukButton) ukButton.addEventListener("click", () => setLanguageAndReload("uk"));
+    if (enButton) enButton.addEventListener("click", () => setLanguageAndReload("en"));
+    updateLanguageSwitcherUi();
 }
 
 function clampBoundedInteger(value, { fallback, min, max }) {
@@ -335,13 +428,13 @@ function getComparableTimestamp(value) {
 function formatDateTimeOrDash(value) {
     if (value === null || value === undefined || value === "") return "-";
     const date = new Date(value);
-    return Number.isFinite(date.getTime()) ? date.toLocaleString("uk-UA") : "-";
+    return Number.isFinite(date.getTime()) ? date.toLocaleString(getActiveLocaleTag()) : "-";
 }
 
 function formatNowTimeOrFallback() {
     const now = new Date();
     const timestamp = now.getTime();
-    return Number.isFinite(timestamp) ? now.toLocaleTimeString("uk-UA") : "--:--:--";
+    return Number.isFinite(timestamp) ? now.toLocaleTimeString(getActiveLocaleTag()) : "--:--:--";
 }
 
 function getTodayIsoDateSafe() {
@@ -1768,6 +1861,9 @@ function handleAuditKeyboardShortcuts(event) {
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+    applyLanguageFromQuery();
+    syncDocumentLanguage();
+    bindLanguageSwitcher();
     const sectionAtBootstrap = currentSection;
     const navigationSeqAtBootstrap = sectionNavigationSeq;
     const dashboardSectionEl = document.getElementById("section-dashboard");
@@ -1799,7 +1895,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         if (sectionNavigationSeq !== navigationSeqAtBootstrap) return;
         if (currentSection !== sectionAtBootstrap) return;
         if (!dashboardSectionEl || !dashboardSectionEl.isConnected) return;
-        showApiStatus("API недоступний. Відсутній метод перевірки у adapter.");
+        showApiStatus(tAdmin("apiMissingMethod"));
         return;
     }
     const apiReady = await isApiAvailableMethod.call(adapter);
@@ -1807,7 +1903,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (!apiReady) {
         if (currentSection !== sectionAtBootstrap) return;
         if (!dashboardSectionEl || !dashboardSectionEl.isConnected) return;
-        showApiStatus("API недоступний. Перевірте, що backend запущений на http://localhost:3000.");
+        showApiStatus(tAdmin("apiBackendDown"));
         return;
     }
 
@@ -1829,7 +1925,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         console.error("Admin bootstrap failed", error);
         if (currentSection !== sectionAtBootstrap) return;
         if (!dashboardSectionEl.isConnected) return;
-        showApiStatus("Не вдалося завантажити адмін-панель через API. Спробуйте перезапустити backend.");
+        showApiStatus(tAdmin("apiAdminLoadFailed"));
     }
 });
 
@@ -1873,7 +1969,7 @@ async function handleLogin(e) {
     }
     const loginMethod = getAdapterMethod("login");
     if (!loginMethod) {
-        errorEl.textContent = "Помилка авторизації: відсутній метод adapter.";
+        errorEl.textContent = tAdmin("authMissingMethod");
         errorEl.classList.remove("hidden");
         console.warn("Adapter login method is unavailable");
         return;
@@ -1890,7 +1986,7 @@ async function handleLogin(e) {
             return;
         }
         if (!success) {
-            errorEl.textContent = "Невірний пароль";
+            errorEl.textContent = tAdmin("authInvalidPassword");
             errorEl.classList.remove("hidden");
             return;
         }
@@ -1919,7 +2015,7 @@ async function handleLogin(e) {
             console.error("Login failed", error);
             return;
         }
-        errorEl.textContent = "Помилка авторизації. Спробуйте ще раз.";
+        errorEl.textContent = tAdmin("authGenericFailed");
         errorEl.classList.remove("hidden");
         console.error("Login failed", error);
     }

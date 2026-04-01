@@ -6,6 +6,118 @@ let sponsorCarouselVisibilityListenerBound = false;
 let contactRuntimeSettings = {};
 let releaseInteractionsBound = false;
 const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
+const PUBLIC_I18N = {
+    uk: {
+        apiTemporarilyUnavailable: "Сервіс тимчасово недоступний. Не вдалося отримати дані з API.",
+        sendingMessage: "Відправка повідомлення...",
+        fileTooLargePrefix: "Файл завеликий. Максимум:",
+        fileReadFailed: "Не вдалося прочитати файл. Спробуйте інший файл.",
+        demoFileRequired: "Для теми 'Демо запис' потрібно додати файл.",
+        captchaMissingToken: "Підтвердіть, що ви не робот.",
+        contactSaved: "Дякуємо за повідомлення. Запит успішно збережено.",
+        contactSaveFailedPrefix: "Не вдалося зберегти запит:",
+        contactSaveFailedGeneric: "Не вдалося зберегти запит. Спробуйте пізніше.",
+        captchaUnsupportedProvider: "Поточний провайдер капчі не підтримується на фронтенді.",
+        captchaMissingSiteKey: "Captcha увімкнена, але не вказано site key.",
+        captchaLoadFailed: "Не вдалося завантажити captcha. Оновіть сторінку або спробуйте пізніше.",
+        languageLabelUk: "Укр",
+        languageLabelEn: "Eng"
+    },
+    en: {
+        apiTemporarilyUnavailable: "Service is temporarily unavailable. Failed to fetch data from API.",
+        sendingMessage: "Sending message...",
+        fileTooLargePrefix: "File is too large. Maximum:",
+        fileReadFailed: "Failed to read the file. Please try another file.",
+        demoFileRequired: "A file is required for the 'Demo recording' subject.",
+        captchaMissingToken: "Please confirm that you are not a robot.",
+        contactSaved: "Thank you for your message. Request saved successfully.",
+        contactSaveFailedPrefix: "Failed to save request:",
+        contactSaveFailedGeneric: "Failed to save request. Please try again later.",
+        captchaUnsupportedProvider: "The current captcha provider is not supported in the frontend.",
+        captchaMissingSiteKey: "Captcha is enabled, but site key is missing.",
+        captchaLoadFailed: "Failed to load captcha. Refresh the page or try again later.",
+        languageLabelUk: "Ukr",
+        languageLabelEn: "Eng"
+    }
+};
+
+function tPublic(key) {
+    const language = getActiveLanguage();
+    const dictionary = PUBLIC_I18N[language] || PUBLIC_I18N.uk;
+    return dictionary[key] || PUBLIC_I18N.uk[key] || key;
+}
+
+function applyLanguageFromQuery() {
+    if (!adapter || typeof adapter.setLanguage !== "function") return;
+    const params = new URLSearchParams(window.location.search);
+    const requestedLanguage = params.get("lang");
+    if (!requestedLanguage) return;
+    adapter.setLanguage(requestedLanguage);
+}
+
+function getActiveLanguage() {
+    if (!adapter || typeof adapter.getLanguage !== "function") return "uk";
+    return adapter.getLanguage();
+}
+
+function getActiveLocaleTag() {
+    if (!adapter || typeof adapter.getLocaleTag !== "function") return "uk-UA";
+    return adapter.getLocaleTag();
+}
+
+function setLanguageAndReload(language) {
+    if (!adapter || typeof adapter.setLanguage !== "function") return;
+    const nextLanguage = adapter.setLanguage(language);
+    const url = new URL(window.location.href);
+    url.searchParams.set("lang", nextLanguage);
+    window.location.assign(url.toString());
+}
+
+function updateLanguageSwitcherUi() {
+    const language = getActiveLanguage();
+    const mapping = [
+        { id: "public-lang-uk", code: "uk" },
+        { id: "public-lang-en", code: "en" },
+        { id: "public-lang-uk-mobile", code: "uk" },
+        { id: "public-lang-en-mobile", code: "en" }
+    ];
+
+    mapping.forEach(({ id, code }) => {
+        const button = document.getElementById(id);
+        if (!button) return;
+        const isActive = language === code;
+        button.classList.toggle("bg-cyan-400", isActive);
+        button.classList.toggle("text-black", isActive);
+        button.classList.toggle("text-cyan-300", !isActive);
+        button.classList.toggle("font-bold", isActive);
+    });
+
+    const ukButton = document.getElementById("public-lang-uk");
+    const enButton = document.getElementById("public-lang-en");
+    const ukMobileButton = document.getElementById("public-lang-uk-mobile");
+    const enMobileButton = document.getElementById("public-lang-en-mobile");
+    if (ukButton) ukButton.textContent = tPublic("languageLabelUk");
+    if (enButton) enButton.textContent = tPublic("languageLabelEn");
+    if (ukMobileButton) ukMobileButton.textContent = tPublic("languageLabelUk");
+    if (enMobileButton) enMobileButton.textContent = tPublic("languageLabelEn");
+}
+
+function bindLanguageSwitcher() {
+    const buttonPairs = [
+        { id: "public-lang-uk", code: "uk" },
+        { id: "public-lang-en", code: "en" },
+        { id: "public-lang-uk-mobile", code: "uk" },
+        { id: "public-lang-en-mobile", code: "en" }
+    ];
+
+    buttonPairs.forEach(({ id, code }) => {
+        const button = document.getElementById(id);
+        if (!button) return;
+        button.addEventListener("click", () => setLanguageAndReload(code));
+    });
+
+    updateLanguageSwitcherUi();
+}
 
 function showPublicApiStatus(message) {
     const statusEl = document.getElementById("public-api-status");
@@ -47,8 +159,8 @@ function getContactConfig() {
         captchaSiteKey: provider === "hcaptcha"
             ? hcaptchaSiteKey
             : (provider === "recaptcha_v2" ? recaptchaSiteKey : String(fallbackCaptchaSource.siteKey || "").trim()),
-        captchaErrorMessage: String(settingsSource.contactCaptchaErrorMessage || "Не вдалося пройти перевірку captcha.").trim(),
-        captchaMissingTokenMessage: String(settingsSource.contactCaptchaMissingTokenMessage || "Підтвердіть, що ви не робот.").trim()
+        captchaErrorMessage: String(settingsSource.contactCaptchaErrorMessage || tPublic("captchaLoadFailed")).trim(),
+        captchaMissingTokenMessage: String(settingsSource.contactCaptchaMissingTokenMessage || tPublic("captchaMissingToken")).trim()
     };
 }
 
@@ -204,13 +316,13 @@ async function initContactCaptcha() {
     wrap.classList.remove("hidden");
 
     if (provider !== "hcaptcha" && provider !== "recaptcha_v2") {
-        hint.textContent = "Поточний провайдер капчі не підтримується на фронтенді.";
+        hint.textContent = tPublic("captchaUnsupportedProvider");
         hint.classList.remove("hidden");
         return;
     }
 
     if (!config.captchaSiteKey) {
-        hint.textContent = "Captcha увімкнена, але не вказано site key.";
+        hint.textContent = tPublic("captchaMissingSiteKey");
         hint.classList.remove("hidden");
         return;
     }
@@ -233,7 +345,7 @@ async function initContactCaptcha() {
         contactCaptchaState.widgetId = widgetId;
         hint.classList.add("hidden");
     } catch (_error) {
-        hint.textContent = "Не вдалося завантажити captcha. Оновіть сторінку або спробуйте пізніше.";
+        hint.textContent = tPublic("captchaLoadFailed");
         hint.classList.remove("hidden");
     }
 }
@@ -511,7 +623,7 @@ function renderEvents(data) {
     list.innerHTML = sortedEvents.map((event) => {
         const eventDate = new Date(event.date);
         const day = eventDate.getDate();
-        const month = eventDate.toLocaleDateString("uk-UA", { month: "short" });
+        const month = eventDate.toLocaleDateString(getActiveLocaleTag(), { month: "short" });
         const resolvedTicketLink = event.ticketLink || event.ticket_link || "";
         const hasTicketLink = Boolean(resolvedTicketLink && resolvedTicketLink !== "#");
 
@@ -771,7 +883,7 @@ function initContactForm() {
 
     form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        updateContactStatus("Відправка повідомлення...", false);
+        updateContactStatus(tPublic("sendingMessage"), false);
 
         const formData = new FormData(form);
         const config = getContactConfig();
@@ -784,7 +896,7 @@ function initContactForm() {
 
         if (demoFile instanceof File && demoFile.size > 0) {
             if (demoFile.size > config.maxFileBytes) {
-                updateContactStatus(`Файл завеликий. Максимум: ${formatBytesSize(config.maxFileBytes)}.`, true);
+                updateContactStatus(`${tPublic("fileTooLargePrefix")} ${formatBytesSize(config.maxFileBytes)}.`, true);
                 return;
             }
 
@@ -793,18 +905,18 @@ function initContactForm() {
                 attachmentName = demoFile.name || "";
                 attachmentType = demoFile.type || "application/octet-stream";
             } catch (_error) {
-                updateContactStatus("Не вдалося прочитати файл. Спробуйте інший файл.", true);
+                updateContactStatus(tPublic("fileReadFailed"), true);
                 return;
             }
         }
 
         if (isDemoSubject(subject) && !attachmentDataUrl) {
-            updateContactStatus("Для теми 'Демо запис' потрібно додати файл.", true);
+            updateContactStatus(tPublic("demoFileRequired"), true);
             return;
         }
 
         if (contactCaptchaState.enabled && !contactCaptchaState.token) {
-            updateContactStatus(config.captchaMissingTokenMessage || "Підтвердіть, що ви не робот.", true);
+            updateContactStatus(config.captchaMissingTokenMessage || tPublic("captchaMissingToken"), true);
             return;
         }
 
@@ -823,11 +935,11 @@ function initContactForm() {
             await adapter.submitContactRequest(payload);
             form.reset();
             resetContactCaptcha();
-            updateContactStatus("Дякуємо за повідомлення. Запит успішно збережено.", false);
+            updateContactStatus(tPublic("contactSaved"), false);
         } catch (error) {
             console.error("Contact request failed", error);
             const details = error && typeof error.message === "string" ? error.message.trim() : "";
-            updateContactStatus(details ? `Не вдалося зберегти запит: ${details}` : "Не вдалося зберегти запит. Спробуйте пізніше.", true);
+            updateContactStatus(details ? `${tPublic("contactSaveFailedPrefix")} ${details}` : tPublic("contactSaveFailedGeneric"), true);
         }
     });
 }
@@ -848,6 +960,9 @@ function scrollToSection(id) {
 }
 
 async function bootstrap() {
+    applyLanguageFromQuery();
+    document.documentElement.setAttribute("lang", getActiveLanguage());
+    bindLanguageSwitcher();
     adapter.ensureLocalDefaults();
     bindReleaseInteractions();
     const isProdHost = !["localhost", "127.0.0.1"].includes(window.location.hostname);
@@ -868,7 +983,7 @@ async function bootstrap() {
     } catch (error) {
         console.error("Failed to load site data", error);
         if (requireApi) {
-            showPublicApiStatus("Сервіс тимчасово недоступний. Не вдалося отримати дані з API.");
+            showPublicApiStatus(tPublic("apiTemporarilyUnavailable"));
             return;
         }
 

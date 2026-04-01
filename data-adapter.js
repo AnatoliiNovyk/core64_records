@@ -155,6 +155,7 @@
     const STORAGE_AUTH_KEY = "core64_admin_auth";
     const STORAGE_TOKEN_KEY = "core64_admin_token";
     const STORAGE_MODE_KEY = "core64_data_mode";
+    const STORAGE_LANG_KEY = "core64_language";
 
     function deepClone(value) {
         return JSON.parse(JSON.stringify(value));
@@ -167,6 +168,74 @@
 
     function getApiBaseUrl() {
         return (window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl) || "http://localhost:3000/api";
+    }
+
+    function normalizeLanguageCode(input) {
+        const normalized = String(input || "").trim().toLowerCase().replace(/_/g, "-");
+        if (!normalized) return "";
+        const primary = normalized.split("-")[0];
+        return primary;
+    }
+
+    function getConfiguredSupportedLanguages() {
+        const config = window.CORE64_CONFIG && typeof window.CORE64_CONFIG === "object" ? window.CORE64_CONFIG : {};
+        const fromArray = Array.isArray(config.supportedLanguages) ? config.supportedLanguages : [];
+        const fromString = typeof config.supportedLanguages === "string"
+            ? config.supportedLanguages.split(",")
+            : [];
+        const candidates = [...fromArray, ...fromString];
+        const normalized = candidates
+            .map((entry) => normalizeLanguageCode(entry))
+            .filter(Boolean);
+
+        if (normalized.length === 0) {
+            return ["uk", "en"];
+        }
+
+        return Array.from(new Set(normalized));
+    }
+
+    function getConfiguredDefaultLanguage() {
+        const config = window.CORE64_CONFIG && typeof window.CORE64_CONFIG === "object" ? window.CORE64_CONFIG : {};
+        const supported = getConfiguredSupportedLanguages();
+        const normalizedDefault = normalizeLanguageCode(config.defaultLanguage || "uk");
+        if (supported.includes(normalizedDefault)) return normalizedDefault;
+        return supported[0] || "uk";
+    }
+
+    function resolvePreferredLanguage(input) {
+        const supported = getConfiguredSupportedLanguages();
+        const normalized = normalizeLanguageCode(input);
+        if (normalized && supported.includes(normalized)) {
+            return normalized;
+        }
+        return getConfiguredDefaultLanguage();
+    }
+
+    function getStoredLanguage() {
+        return localStorage.getItem(STORAGE_LANG_KEY);
+    }
+
+    function setStoredLanguage(language) {
+        localStorage.setItem(STORAGE_LANG_KEY, language);
+    }
+
+    function getCurrentLanguage() {
+        const fromStorage = getStoredLanguage();
+        return resolvePreferredLanguage(fromStorage);
+    }
+
+    function buildPathWithLang(path, lang) {
+        if (!lang) return path;
+        const joiner = path.includes("?") ? "&" : "?";
+        return `${path}${joiner}lang=${encodeURIComponent(lang)}`;
+    }
+
+    function getLocaleTagForLanguage(language) {
+        const normalized = resolvePreferredLanguage(language);
+        if (normalized === "uk") return "uk-UA";
+        if (normalized === "en") return "en-US";
+        return `${normalized}-${normalized.toUpperCase()}`;
     }
 
     function getLocalData() {
@@ -292,8 +361,9 @@
         },
 
         async getSiteData() {
+            const language = getCurrentLanguage();
             if (await shouldUseApi()) {
-                const response = await apiRequest("/public");
+                const response = await apiRequest(buildPathWithLang("/public", language));
                 return response.data;
             }
             return getLocalData();
@@ -301,12 +371,13 @@
 
         async getCollection(type) {
             const collection = normalizeCollectionName(type);
+            const language = getCurrentLanguage();
             if (await shouldUseApi()) {
                 if (collection === "settings") {
-                    const response = await apiRequest("/settings");
+                    const response = await apiRequest(buildPathWithLang("/settings", language));
                     return response.data;
                 }
-                const response = await apiRequest(`/${collection}`);
+                const response = await apiRequest(buildPathWithLang(`/${collection}`, language));
                 return response.data;
             }
 
@@ -515,6 +586,28 @@
 
         ensureLocalDefaults() {
             getLocalData();
+        },
+
+        getDefaultLanguage() {
+            return getConfiguredDefaultLanguage();
+        },
+
+        getSupportedLanguages() {
+            return getConfiguredSupportedLanguages();
+        },
+
+        getLanguage() {
+            return getCurrentLanguage();
+        },
+
+        setLanguage(language) {
+            const resolved = resolvePreferredLanguage(language);
+            setStoredLanguage(resolved);
+            return resolved;
+        },
+
+        getLocaleTag() {
+            return getLocaleTagForLanguage(getCurrentLanguage());
         }
     };
 

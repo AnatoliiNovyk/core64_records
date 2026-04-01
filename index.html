@@ -188,6 +188,10 @@
                     <a href="#about" class="hover:text-cyan-400 transition-colors uppercase tracking-widest text-sm">Про нас</a>
                     <a href="#contact" class="hover:text-cyan-400 transition-colors uppercase tracking-widest text-sm">Контакти</a>
                 </div>
+                <div id="public-language-switcher" class="hidden md:flex items-center gap-2 ml-4 border border-cyan-500/30 rounded px-2 py-1">
+                    <button id="public-lang-uk" type="button" class="text-xs tracking-widest px-2 py-1 rounded hover:bg-cyan-400/20">UK</button>
+                    <button id="public-lang-en" type="button" class="text-xs tracking-widest px-2 py-1 rounded hover:bg-cyan-400/20">EN</button>
+                </div>
                 <button class="md:hidden text-cyan-400" onclick="toggleMobileMenu()" title="Відкрити меню навігації">
                     <i data-lucide="menu" class="w-6 h-6"></i>
                 </button>
@@ -201,6 +205,10 @@
                 <a href="#events" class="block px-3 py-2 text-cyan-400 hover:bg-cyan-400/10">Події</a>
                 <a href="#sponsors" class="block px-3 py-2 text-cyan-400 hover:bg-cyan-400/10">Спонсори</a>
                 <a href="#about" class="block px-3 py-2 text-cyan-400 hover:bg-cyan-400/10">Про нас</a>
+                <div class="px-3 py-2 flex gap-2">
+                    <button id="public-lang-uk-mobile" type="button" class="text-xs tracking-widest px-2 py-1 rounded border border-cyan-500/30 text-cyan-300">UK</button>
+                    <button id="public-lang-en-mobile" type="button" class="text-xs tracking-widest px-2 py-1 rounded border border-cyan-500/30 text-cyan-300">EN</button>
+                </div>
             </div>
         </div>
     </nav>
@@ -455,6 +463,8 @@
         window.CORE64_CONFIG = {
             dataMode: "auto",
             apiBaseUrl: "http://localhost:3000/api",
+            defaultLanguage: "uk",
+            supportedLanguages: ["uk", "en"],
             requireApiOnPublic: false,
             contactMaxFileBytes: 15728640,
             contactCaptcha: {
