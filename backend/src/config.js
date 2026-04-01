@@ -21,6 +21,7 @@ export const config = {
   databaseUrl: process.env.DATABASE_URL || "",
   dbSsl: toBoolean(process.env.DB_SSL, true),
   dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
+  dbSslAllowSelfSigned: toBoolean(process.env.DB_SSL_ALLOW_SELF_SIGNED, false),
   jwtSecret: process.env.JWT_SECRET || "change-me",
   corsOrigin: (process.env.CORS_ORIGIN || "*").split(",").map((v) => v.trim()),
   adminPassword: process.env.ADMIN_PASSWORD || "core64admin",
@@ -59,8 +60,10 @@ export const validateConfig = () => {
       errors.push("DB_SSL must be true in production.");
     }
 
-    if (!config.dbSslRejectUnauthorized) {
-      errors.push("DB_SSL_REJECT_UNAUTHORIZED must be true in production.");
+    if (!config.dbSslRejectUnauthorized && !config.dbSslAllowSelfSigned) {
+      errors.push(
+        "In production, set DB_SSL_REJECT_UNAUTHORIZED=true or explicitly opt-in DB_SSL_ALLOW_SELF_SIGNED=true for managed DB certificate chains."
+      );
     }
 
     if (isWeakSecret(config.jwtSecret) || String(config.jwtSecret).trim().length < 24) {

@@ -20,7 +20,7 @@ on:
       artifact_repo:
         description: Artifact Registry repository name
         required: false
-        default: core64
+        default: core64_records
         type: string
       image_tag:
         description: Image tag
@@ -234,7 +234,8 @@ jobs:
           fi
 
           export DB_SSL=true
-          export DB_SSL_REJECT_UNAUTHORIZED=true
+          export DB_SSL_REJECT_UNAUTHORIZED=false
+          export DB_SSL_ALLOW_SELF_SIGNED=true
 
           cd backend
           npm ci
@@ -280,7 +281,7 @@ jobs:
             --image "$IMAGE_URI" \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=true,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER" \
+            --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER" \
             --set-secrets "DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest,CONTACT_CAPTCHA_SECRET=$CONTACT_CAPTCHA_SECRET_NAME:latest" \
             --port 3000 \
             --cpu 1 \

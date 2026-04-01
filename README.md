@@ -45,7 +45,7 @@ Production preflight guardrails are enforced on backend startup (`NODE_ENV=produ
 
 - `DATABASE_URL` must be set
 - `CORS_ORIGIN` must not include `*`
-- `DB_SSL=true` and `DB_SSL_REJECT_UNAUTHORIZED=true`
+- `DB_SSL=true` and one of: `DB_SSL_REJECT_UNAUTHORIZED=true` or `DB_SSL_ALLOW_SELF_SIGNED=true`
 - `JWT_SECRET` must be strong and non-default (min 24 chars)
 - `ADMIN_PASSWORD` must be strong and non-default (min 12 chars)
 - `CONTACT_CAPTCHA_SECRET` is required when provider is `hcaptcha` or `recaptcha_v2`

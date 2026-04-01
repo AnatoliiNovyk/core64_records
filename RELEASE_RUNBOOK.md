@@ -15,7 +15,7 @@ Google Run + Supabase deployment playbook:
 - Frontend static server is available.
 - Backend production env passes startup preflight:
 	- `DB_SSL=true`
-	- `DB_SSL_REJECT_UNAUTHORIZED=true`
+	- one of: `DB_SSL_REJECT_UNAUTHORIZED=true` or `DB_SSL_ALLOW_SELF_SIGNED=true`
 	- non-default strong `JWT_SECRET`
 	- non-default strong `ADMIN_PASSWORD`
 	- `CORS_ORIGIN` without `*`
