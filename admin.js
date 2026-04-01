@@ -2989,7 +2989,7 @@ async function loadAuditLogs() {
     if (!hasValidAuditDateRangeOrder(dateFrom, dateTo)) {
         auditRequestController = null;
         setAuditLoading(false);
-        showAuditError("Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.");
+        showAuditError(tAdmin("auditDateRangeError"));
         return;
     }
 
@@ -3151,7 +3151,7 @@ function handleAuditLoadError(error, fallbackMessage) {
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
     const details = error && error.message ? String(error.message) : "";
-    const message = details || fallbackMessage || "Не вдалося завантажити журнал аудиту.";
+    const message = details || fallbackMessage || tAdmin("auditUpdateFailed");
     console.error("Audit request failed", error);
     showAuditError(`Помилка аудиту: ${message}`);
 }
@@ -3622,7 +3622,7 @@ function exportAuditCsv() {
         dateTo
     } = getNormalizedAuditFilters();
     if (!hasValidAuditDateRangeOrder(dateFrom, dateTo)) {
-        alert("Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.");
+        alert(tAdmin("auditDateRangeError"));
         return;
     }
     const getAuditLogsMethod = getAdapterMethod("getAuditLogs");
