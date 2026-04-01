@@ -206,10 +206,17 @@ It runs as manual deployment (`workflow_dispatch`) and performs:
 - backend container build (`backend/Dockerfile`)
 - image push to Artifact Registry
 - deploy to Cloud Run with production env and GCP Secret Manager references
+- optional automatic post-deploy smoke-check against deployed service URL
 
 Required repository secret:
 
 - `GCP_SA_KEY` (service account JSON for Artifact Registry + Cloud Run deploy)
+
+Useful deploy inputs:
+
+- `run_post_deploy_smoke` (default `true`)
+- `core64_smoke_timeout_ms` (default `15000`)
+- `core64_smoke_contact` (default `true`)
 
 ## Local Unified Pre-Release Gate
 

@@ -60,6 +60,21 @@ on:
         required: false
         default: CONTACT_CAPTCHA_SECRET
         type: string
+      run_post_deploy_smoke:
+        description: Run smoke-check after deploy (true/false)
+        required: false
+        default: "true"
+        type: string
+      core64_smoke_timeout_ms:
+        description: Smoke-check timeout in milliseconds
+        required: false
+        default: "15000"
+        type: string
+      core64_smoke_contact:
+        description: Enable optional contact endpoint check in post-deploy smoke (true/false)
+        required: false
+        default: "true"
+        type: string
 
 jobs:
   deploy:
@@ -130,3 +145,31 @@ jobs:
             --concurrency 80 \
             --min-instances 0 \
             --max-instances 4
+
+      - name: Post-deploy smoke check
+        if: ${{ github.event.inputs.run_post_deploy_smoke == 'true' }}
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+          ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+        run: |
+          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
+          if [ -z "$SERVICE_URL" ]; then
+            echo "Unable to resolve Cloud Run service URL for smoke-check"
+            exit 1
+          fi
+
+          ADMIN_PASSWORD=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$ADMIN_PASSWORD_SECRET_NAME")
+          if [ -z "$ADMIN_PASSWORD" ]; then
+            echo "Unable to read admin password from Secret Manager"
+            exit 1
+          fi
+
+          export CORE64_API_BASE="$SERVICE_URL/api"
+          export CORE64_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+
+          echo "Running post-deploy smoke-check against $CORE64_API_BASE"
+          node scripts/smoke-check.mjs

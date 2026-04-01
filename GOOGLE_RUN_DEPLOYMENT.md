@@ -43,7 +43,8 @@ Manual CI option:
 
 - Run workflow `.github/workflows/deploy-google-run.yml` from GitHub Actions.
 - Required GitHub repository secret: `GCP_SA_KEY`.
-- Workflow builds image, pushes to Artifact Registry, and deploys to Cloud Run.
+- Workflow builds image, pushes to Artifact Registry, deploys to Cloud Run, and can run post-deploy smoke-check.
+- Keep `run_post_deploy_smoke=true` for release runs.
 
 Set deployment variables in your shell:
 
