@@ -48,6 +48,7 @@ Manual CI option:
 - Keep `run_db_migrate=true` for release runs.
 - Set `run_db_seed=true` only for first-time environment bootstrap.
 - Workflow performs fail-fast input validation (no wildcard CORS, non-empty required secret names, valid boolean flags).
+- Workflow validates Artifact Registry repository existence and required Secret Manager values before build/deploy.
 
 Set deployment variables in your shell:
 

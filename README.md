@@ -207,6 +207,7 @@ It runs as manual deployment (`workflow_dispatch`) and performs:
 - image push to Artifact Registry
 - deploy to Cloud Run with production env and GCP Secret Manager references
 - optional automatic post-deploy smoke-check against deployed service URL
+- fail-fast validation of Artifact Registry repo and required Secret Manager secrets
 
 Required repository secret:
 
