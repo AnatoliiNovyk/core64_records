@@ -70,6 +70,20 @@ let auditLatencyGoodMaxMs = AUDIT_LATENCY_GOOD_MAX_MS;
 let auditLatencyWarnMaxMs = AUDIT_LATENCY_WARN_MAX_MS;
 const ADMIN_I18N = {
     uk: {
+        navDashboard: "Дашборд",
+        navReleases: "Релізи",
+        navArtists: "Артисти",
+        navEvents: "Події",
+        navSponsors: "Спонсори",
+        navSettings: "Налаштування",
+        navContacts: "Звернення",
+        navAudit: "Аудит",
+        logout: "Вийти",
+        loginPrompt: "Введіть пароль для доступу",
+        loginPasswordPlaceholder: "Пароль...",
+        loginButton: "Увійти",
+        loginInvalidPassword: "Невірний пароль!",
+        loginHint: "Доступ надається адміністратору",
         languageLabelUk: "Укр",
         languageLabelEn: "Eng",
         apiMissingMethod: "API недоступний. Відсутній метод перевірки у adapter.",
@@ -80,6 +94,20 @@ const ADMIN_I18N = {
         authGenericFailed: "Помилка авторизації. Спробуйте ще раз."
     },
     en: {
+        navDashboard: "Dashboard",
+        navReleases: "Releases",
+        navArtists: "Artists",
+        navEvents: "Events",
+        navSponsors: "Sponsors",
+        navSettings: "Settings",
+        navContacts: "Requests",
+        navAudit: "Audit",
+        logout: "Logout",
+        loginPrompt: "Enter password to continue",
+        loginPasswordPlaceholder: "Password...",
+        loginButton: "Sign in",
+        loginInvalidPassword: "Invalid password!",
+        loginHint: "Access is available to administrators",
         languageLabelUk: "Ukr",
         languageLabelEn: "Eng",
         apiMissingMethod: "API unavailable. Missing health-check method in adapter.",
@@ -108,6 +136,20 @@ function tAdmin(key) {
     const language = getActiveLanguage();
     const dictionary = ADMIN_I18N[language] || ADMIN_I18N.uk;
     return dictionary[key] || ADMIN_I18N.uk[key] || key;
+}
+
+function applyAdminStaticTranslations() {
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        if (!key) return;
+        el.textContent = tAdmin(key);
+    });
+
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-placeholder");
+        if (!key) return;
+        el.setAttribute("placeholder", tAdmin(key));
+    });
 }
 
 function getActiveLocaleTag() {
@@ -1863,6 +1905,7 @@ function handleAuditKeyboardShortcuts(event) {
 document.addEventListener("DOMContentLoaded", async () => {
     applyLanguageFromQuery();
     syncDocumentLanguage();
+    applyAdminStaticTranslations();
     bindLanguageSwitcher();
     const sectionAtBootstrap = currentSection;
     const navigationSeqAtBootstrap = sectionNavigationSeq;

@@ -8,6 +8,51 @@ let releaseInteractionsBound = false;
 const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
 const PUBLIC_I18N = {
     uk: {
+        navReleases: "Релізи",
+        navArtists: "Артисти",
+        navEvents: "Події",
+        navSponsors: "Спонсори",
+        navAbout: "Про нас",
+        navContact: "Контакти",
+        mobileMenuOpenTitle: "Відкрити меню навігації",
+        heroListenReleases: "Слухати Релізи",
+        heroOurArtists: "Наші Артисти",
+        sectionLatestReleases: "ОСТАННІ РЕЛІЗИ",
+        sectionLabelArtists: "АРТИСТИ ЛЕЙБЛУ",
+        sectionEvents: "АФІША ПОДІЙ",
+        sectionSponsors: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
+        sponsorPrev: "Попередній спонсор",
+        sponsorNext: "Наступний спонсор",
+        sponsorCarousel: "Карусель спонсорів",
+        sectionAbout: "ПРО CORE64 RECORDS",
+        statReleases: "Релізів",
+        statArtists: "Артистів",
+        statSupport: "Підтримка",
+        statBass: "Басу",
+        sectionContact: "ЗВ'ЯЗАТИСЯ З НАМИ",
+        contactName: "Ім'я",
+        contactNameTitle: "Ваше ім'я",
+        contactNamePlaceholder: "Введіть ім'я",
+        contactEmail: "Email",
+        contactEmailTitle: "Ваш email",
+        contactEmailPlaceholder: "name@example.com",
+        contactSubject: "Тема",
+        contactSubjectTitle: "Тема звернення",
+        contactSubjectDemo: "Демо запис",
+        contactSubjectCooperation: "Співпраця",
+        contactSubjectEvent: "Подія",
+        contactSubjectOther: "Інше",
+        contactMessage: "Повідомлення",
+        contactMessageTitle: "Текст повідомлення",
+        contactMessagePlaceholder: "Опишіть ваше звернення...",
+        contactFile: "Файл (для демо-запису)",
+        contactFileTitle: "Демо файл",
+        contactFileHint: "Додавайте аудіо або архів матеріалів. Для теми \"Демо запис\" файл є обов'язковим.",
+        contactCaptchaLabel: "Перевірка",
+        contactSubmit: "Відправити",
+        contactStatusDefault: "Ми відповідаємо протягом 24 годин.",
+        footerRights: "© 2024 CORE64 Records. Усі права захищені.",
+        goToAdminPanel: "Перейти в адмін-панель",
         apiTemporarilyUnavailable: "Сервіс тимчасово недоступний. Не вдалося отримати дані з API.",
         sendingMessage: "Відправка повідомлення...",
         fileTooLargePrefix: "Файл завеликий. Максимум:",
@@ -24,6 +69,51 @@ const PUBLIC_I18N = {
         languageLabelEn: "Eng"
     },
     en: {
+        navReleases: "Releases",
+        navArtists: "Artists",
+        navEvents: "Events",
+        navSponsors: "Sponsors",
+        navAbout: "About",
+        navContact: "Contact",
+        mobileMenuOpenTitle: "Open navigation menu",
+        heroListenReleases: "Listen to Releases",
+        heroOurArtists: "Our Artists",
+        sectionLatestReleases: "LATEST RELEASES",
+        sectionLabelArtists: "LABEL ARTISTS",
+        sectionEvents: "EVENT SCHEDULE",
+        sectionSponsors: "SPONSORS, PARTNERS AND FRIENDS",
+        sponsorPrev: "Previous sponsor",
+        sponsorNext: "Next sponsor",
+        sponsorCarousel: "Sponsors carousel",
+        sectionAbout: "ABOUT CORE64 RECORDS",
+        statReleases: "Releases",
+        statArtists: "Artists",
+        statSupport: "Support",
+        statBass: "Bass",
+        sectionContact: "CONTACT US",
+        contactName: "Name",
+        contactNameTitle: "Your name",
+        contactNamePlaceholder: "Enter your name",
+        contactEmail: "Email",
+        contactEmailTitle: "Your email",
+        contactEmailPlaceholder: "name@example.com",
+        contactSubject: "Subject",
+        contactSubjectTitle: "Message subject",
+        contactSubjectDemo: "Demo recording",
+        contactSubjectCooperation: "Cooperation",
+        contactSubjectEvent: "Event",
+        contactSubjectOther: "Other",
+        contactMessage: "Message",
+        contactMessageTitle: "Message text",
+        contactMessagePlaceholder: "Describe your request...",
+        contactFile: "File (for demo submission)",
+        contactFileTitle: "Demo file",
+        contactFileHint: "Attach audio or archive materials. For the \"Demo recording\" subject, file is required.",
+        contactCaptchaLabel: "Verification",
+        contactSubmit: "Send",
+        contactStatusDefault: "We reply within 24 hours.",
+        footerRights: "© 2024 CORE64 Records. All rights reserved.",
+        goToAdminPanel: "Open admin panel",
         apiTemporarilyUnavailable: "Service is temporarily unavailable. Failed to fetch data from API.",
         sendingMessage: "Sending message...",
         fileTooLargePrefix: "File is too large. Maximum:",
@@ -45,6 +135,32 @@ function tPublic(key) {
     const language = getActiveLanguage();
     const dictionary = PUBLIC_I18N[language] || PUBLIC_I18N.uk;
     return dictionary[key] || PUBLIC_I18N.uk[key] || key;
+}
+
+function applyStaticTranslations() {
+    document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const key = el.getAttribute("data-i18n");
+        if (!key) return;
+        el.textContent = tPublic(key);
+    });
+
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-placeholder");
+        if (!key) return;
+        el.setAttribute("placeholder", tPublic(key));
+    });
+
+    document.querySelectorAll("[data-i18n-title]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-title");
+        if (!key) return;
+        el.setAttribute("title", tPublic(key));
+    });
+
+    document.querySelectorAll("[data-i18n-aria-label]").forEach((el) => {
+        const key = el.getAttribute("data-i18n-aria-label");
+        if (!key) return;
+        el.setAttribute("aria-label", tPublic(key));
+    });
 }
 
 function applyLanguageFromQuery() {
@@ -962,6 +1078,7 @@ function scrollToSection(id) {
 async function bootstrap() {
     applyLanguageFromQuery();
     document.documentElement.setAttribute("lang", getActiveLanguage());
+    applyStaticTranslations();
     bindLanguageSwitcher();
     adapter.ensureLocalDefaults();
     bindReleaseInteractions();
