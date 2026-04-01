@@ -84,6 +84,26 @@ const ADMIN_I18N = {
         loginButton: "Увійти",
         loginInvalidPassword: "Невірний пароль!",
         loginHint: "Доступ надається адміністратору",
+        editAction: "Редагувати",
+        sponsorNoLink: "Без посилання",
+        sponsorOrderLabel: "Порядок",
+        loadDataApiError: "Помилка завантаження даних з API. Перевірте з'єднання з backend.",
+        loadReleasesMissingAdapter: "Не вдалося завантажити релізи: відсутній метод adapter.",
+        loadArtistsMissingAdapter: "Не вдалося завантажити артистів: відсутній метод adapter.",
+        loadEventsMissingAdapter: "Не вдалося завантажити події: відсутній метод adapter.",
+        loadSponsorsMissingAdapter: "Не вдалося завантажити партнерів: відсутній метод adapter.",
+        loadSettingsMissingAdapter: "Не вдалося завантажити налаштування: відсутній метод adapter.",
+        loadContactsMissingAdapter: "Не вдалося завантажити звернення: відсутній метод adapter.",
+        exportAuditMissingAdapter: "Не вдалося експортувати аудит: відсутній метод adapter.",
+        exportAuditEmpty: "Немає записів аудиту для експорту.",
+        exportAuditCsvFailed: "Не вдалося експортувати аудит у CSV.",
+        exportContactsEmpty: "Немає звернень для експорту.",
+        modalEditPrefix: "Редагувати",
+        modalAddPrefix: "Додати",
+        typeRelease: "реліз",
+        typeArtist: "артиста",
+        typeEvent: "подію",
+        typeSponsor: "партнера",
         languageLabelUk: "Укр",
         languageLabelEn: "Eng",
         apiMissingMethod: "API недоступний. Відсутній метод перевірки у adapter.",
@@ -108,6 +128,26 @@ const ADMIN_I18N = {
         loginButton: "Sign in",
         loginInvalidPassword: "Invalid password!",
         loginHint: "Access is available to administrators",
+        editAction: "Edit",
+        sponsorNoLink: "No link",
+        sponsorOrderLabel: "Order",
+        loadDataApiError: "Failed to load data from API. Check backend connection.",
+        loadReleasesMissingAdapter: "Failed to load releases: adapter method is missing.",
+        loadArtistsMissingAdapter: "Failed to load artists: adapter method is missing.",
+        loadEventsMissingAdapter: "Failed to load events: adapter method is missing.",
+        loadSponsorsMissingAdapter: "Failed to load sponsors: adapter method is missing.",
+        loadSettingsMissingAdapter: "Failed to load settings: adapter method is missing.",
+        loadContactsMissingAdapter: "Failed to load requests: adapter method is missing.",
+        exportAuditMissingAdapter: "Failed to export audit: adapter method is missing.",
+        exportAuditEmpty: "There are no audit entries to export.",
+        exportAuditCsvFailed: "Failed to export audit to CSV.",
+        exportContactsEmpty: "There are no requests to export.",
+        modalEditPrefix: "Edit",
+        modalAddPrefix: "Add",
+        typeRelease: "release",
+        typeArtist: "artist",
+        typeEvent: "event",
+        typeSponsor: "sponsor",
         languageLabelUk: "Ukr",
         languageLabelEn: "Eng",
         apiMissingMethod: "API unavailable. Missing health-check method in adapter.",
@@ -2237,7 +2277,7 @@ async function showSection(section) {
         console.error("Section load failed", error);
         if (currentSection !== section) return;
         if (!targetSectionEl.isConnected) return;
-        showApiStatus("Помилка завантаження даних з API. Перевірте з'єднання з backend.");
+        showApiStatus(tAdmin("loadDataApiError"));
     }
 }
 
@@ -2395,7 +2435,7 @@ async function loadReleases() {
         if (currentSection !== "releases") return;
         const releasesSectionEl = document.getElementById("section-releases");
         if (!releasesSectionEl || !releasesSectionEl.isConnected) return;
-        alert("Не вдалося завантажити релізи: відсутній метод adapter.");
+        alert(tAdmin("loadReleasesMissingAdapter"));
         return;
     }
     const nextReleases = await getCollectionMethod.call(adapter, "releases");
@@ -2432,7 +2472,7 @@ async function loadReleases() {
                     </div>
                 </div>
                 <div class="flex gap-2 mt-4">
-                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">Редагувати</button>
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">${sanitizeInput(tAdmin("editAction"))}</button>
                     <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
@@ -2454,7 +2494,7 @@ async function loadArtists() {
         if (currentSection !== "artists") return;
         const artistsSectionEl = document.getElementById("section-artists");
         if (!artistsSectionEl || !artistsSectionEl.isConnected) return;
-        alert("Не вдалося завантажити артистів: відсутній метод adapter.");
+        alert(tAdmin("loadArtistsMissingAdapter"));
         return;
     }
     const nextArtists = await getCollectionMethod.call(adapter, "artists");
@@ -2489,7 +2529,7 @@ async function loadArtists() {
                     </div>
                 </div>
                 <div class="flex gap-2 mt-4">
-                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">Редагувати</button>
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">${sanitizeInput(tAdmin("editAction"))}</button>
                     <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
@@ -2511,7 +2551,7 @@ async function loadEvents() {
         if (currentSection !== "events") return;
         const eventsSectionEl = document.getElementById("section-events");
         if (!eventsSectionEl || !eventsSectionEl.isConnected) return;
-        alert("Не вдалося завантажити події: відсутній метод adapter.");
+        alert(tAdmin("loadEventsMissingAdapter"));
         return;
     }
     const nextEvents = await getCollectionMethod.call(adapter, "events");
@@ -2546,7 +2586,7 @@ async function loadEvents() {
                     <p class="text-gray-400 text-sm">${safeVenue}</p>
                 </div>
                 <div class="flex gap-2 w-full md:w-auto">
-                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 md:flex-none px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm disabled:opacity-50">Редагувати</button>
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 md:flex-none px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm disabled:opacity-50">${sanitizeInput(tAdmin("editAction"))}</button>
                     <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
@@ -2568,7 +2608,7 @@ async function loadSponsors() {
         if (currentSection !== "sponsors") return;
         const sponsorsSectionEl = document.getElementById("section-sponsors");
         if (!sponsorsSectionEl || !sponsorsSectionEl.isConnected) return;
-        alert("Не вдалося завантажити партнерів: відсутній метод adapter.");
+        alert(tAdmin("loadSponsorsMissingAdapter"));
         return;
     }
 
@@ -2601,7 +2641,7 @@ async function loadSponsors() {
         const deleteActionAttr = idArg === null ? "" : `onclick="deleteItem('sponsor', ${idArg})"`;
         const linkMarkup = safeLink && safeLink !== "#"
             ? `<a href="${safeLink}" target="_blank" rel="noopener noreferrer" class="text-xs text-cyan-300 hover:text-cyan-200 break-all">${safeLink}</a>`
-            : `<span class="text-xs text-gray-500">Без посилання</span>`;
+            : `<span class="text-xs text-gray-500">${sanitizeInput(tAdmin("sponsorNoLink"))}</span>`;
 
         return `
             <div class="card p-4 rounded relative group">
@@ -2609,11 +2649,11 @@ async function loadSponsors() {
                     <img src="${safeLogo}" class="w-full h-full object-contain" alt="${safeName}">
                 </div>
                 <h4 class="font-bold text-white truncate">${safeName}</h4>
-                <p class="text-yellow-300 text-xs uppercase mt-1">Порядок: ${safeOrder}</p>
+                <p class="text-yellow-300 text-xs uppercase mt-1">${sanitizeInput(tAdmin("sponsorOrderLabel"))}: ${safeOrder}</p>
                 <p class="text-gray-400 text-sm mt-2">${safeDescription}</p>
                 <div class="mt-2">${linkMarkup}</div>
                 <div class="flex gap-2 mt-4">
-                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">Редагувати</button>
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">${sanitizeInput(tAdmin("editAction"))}</button>
                     <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
                         <i data-lucide="trash-2" class="w-4 h-4"></i>
                     </button>
@@ -2635,7 +2675,7 @@ async function loadSettings() {
         if (currentSection !== "settings") return;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
-        alert("Не вдалося завантажити налаштування: відсутній метод adapter.");
+        alert(tAdmin("loadSettingsMissingAdapter"));
         return;
     }
     const nextSettings = await getCollectionMethod.call(adapter, "settings");
@@ -2743,7 +2783,7 @@ async function loadContacts() {
         if (currentSection !== "contacts") return;
         const contactsSectionEl = document.getElementById("section-contacts");
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
-        alert("Не вдалося завантажити звернення: відсутній метод adapter.");
+        alert(tAdmin("loadContactsMissingAdapter"));
         return;
     }
     const nextContactRequests = await getContactRequestsMethod.call(adapter);
@@ -3435,7 +3475,7 @@ function exportAuditCsv() {
     }
     const getAuditLogsMethod = getAdapterMethod("getAuditLogs");
     if (!getAuditLogsMethod) {
-        alert("Не вдалося експортувати аудит: відсутній метод adapter.");
+        alert(tAdmin("exportAuditMissingAdapter"));
         return;
     }
 
@@ -3456,7 +3496,7 @@ function exportAuditCsv() {
         const normalizedResponse = normalizeRecordObject(response);
         const filtered = normalizeRecordArray(normalizedResponse.items);
         if (!filtered.length) {
-            alert("Немає записів аудиту для експорту.");
+            alert(tAdmin("exportAuditEmpty"));
             return;
         }
 
@@ -3500,7 +3540,7 @@ function exportAuditCsv() {
         const auditSectionEl = document.getElementById("section-audit");
         if (!auditSectionEl || !auditSectionEl.isConnected) return;
         console.error("Audit CSV export failed", error);
-        alert("Не вдалося експортувати аудит у CSV.");
+        alert(tAdmin("exportAuditCsvFailed"));
     });
 }
 
@@ -3732,7 +3772,7 @@ function exportContactsCsv() {
 
     const filtered = getFilteredContacts();
     if (!filtered.length) {
-        alert("Немає звернень для експорту.");
+        alert(tAdmin("exportContactsEmpty"));
         return;
     }
 
@@ -4047,9 +4087,9 @@ function openModal(type, id) {
         });
         if (!matchedItem) return;
         item = matchedItem;
-        title.textContent = "Редагувати " + getTypeName(type);
+        title.textContent = `${tAdmin("modalEditPrefix")} ${getTypeName(type)}`;
     } else {
-        title.textContent = "Додати " + getTypeName(type);
+        title.textContent = `${tAdmin("modalAddPrefix")} ${getTypeName(type)}`;
     }
 
     if (!fields.isConnected || !modal.isConnected) return;
@@ -4379,7 +4419,12 @@ function generateFields(type, item) {
 }
 
 function getTypeName(type) {
-    const names = { release: "реліз", artist: "артиста", event: "подію", sponsor: "партнера" };
+    const names = {
+        release: tAdmin("typeRelease"),
+        artist: tAdmin("typeArtist"),
+        event: tAdmin("typeEvent"),
+        sponsor: tAdmin("typeSponsor")
+    };
     return names[type] || type;
 }
 
