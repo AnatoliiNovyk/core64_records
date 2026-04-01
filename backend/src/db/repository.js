@@ -48,6 +48,52 @@ const i18nReadConfig = {
   }
 };
 
+function toCamelCase(value) {
+  return String(value).replace(/_([a-z])/g, (_, char) => char.toUpperCase());
+}
+
+function getTranslationValue(translation, dbField, fallbackRow) {
+  const camelField = toCamelCase(dbField);
+  const rawValue = translation?.[camelField] ?? translation?.[dbField];
+  if (rawValue === undefined || rawValue === null || rawValue === "") {
+    return String(fallbackRow?.[dbField] ?? "");
+  }
+  return String(rawValue);
+}
+
+async function upsertEntityTranslations(type, entityId, payload, fallbackRow) {
+  const i18nConfig = i18nReadConfig[type];
+  if (!i18nConfig) return;
+
+  const i18nPayload = payload?.i18n;
+  if (!i18nPayload || typeof i18nPayload !== "object") return;
+
+  const entries = Object.entries(i18nPayload);
+  if (entries.length === 0) return;
+
+  for (const [rawLanguage, translation] of entries) {
+    if (!translation || typeof translation !== "object") continue;
+
+    const normalizedLanguage = String(rawLanguage || "").trim().toLowerCase();
+    if (!config.supportedLanguages.includes(normalizedLanguage)) continue;
+
+    const fields = i18nConfig.translatedFields;
+    const values = fields.map((field) => getTranslationValue(translation, field, fallbackRow));
+
+    const columns = [i18nConfig.i18nEntityId, "language_code", ...fields];
+    const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");
+    const updates = fields.map((field) => `${field} = EXCLUDED.${field}`).join(", ");
+
+    await pool.query(
+      `INSERT INTO ${i18nConfig.i18nTable} (${columns.join(", ")})
+       VALUES (${placeholders})
+       ON CONFLICT (${i18nConfig.i18nEntityId}, language_code)
+       DO UPDATE SET ${updates}, updated_at = NOW()`,
+      [entityId, normalizedLanguage, ...values]
+    );
+  }
+}
+
 function normalizeIsoDate(value) {
   if (value === null || value === undefined) return "";
   if (value instanceof Date) {
@@ -166,9 +212,9 @@ export async function listByType(type, requestedLanguage = config.defaultLanguag
 }
 
 export async function createByType(type, payload) {
-  const config = tableConfig[type];
+  const entityConfig = tableConfig[type];
   const normalizedPayload = type === "releases" ? normalizeReleasePayload(payload) : payload;
-  const mapped = config.columns.map((column) => {
+  const mapped = entityConfig.columns.map((column) => {
     const payloadKey = column === "ticket_link"
       ? "ticketLink"
       : (column === "release_type"
@@ -182,32 +228,45 @@ export async function createByType(type, payload) {
   });
 
   const placeholders = mapped.map((_, index) => `$${index + 1}`).join(", ");
-  const query = `INSERT INTO ${config.table} (${config.columns.join(", ")}) VALUES (${placeholders}) RETURNING *`;
+  const query = `INSERT INTO ${entityConfig.table} (${entityConfig.columns.join(", ")}) VALUES (${placeholders}) RETURNING *`;
   const result = await pool.query(query, mapped);
-  return fromDbRow(type, result.rows[0]);
+  const baseRow = result.rows[0];
+  await upsertEntityTranslations(type, baseRow.id, normalizedPayload, baseRow);
+  return fromDbRow(type, baseRow);
 }
 
 export async function updateByType(type, id, payload) {
-  const config = tableConfig[type];
+  const entityConfig = tableConfig[type];
   const normalizedPayload = type === "releases" ? normalizeReleasePayload(payload) : payload;
   const assignments = [];
   const values = [];
 
   Object.entries(normalizedPayload).forEach(([key, value]) => {
-    if (key === "id") return;
+    if (key === "id" || key === "i18n") return;
     const [dbKey, dbValue] = toDbValue(key, value);
-    if (!config.columns.includes(dbKey)) return;
+    if (!entityConfig.columns.includes(dbKey)) return;
     values.push(dbValue);
     assignments.push(`${dbKey} = $${values.length}`);
   });
 
-  values.push(id);
-  const result = await pool.query(
-    `UPDATE ${config.table} SET ${assignments.join(", ")} WHERE id = $${values.length} RETURNING *`,
-    values
-  );
+  let row = null;
 
-  return result.rows[0] ? fromDbRow(type, result.rows[0]) : null;
+  if (assignments.length > 0) {
+    values.push(id);
+    const result = await pool.query(
+      `UPDATE ${entityConfig.table} SET ${assignments.join(", ")} WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    row = result.rows[0] || null;
+  } else {
+    const existing = await pool.query(`SELECT * FROM ${entityConfig.table} WHERE id = $1`, [id]);
+    row = existing.rows[0] || null;
+  }
+
+  if (!row) return null;
+
+  await upsertEntityTranslations(type, id, normalizedPayload, row);
+  return fromDbRow(type, row);
 }
 
 export async function deleteByType(type, id) {

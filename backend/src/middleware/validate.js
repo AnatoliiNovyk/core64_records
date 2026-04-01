@@ -1,5 +1,31 @@
 import { z } from "zod";
 
+const languageCodeSchema = z.string().trim().toLowerCase().regex(/^[a-z]{2}(?:-[a-z]{2})?$/);
+
+const releaseTranslationSchema = z.object({
+  title: z.string().min(1).optional(),
+  artist: z.string().min(1).optional(),
+  genre: z.string().min(1).optional()
+});
+
+const artistTranslationSchema = z.object({
+  name: z.string().min(1).optional(),
+  genre: z.string().optional(),
+  bio: z.string().optional()
+});
+
+const eventTranslationSchema = z.object({
+  title: z.string().min(1).optional(),
+  venue: z.string().optional(),
+  description: z.string().optional()
+});
+
+const sponsorTranslationSchema = z.object({
+  name: z.string().min(1).optional(),
+  shortDescription: z.string().trim().max(120).optional(),
+  short_description: z.string().trim().max(120).optional()
+});
+
 export const releaseSchema = z.object({
   id: z.union([z.number(), z.string()]).optional(),
   title: z.string().min(1),
@@ -10,7 +36,8 @@ export const releaseSchema = z.object({
   year: z.string().optional().default(""),
   image: z.string().min(1),
   link: z.string().optional().default("#"),
-  ticketLink: z.string().optional().default("")
+  ticketLink: z.string().optional().default(""),
+  i18n: z.record(languageCodeSchema, releaseTranslationSchema).optional().default({})
 });
 
 export const artistSchema = z.object({
@@ -20,7 +47,8 @@ export const artistSchema = z.object({
   bio: z.string().optional().default(""),
   image: z.string().min(1),
   soundcloud: z.string().optional().default("#"),
-  instagram: z.string().optional().default("#")
+  instagram: z.string().optional().default("#"),
+  i18n: z.record(languageCodeSchema, artistTranslationSchema).optional().default({})
 });
 
 export const eventSchema = z.object({
@@ -31,7 +59,8 @@ export const eventSchema = z.object({
   venue: z.string().optional().default(""),
   description: z.string().optional().default(""),
   image: z.string().min(1),
-  ticketLink: z.string().optional().default("")
+  ticketLink: z.string().optional().default(""),
+  i18n: z.record(languageCodeSchema, eventTranslationSchema).optional().default({})
 });
 
 export const sponsorSchema = z.object({
@@ -46,7 +75,8 @@ export const sponsorSchema = z.object({
   }).optional().default(""),
   logo: z.string().min(1),
   link: z.string().optional().default("#"),
-  sortOrder: z.number().int().min(0).max(9999).optional().default(0)
+  sortOrder: z.number().int().min(0).max(9999).optional().default(0),
+  i18n: z.record(languageCodeSchema, sponsorTranslationSchema).optional().default({})
 });
 
 export const settingsSchema = z.object({
