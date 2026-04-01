@@ -12,11 +12,11 @@ This document defines roles, responsibilities, and incident escalation for produ
 
 ## 2. Named Assignments (Fill Before Release)
 
-- Release Commander: `<name>`
-- Deployer: `<name>`
-- Verifier: `<name>`
-- Database Owner: `<name>`
-- Communications Owner: `<name>`
+- Release Commander: `AnatoliiNovyk`
+- Deployer: `AnatoliiNovyk`
+- Verifier: `AnatoliiNovyk`
+- Database Owner: `AnatoliiNovyk`
+- Communications Owner: `AnatoliiNovyk`
 
 ## 3. Mandatory Checkpoints
 
