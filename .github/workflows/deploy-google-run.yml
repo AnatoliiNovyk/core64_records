@@ -17,6 +17,11 @@ on:
         required: false
         default: core64-api
         type: string
+      runtime_service_account:
+        description: Cloud Run runtime service account email (empty -> github-actions-deployer@<project>.iam.gserviceaccount.com)
+        required: false
+        default: ""
+        type: string
       artifact_repo:
         description: Artifact Registry repository name
         required: false
@@ -122,6 +127,8 @@ jobs:
       - name: Validate deploy inputs
         env:
           CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          RUNTIME_SERVICE_ACCOUNT: ${{ github.event.inputs.runtime_service_account }}
           CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
           DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
@@ -165,6 +172,10 @@ jobs:
           if [ "$REQUIRE_RELEASE_OWNER_ASSIGNMENTS" != "true" ] && [ "$REQUIRE_RELEASE_OWNER_ASSIGNMENTS" != "false" ]; then
             echo "Boolean inputs must be 'true' or 'false'"
             exit 1
+          fi
+
+          if [ -z "$RUNTIME_SERVICE_ACCOUNT" ]; then
+            echo "Using default runtime service account: github-actions-deployer@$GCP_PROJECT_ID.iam.gserviceaccount.com"
           fi
 
       - name: Validate release owner assignments
@@ -268,6 +279,7 @@ jobs:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
+          RUNTIME_SERVICE_ACCOUNT_INPUT: ${{ github.event.inputs.runtime_service_account }}
           CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
           CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
           DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
@@ -275,14 +287,25 @@ jobs:
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
         run: |
+          RUNTIME_SERVICE_ACCOUNT="$RUNTIME_SERVICE_ACCOUNT_INPUT"
+          if [ -z "$RUNTIME_SERVICE_ACCOUNT" ]; then
+            RUNTIME_SERVICE_ACCOUNT="github-actions-deployer@$GCP_PROJECT_ID.iam.gserviceaccount.com"
+          fi
+
+          SECRET_FLAGS="DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest"
+          if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
+            SECRET_FLAGS="$SECRET_FLAGS,CONTACT_CAPTCHA_SECRET=$CONTACT_CAPTCHA_SECRET_NAME:latest"
+          fi
+
           gcloud run deploy "$SERVICE_NAME" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --image "$IMAGE_URI" \
             --platform managed \
             --allow-unauthenticated \
+            --service-account "$RUNTIME_SERVICE_ACCOUNT" \
             --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER" \
-            --set-secrets "DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest,CONTACT_CAPTCHA_SECRET=$CONTACT_CAPTCHA_SECRET_NAME:latest" \
+            --set-secrets "$SECRET_FLAGS" \
             --port 3000 \
             --cpu 1 \
             --memory 512Mi \
