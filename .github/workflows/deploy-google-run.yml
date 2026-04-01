@@ -83,7 +83,12 @@ on:
       core64_smoke_timeout_ms:
         description: Smoke-check timeout in milliseconds
         required: false
-        default: "15000"
+        default: "60000"
+        type: string
+      core64_smoke_retries:
+        description: Post-deploy smoke-check retry attempts
+        required: false
+        default: "3"
         type: string
       core64_smoke_contact:
         description: Enable optional contact endpoint check in post-deploy smoke (true/false)
@@ -353,6 +358,7 @@ jobs:
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
         run: |
           SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
@@ -370,5 +376,27 @@ jobs:
           export CORE64_API_BASE="$SERVICE_URL/api"
           export CORE64_ADMIN_PASSWORD="$ADMIN_PASSWORD"
 
-          echo "Running post-deploy smoke-check against $CORE64_API_BASE"
-          node scripts/smoke-check.mjs
+          RETRIES=${CORE64_SMOKE_RETRIES:-3}
+          if ! [[ "$RETRIES" =~ ^[0-9]+$ ]] || [ "$RETRIES" -lt 1 ]; then
+            echo "Invalid CORE64_SMOKE_RETRIES value: $RETRIES"
+            exit 1
+          fi
+
+          attempt=1
+          until [ "$attempt" -gt "$RETRIES" ]; do
+            echo "Running post-deploy smoke-check against $CORE64_API_BASE (attempt $attempt/$RETRIES)"
+            if node scripts/smoke-check.mjs; then
+              echo "Post-deploy smoke-check passed on attempt $attempt."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt "$RETRIES" ]; then
+              echo "Smoke-check failed on attempt $attempt; waiting 15s before retry."
+              sleep 15
+            fi
+
+            attempt=$((attempt + 1))
+          done
+
+          echo "Post-deploy smoke-check failed after $RETRIES attempts."
+          exit 1

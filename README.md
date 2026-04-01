@@ -219,7 +219,8 @@ Useful deploy inputs:
 - `run_db_migrate` (default `true`)
 - `run_db_seed` (default `false`)
 - `run_post_deploy_smoke` (default `true`)
-- `core64_smoke_timeout_ms` (default `15000`)
+- `core64_smoke_timeout_ms` (default `60000`)
+- `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `true`)
 - `require_release_owner_assignments` (default `true`)
 
