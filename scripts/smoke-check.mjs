@@ -3,6 +3,7 @@
 const baseUrl = (process.env.CORE64_API_BASE || "http://localhost:3000/api").replace(/\/+$/, "");
 const adminPassword = process.env.CORE64_ADMIN_PASSWORD || "core64admin";
 const requestTimeoutMs = Number(process.env.CORE64_SMOKE_TIMEOUT_MS || 10000);
+const smokeMode = String(process.env.CORE64_SMOKE_MODE || "full").trim().toLowerCase();
 const smokeContactEnabled = ["1", "true", "yes", "on"].includes(String(process.env.CORE64_SMOKE_CONTACT || "").trim().toLowerCase());
 const contactExpectedStatus = Number(process.env.CORE64_SMOKE_CONTACT_EXPECTED_STATUS || 201);
 
@@ -74,6 +75,7 @@ function countBadReleaseLinks(releases) {
 async function run() {
     const report = {
         baseUrl,
+        mode: smokeMode,
         checks: {},
         passed: true
     };
@@ -84,6 +86,14 @@ async function run() {
         ok: health.response.ok
     };
     if (!health.response.ok) report.passed = false;
+
+    if (smokeMode === "health") {
+        console.log(JSON.stringify(report, null, 2));
+        if (!report.passed) {
+            process.exitCode = 1;
+        }
+        return;
+    }
 
     const publicPayload = await requestJson("/public");
     const data = publicPayload.json?.data || {};

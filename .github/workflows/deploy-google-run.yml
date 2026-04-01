@@ -360,6 +360,7 @@ jobs:
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          CORE64_SMOKE_MODE: health
         run: |
           SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
           if [ -z "$SERVICE_URL" ]; then

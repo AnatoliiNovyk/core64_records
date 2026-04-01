@@ -207,7 +207,7 @@ It runs as manual deployment (`workflow_dispatch`) and performs:
 - backend container build (`backend/Dockerfile`)
 - image push to Artifact Registry
 - deploy to Cloud Run with production env and GCP Secret Manager references
-- optional automatic post-deploy smoke-check against deployed service URL
+- optional automatic post-deploy smoke-check against deployed service URL (health-only mode for release stability)
 - fail-fast validation of Artifact Registry repo and required Secret Manager secrets
 
 Required repository secret:
@@ -223,6 +223,9 @@ Useful deploy inputs:
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `true`)
 - `require_release_owner_assignments` (default `true`)
+
+Note: deploy workflow runs smoke in `health` mode (`CORE64_SMOKE_MODE=health`).
+Use `.github/workflows/smoke-check.yml` or local `node scripts/smoke-check.mjs` for full post-release validation.
 
 ## CI Rollback Google Run
 
