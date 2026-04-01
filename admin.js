@@ -98,6 +98,36 @@ const ADMIN_I18N = {
         exportAuditEmpty: "Немає записів аудиту для експорту.",
         exportAuditCsvFailed: "Не вдалося експортувати аудит у CSV.",
         exportContactsEmpty: "Немає звернень для експорту.",
+        paginationPrev: "Назад",
+        paginationNext: "Вперед",
+        paginationPageOf: "Сторінка {page} з {total}",
+        paginationPageOfTotal: "Сторінка {page} з {total} • Всього {count}",
+        contactsEmptyState: "Поки немає звернень.",
+        auditEmptyState: "Поки немає аудиторських записів.",
+        auditFoundCount: "Знайдено: {count}",
+        auditEntityLabel: "Сутність:",
+        auditActorLabel: "Актор:",
+        contactNameLabel: "Ім'я:",
+        contactEmailLabel: "Email:",
+        contactNoSubject: "Без теми",
+        contactStatusLabel: "Статус:",
+        statusNew: "Нове",
+        statusInProgress: "В роботі",
+        statusDone: "Завершено",
+        auditAllActions: "Усі дії",
+        auditAllEntities: "Усі сутності",
+        auditRefreshNow: "Оновити зараз",
+        auditRefreshing: "Оновлення...",
+        auditForceRefresh: "Форс-оновлення",
+        auditUpdateFailed: "Не вдалося оновити журнал аудиту.",
+        auditForceUpdateFailed: "Не вдалося виконати форс-оновлення аудиту.",
+        auditLimitChangeFailed: "Не вдалося змінити ліміт аудиту.",
+        auditApplyFiltersFailed: "Не вдалося застосувати фільтри аудиту.",
+        auditPageChangeFailed: "Не вдалося змінити сторінку аудиту.",
+        auditClearFiltersFailed: "Не вдалося очистити фільтри аудиту.",
+        auditDateRangeError: "Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.",
+        auditShortcutHint: "Підказка: {shortcut} для швидкого оновлення",
+        auditRefreshedViaShortcut: "Оновлено через {shortcut}",
         modalEditPrefix: "Редагувати",
         modalAddPrefix: "Додати",
         typeRelease: "реліз",
@@ -142,6 +172,36 @@ const ADMIN_I18N = {
         exportAuditEmpty: "There are no audit entries to export.",
         exportAuditCsvFailed: "Failed to export audit to CSV.",
         exportContactsEmpty: "There are no requests to export.",
+        paginationPrev: "Previous",
+        paginationNext: "Next",
+        paginationPageOf: "Page {page} of {total}",
+        paginationPageOfTotal: "Page {page} of {total} • Total {count}",
+        contactsEmptyState: "No requests yet.",
+        auditEmptyState: "No audit entries yet.",
+        auditFoundCount: "Found: {count}",
+        auditEntityLabel: "Entity:",
+        auditActorLabel: "Actor:",
+        contactNameLabel: "Name:",
+        contactEmailLabel: "Email:",
+        contactNoSubject: "No subject",
+        contactStatusLabel: "Status:",
+        statusNew: "New",
+        statusInProgress: "In progress",
+        statusDone: "Done",
+        auditAllActions: "All actions",
+        auditAllEntities: "All entities",
+        auditRefreshNow: "Refresh now",
+        auditRefreshing: "Refreshing...",
+        auditForceRefresh: "Force refresh",
+        auditUpdateFailed: "Failed to refresh audit log.",
+        auditForceUpdateFailed: "Failed to perform force refresh for audit.",
+        auditLimitChangeFailed: "Failed to change audit limit.",
+        auditApplyFiltersFailed: "Failed to apply audit filters.",
+        auditPageChangeFailed: "Failed to change audit page.",
+        auditClearFiltersFailed: "Failed to clear audit filters.",
+        auditDateRangeError: "Audit error: 'From' date cannot be later than 'To' date.",
+        auditShortcutHint: "Hint: {shortcut} for quick refresh",
+        auditRefreshedViaShortcut: "Refreshed via {shortcut}",
         modalEditPrefix: "Edit",
         modalAddPrefix: "Add",
         typeRelease: "release",
@@ -176,6 +236,14 @@ function tAdmin(key) {
     const language = getActiveLanguage();
     const dictionary = ADMIN_I18N[language] || ADMIN_I18N.uk;
     return dictionary[key] || ADMIN_I18N.uk[key] || key;
+}
+
+function tAdminFormat(key, params = {}) {
+    let template = tAdmin(key);
+    Object.entries(params).forEach(([paramKey, value]) => {
+        template = template.replaceAll(`{${paramKey}}`, String(value));
+    });
+    return template;
 }
 
 function applyAdminStaticTranslations() {
@@ -1804,7 +1872,7 @@ function updateAuditShortcutHint() {
     if (!hintEl) return;
     if (!hintEl.isConnected) return;
 
-    hintEl.textContent = `Підказка: ${getAuditShortcutLabel()} для швидкого оновлення`;
+    hintEl.textContent = tAdminFormat("auditShortcutHint", { shortcut: getAuditShortcutLabel() });
 }
 
 function getAuditShortcutLabel() {
@@ -1930,7 +1998,7 @@ function handleAuditKeyboardShortcuts(event) {
         if (currentSection !== "audit") return;
         const auditSectionEl = document.getElementById("section-audit");
         if (!auditSectionEl || !auditSectionEl.isConnected) return;
-        showAuditShortcutToast(`Оновлено через ${getAuditShortcutLabel()}`);
+        showAuditShortcutToast(tAdminFormat("auditRefreshedViaShortcut", { shortcut: getAuditShortcutLabel() }));
     }).catch((error) => {
         if (sectionNavigationSeq !== navigationSeqAtShortcut) return;
         if (currentSection !== sectionAtShortcut) return;
@@ -2980,11 +3048,11 @@ function populateAuditFilterOptions() {
 
     if (!actionEl.isConnected || !entityEl.isConnected) return;
 
-    actionEl.innerHTML = '<option value="all">Усі дії</option>' + actions
+    actionEl.innerHTML = `<option value="all">${sanitizeInput(tAdmin("auditAllActions"))}</option>` + actions
         .map((action) => `<option value="${sanitizeInput(action)}">${sanitizeInput(action)}</option>`)
         .join("");
 
-    entityEl.innerHTML = '<option value="all">Усі сутності</option>' + entities
+    entityEl.innerHTML = `<option value="all">${sanitizeInput(tAdmin("auditAllEntities"))}</option>` + entities
         .map((entity) => `<option value="${sanitizeInput(entity)}">${sanitizeInput(entity)}</option>`)
         .join("");
 
@@ -3031,7 +3099,7 @@ function validateAuditDateRange() {
     }
 
     if (!hasValidAuditDateRangeOrder(from, to)) {
-        showAuditError("Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.");
+        showAuditError(tAdmin("auditDateRangeError"));
         return false;
     }
 
@@ -3146,7 +3214,7 @@ function setRefreshNowButtonLoading(isLoading) {
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
 
     if (label && label.isConnected) {
-        label.textContent = isLoading ? "Оновлення..." : "Оновити зараз";
+        label.textContent = isLoading ? tAdmin("auditRefreshing") : tAdmin("auditRefreshNow");
     }
 
     if (spinner && spinner.isConnected) {
@@ -3185,7 +3253,7 @@ async function refreshAuditNow() {
         if (currentSection !== "audit") return false;
         if (!auditSectionEl.isConnected) return false;
         if (isAbortError(error)) return false;
-        handleAuditLoadError(error, "Не вдалося оновити журнал аудиту.");
+        handleAuditLoadError(error, tAdmin("auditUpdateFailed"));
         return false;
     } finally {
         if (sectionNavigationSeq !== navigationSeqAtRefresh) {
@@ -3212,7 +3280,7 @@ function setForceRefreshButtonLoading(isLoading) {
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
 
     if (label && label.isConnected) {
-        label.textContent = isLoading ? "Оновлення..." : "Форс-оновлення";
+        label.textContent = isLoading ? tAdmin("auditRefreshing") : tAdmin("auditForceRefresh");
     }
 
     if (spinner && spinner.isConnected) {
@@ -3256,7 +3324,7 @@ async function forceRefreshAuditNow() {
         if (currentSection !== "audit") return false;
         if (!auditSectionEl.isConnected) return false;
         if (isAbortError(error)) return false;
-        handleAuditLoadError(error, "Не вдалося виконати форс-оновлення аудиту.");
+        handleAuditLoadError(error, tAdmin("auditForceUpdateFailed"));
         return false;
     } finally {
         if (sectionNavigationSeq !== navigationSeqAtRefresh) {
@@ -3289,7 +3357,7 @@ function changeAuditLimit() {
         if (currentSection !== "audit") return;
         if (!auditSectionEl.isConnected) return;
         if (isAbortError(error)) return;
-        handleAuditLoadError(error, "Не вдалося змінити ліміт аудиту.");
+        handleAuditLoadError(error, tAdmin("auditLimitChangeFailed"));
     });
 }
 
@@ -3446,7 +3514,7 @@ function clearAuditFilters() {
         if (currentSection !== "audit") return;
         if (!auditSectionEl.isConnected) return;
         if (isAbortError(error)) return;
-        handleAuditLoadError(error, "Не вдалося очистити фільтри аудиту.");
+        handleAuditLoadError(error, tAdmin("auditClearFiltersFailed"));
     });
 }
 
@@ -3561,7 +3629,7 @@ function resetAuditPageAndRender() {
         if (currentSection !== "audit") return;
         if (!auditSectionEl.isConnected) return;
         if (isAbortError(error)) return;
-        handleAuditLoadError(error, "Не вдалося застосувати фільтри аудиту.");
+        handleAuditLoadError(error, tAdmin("auditApplyFiltersFailed"));
     });
 }
 
@@ -3586,7 +3654,7 @@ function changeAuditPage(delta) {
         if (currentSection !== "audit") return;
         if (!auditSectionEl.isConnected) return;
         if (isAbortError(error)) return;
-        handleAuditLoadError(error, "Не вдалося змінити сторінку аудиту.");
+        handleAuditLoadError(error, tAdmin("auditPageChangeFailed"));
     });
 }
 
@@ -3603,7 +3671,7 @@ function renderAuditLogs() {
     const totalPages = Math.max(1, Math.ceil(normalizedTotal / effectiveLimit));
 
     if (totalEl && totalEl.isConnected) {
-        totalEl.textContent = `Знайдено: ${normalizedTotal}`;
+        totalEl.textContent = tAdminFormat("auditFoundCount", { count: normalizedTotal });
     }
 
     const safeAuditPage = normalizeAuditPage(auditPage, 1);
@@ -3616,7 +3684,7 @@ function renderAuditLogs() {
 
     if (!paged.length) {
         if (!container.isConnected) return;
-        container.innerHTML = '<div class="card p-4 rounded text-gray-400">Поки немає аудиторських записів.</div>';
+        container.innerHTML = `<div class="card p-4 rounded text-gray-400">${sanitizeInput(tAdmin("auditEmptyState"))}</div>`;
         if (pagination && pagination.isConnected) pagination.innerHTML = "";
         return;
     }
@@ -3631,8 +3699,8 @@ function renderAuditLogs() {
                     <div class="text-white font-bold">${sanitizeInput(entry.action || "-")}</div>
                     <div class="text-xs uppercase tracking-wider text-cyan-300">${sanitizeInput(ts)}</div>
                 </div>
-                <div class="text-sm text-gray-300 mb-1"><span class="text-gray-500">Сутність:</span> ${sanitizeInput(entry.entity_type || "-")} #${sanitizeInput(String(entry.entity_id || "-"))}</div>
-                <div class="text-sm text-gray-300 mb-2"><span class="text-gray-500">Актор:</span> ${sanitizeInput(entry.actor || "-")}</div>
+                <div class="text-sm text-gray-300 mb-1"><span class="text-gray-500">${sanitizeInput(tAdmin("auditEntityLabel"))}</span> ${sanitizeInput(entry.entity_type || "-")} #${sanitizeInput(String(entry.entity_id || "-"))}</div>
+                <div class="text-sm text-gray-300 mb-2"><span class="text-gray-500">${sanitizeInput(tAdmin("auditActorLabel"))}</span> ${sanitizeInput(entry.actor || "-")}</div>
                 <div class="text-xs text-gray-400 break-words"><span class="text-gray-500">Details:</span> ${sanitizeInput(details)}</div>
             </div>
         `;
@@ -3640,9 +3708,9 @@ function renderAuditLogs() {
 
     if (pagination && pagination.isConnected) {
         pagination.innerHTML = `
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(-1)" ${displayAuditPage === 1 ? "disabled" : ""}>Назад</button>
-            <div class="text-sm text-gray-300">Сторінка ${displayAuditPage} з ${totalPages} • Всього ${normalizedTotal}</div>
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(1)" ${displayAuditPage >= totalPages ? "disabled" : ""}>Вперед</button>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(-1)" ${displayAuditPage === 1 ? "disabled" : ""}>${sanitizeInput(tAdmin("paginationPrev"))}</button>
+            <div class="text-sm text-gray-300">${sanitizeInput(tAdminFormat("paginationPageOfTotal", { page: displayAuditPage, total: totalPages, count: normalizedTotal }))}</div>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeAuditPage(1)" ${displayAuditPage >= totalPages ? "disabled" : ""}>${sanitizeInput(tAdmin("paginationNext"))}</button>
         `;
     }
 
@@ -3651,9 +3719,9 @@ function renderAuditLogs() {
 
 function getStatusLabel(status) {
     const normalizedStatus = normalizeContactRequestStatus(status);
-    if (normalizedStatus === "in_progress") return "В роботі";
-    if (normalizedStatus === "done") return "Завершено";
-    return "Нове";
+    if (normalizedStatus === "in_progress") return tAdmin("statusInProgress");
+    if (normalizedStatus === "done") return tAdmin("statusDone");
+    return tAdmin("statusNew");
 }
 
 function getFilteredContacts() {
@@ -3698,7 +3766,7 @@ function renderContacts() {
 
     if (!paged.length) {
         if (!container.isConnected) return;
-        container.innerHTML = '<div class="card p-4 rounded text-gray-400">Поки немає звернень.</div>';
+        container.innerHTML = `<div class="card p-4 rounded text-gray-400">${sanitizeInput(tAdmin("contactsEmptyState"))}</div>`;
         if (pagination && pagination.isConnected) pagination.innerHTML = "";
         return;
     }
@@ -3717,19 +3785,19 @@ function renderContacts() {
         return `
             <div class="card p-5 rounded">
                 <div class="flex flex-col md:flex-row md:items-center justify-between gap-2 mb-3">
-                    <div class="text-lg font-bold text-white">${sanitizeInput(entry.subject || "Без теми")}</div>
+                    <div class="text-lg font-bold text-white">${sanitizeInput(entry.subject || tAdmin("contactNoSubject"))}</div>
                     <div class="flex items-center gap-3">
                         <span class="text-xs uppercase tracking-wider text-cyan-300">${sanitizeInput(createdText)}</span>
                         <select class="form-input p-2 rounded text-xs" ${statusSelectOnChangeAttr} ${statusSelectDisabledAttr}>
-                            <option value="new" ${normalizedStatus === "new" ? "selected" : ""}>Нове</option>
-                            <option value="in_progress" ${normalizedStatus === "in_progress" ? "selected" : ""}>В роботі</option>
-                            <option value="done" ${normalizedStatus === "done" ? "selected" : ""}>Завершено</option>
+                            <option value="new" ${normalizedStatus === "new" ? "selected" : ""}>${sanitizeInput(tAdmin("statusNew"))}</option>
+                            <option value="in_progress" ${normalizedStatus === "in_progress" ? "selected" : ""}>${sanitizeInput(tAdmin("statusInProgress"))}</option>
+                            <option value="done" ${normalizedStatus === "done" ? "selected" : ""}>${sanitizeInput(tAdmin("statusDone"))}</option>
                         </select>
                     </div>
                 </div>
-                <div class="text-sm text-gray-300 mb-1"><span class="text-gray-400">Ім'я:</span> ${sanitizeInput(entry.name || "-")}</div>
-                <div class="text-sm text-gray-300 mb-3"><span class="text-gray-400">Email:</span> ${sanitizeInput(entry.email || "-")}</div>
-                <div class="text-xs uppercase tracking-wider text-pink-300 mb-2">Статус: ${sanitizeInput(getStatusLabel(normalizedStatus))}</div>
+                <div class="text-sm text-gray-300 mb-1"><span class="text-gray-400">${sanitizeInput(tAdmin("contactNameLabel"))}</span> ${sanitizeInput(entry.name || "-")}</div>
+                <div class="text-sm text-gray-300 mb-3"><span class="text-gray-400">${sanitizeInput(tAdmin("contactEmailLabel"))}</span> ${sanitizeInput(entry.email || "-")}</div>
+                <div class="text-xs uppercase tracking-wider text-pink-300 mb-2">${sanitizeInput(tAdmin("contactStatusLabel"))} ${sanitizeInput(getStatusLabel(normalizedStatus))}</div>
                 <div class="text-gray-200 whitespace-pre-wrap">${sanitizeInput(entry.message || "")}</div>
             </div>
         `;
@@ -3737,9 +3805,9 @@ function renderContacts() {
 
     if (pagination && pagination.isConnected) {
         pagination.innerHTML = `
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(-1)" ${displayContactsPage === CONTACTS_MIN_PAGE ? "disabled" : ""}>Назад</button>
-            <div class="text-sm text-gray-300">Сторінка ${displayContactsPage} з ${totalPages}</div>
-            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(1)" ${displayContactsPage >= totalPages ? "disabled" : ""}>Вперед</button>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(-1)" ${displayContactsPage === CONTACTS_MIN_PAGE ? "disabled" : ""}>${sanitizeInput(tAdmin("paginationPrev"))}</button>
+            <div class="text-sm text-gray-300">${sanitizeInput(tAdminFormat("paginationPageOf", { page: displayContactsPage, total: totalPages }))}</div>
+            <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(1)" ${displayContactsPage >= totalPages ? "disabled" : ""}>${sanitizeInput(tAdmin("paginationNext"))}</button>
         `;
     }
 }
