@@ -2,6 +2,10 @@
 
 This runbook defines a minimal release process for CORE64 web + API.
 
+Google Run + Supabase deployment playbook:
+
+- See `GOOGLE_RUN_DEPLOYMENT.md`
+
 ## 1. Preconditions
 
 - Repository is on `main` and up to date.

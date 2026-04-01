@@ -90,6 +90,7 @@ Release procedure and rollback checklist:
 
 - See `RELEASE_RUNBOOK.md`
 - See `BRANCH_PROTECTION_SETUP.md`
+- See `GOOGLE_RUN_DEPLOYMENT.md`
 
 Optional automation for GitHub branch protection:
 
@@ -207,6 +208,12 @@ This local gate runs:
 
 - `scripts/smoke-check.mjs`
 - `scripts/verify-branch-protection.ps1`
+
+Pre-deploy env sanity check for Google Run:
+
+```powershell
+pwsh -File scripts/check-google-run-env.ps1
+```
 
 ## Captcha Configuration
 
