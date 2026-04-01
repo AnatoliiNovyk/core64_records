@@ -85,6 +85,11 @@ on:
         required: false
         default: "true"
         type: string
+      require_release_owner_assignments:
+        description: Require RELEASE_OWNERS_AND_ESCALATION.md to have real names (true/false)
+        required: false
+        default: "true"
+        type: string
 
 jobs:
   deploy:
@@ -126,6 +131,7 @@ jobs:
           RUN_DB_SEED: ${{ github.event.inputs.run_db_seed }}
           RUN_POST_DEPLOY_SMOKE: ${{ github.event.inputs.run_post_deploy_smoke }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          REQUIRE_RELEASE_OWNER_ASSIGNMENTS: ${{ github.event.inputs.require_release_owner_assignments }}
         run: |
           if [ -z "$CORS_ORIGIN" ]; then
             echo "Missing required input: cors_origin"
@@ -155,6 +161,27 @@ jobs:
               exit 1
             fi
           done
+
+          if [ "$REQUIRE_RELEASE_OWNER_ASSIGNMENTS" != "true" ] && [ "$REQUIRE_RELEASE_OWNER_ASSIGNMENTS" != "false" ]; then
+            echo "Boolean inputs must be 'true' or 'false'"
+            exit 1
+          fi
+
+      - name: Validate release owner assignments
+        if: ${{ github.event.inputs.require_release_owner_assignments == 'true' }}
+        run: |
+          FILE="RELEASE_OWNERS_AND_ESCALATION.md"
+          if [ ! -f "$FILE" ]; then
+            echo "Missing required file: $FILE"
+            exit 1
+          fi
+
+          if grep -q "<name>" "$FILE"; then
+            echo "Release owner placeholders are still present in $FILE. Fill real names before deploy."
+            exit 1
+          fi
+
+          echo "Release owner assignment check passed."
 
       - name: Validate GCP resources and secrets
         env:

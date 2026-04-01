@@ -221,6 +221,7 @@ Useful deploy inputs:
 - `run_post_deploy_smoke` (default `true`)
 - `core64_smoke_timeout_ms` (default `15000`)
 - `core64_smoke_contact` (default `true`)
+- `require_release_owner_assignments` (default `true`)
 
 ## CI Rollback Google Run
 

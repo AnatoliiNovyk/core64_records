@@ -49,6 +49,7 @@ Manual CI option:
 - Set `run_db_seed=true` only for first-time environment bootstrap.
 - Workflow performs fail-fast input validation (no wildcard CORS, non-empty required secret names, valid boolean flags).
 - Workflow validates Artifact Registry repository existence and required Secret Manager values before build/deploy.
+- Workflow can enforce release-owner assignment readiness (`require_release_owner_assignments=true`).
 
 Set deployment variables in your shell:
 
