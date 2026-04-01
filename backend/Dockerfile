@@ -4,10 +4,12 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-COPY package*.json ./
+COPY backend/package*.json ./
 RUN npm ci --omit=dev
 
-COPY src ./src
+COPY backend/src ./src
+COPY index.html admin.html app.js admin.js data-adapter.js style.css ./public/
+COPY images ./public/images
 
 EXPOSE 3000
 

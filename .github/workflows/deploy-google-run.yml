@@ -307,7 +307,7 @@ jobs:
         run: |
           IMAGE_URI="$GCP_REGION-docker.pkg.dev/$GCP_PROJECT_ID/$ARTIFACT_REPO/core64-backend:$IMAGE_TAG"
           echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
-          docker build -f backend/Dockerfile -t "$IMAGE_URI" backend
+          docker build -f backend/Dockerfile -t "$IMAGE_URI" .
           docker push "$IMAGE_URI"
 
       - name: Deploy to Cloud Run

@@ -73,7 +73,7 @@ $env:IMAGE_URI = "$env:GCP_REGION-docker.pkg.dev/$env:GCP_PROJECT_ID/$env:ARTIFA
 Build and push container image (from repository root):
 
 ```powershell
-docker build -f backend/Dockerfile -t $env:IMAGE_URI backend
+docker build -f backend/Dockerfile -t $env:IMAGE_URI .
 docker push $env:IMAGE_URI
 ```
 
