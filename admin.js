@@ -128,6 +128,48 @@ const ADMIN_I18N = {
         auditDateRangeError: "Помилка аудиту: дата 'Від' не може бути пізніше за 'До'.",
         auditShortcutHint: "Підказка: {shortcut} для швидкого оновлення",
         auditRefreshedViaShortcut: "Оновлено через {shortcut}",
+        contactStatusUpdateMissingAdapter: "Не вдалося оновити статус звернення: відсутній метод adapter.",
+        contactStatusUpdateFailed: "Не вдалося оновити статус звернення.",
+        contactStatusUpdatedActivity: "Оновлено статус звернення #{id} -> {status}",
+        bulkUpdateMissingAdapter: "Не вдалося виконати масове оновлення: відсутній метод adapter.",
+        bulkUpdateNoTargets: "Немає звернень для масового оновлення.",
+        bulkUpdateFailed: "Не вдалося виконати масове оновлення статусів.",
+        bulkUpdateActivity: "Масово оновлено {count} звернень: {from} -> {to}",
+        saveMissingAdapter: "Не вдалося виконати збереження: відсутній метод adapter.",
+        saveRecordFailedDetails: "Не вдалося зберегти запис: {details}",
+        saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
+        activityUpdated: "Оновлено {type}: {name}",
+        activityAdded: "Додано {type}: {name}",
+        deleteConfirm: "Ви впевнені, що хочете видалити цей запис?",
+        deleteMissingAdapter: "Не вдалося видалити запис: відсутній метод adapter.",
+        deleteFailed: "Не вдалося видалити запис.",
+        deleteActivity: "Видалено {type} #{id}",
+        settingsSelectProvider: "Оберіть активного captcha-провайдера, якщо captcha увімкнена.",
+        settingsMissingHcaptchaKeys: "Для hCaptcha потрібно заповнити Site Key і Secret Key.",
+        settingsMissingRecaptchaKeys: "Для reCAPTCHA v2 потрібно заповнити Site Key і Secret Key.",
+        settingsInvalidDomain: "Домен має бути валідним hostname, наприклад core64.online.",
+        settingsThresholdAdjusted: "Поріг 'Помірно до' має бути більшим за поріг 'Добре до'. Значення скориговано автоматично.",
+        settingsSaveMissingAdapter: "Не вдалося зберегти налаштування: відсутній метод adapter.",
+        settingsSaveSuccess: "Налаштування збережено",
+        settingsSaveFailed: "Не вдалося зберегти налаштування",
+        activitySettingsUpdated: "Оновлено налаштування сайту",
+        activityThresholdsReset: "Скинуто пороги latency до дефолтних (без збереження)",
+        resetDataConfirm: "УВАГА! Це скине локальні fallback-дані. Продовжити?",
+        resetDataUnsupported: "Не вдалося виконати скидання в поточному середовищі.",
+        resetDataFailed: "Не вдалося скинути локальні дані. Спробуйте ще раз.",
+        sponsorShortDescriptionWords: "Короткий опис партнера має містити від 3 до 5 слів.",
+        logoutMissingAdapter: "Не вдалося вийти: відсутній метод adapter.",
+        logoutFailed: "Не вдалося вийти з адмін-панелі. Спробуйте ще раз.",
+        auditMissingAdapterMethods: "Помилка аудиту: відсутні методи adapter для завантаження журналу.",
+        auditInvalidFromDate: "Помилка аудиту: некоректна дата 'Від'.",
+        auditInvalidToDate: "Помилка аудиту: некоректна дата 'До'.",
+        auditResumeRefreshFailed: "Не вдалося оновити аудит після повернення на вкладку.",
+        activityAuditExported: "Експортовано {count} записів аудиту у CSV",
+        activityContactsExported: "Експортовано {count} звернень у CSV",
+        uploadSizeDetectFailed: "Не вдалося визначити розмір файлу.",
+        uploadUnsupportedFormat: "Непідтримуваний формат. Дозволено JPG, PNG, WEBP, GIF.",
+        uploadTooLarge: "Файл занадто великий. Максимальний розмір: 500KB",
+        uploadReadError: "Помилка читання файлу",
         modalEditPrefix: "Редагувати",
         modalAddPrefix: "Додати",
         typeRelease: "реліз",
@@ -202,6 +244,48 @@ const ADMIN_I18N = {
         auditDateRangeError: "Audit error: 'From' date cannot be later than 'To' date.",
         auditShortcutHint: "Hint: {shortcut} for quick refresh",
         auditRefreshedViaShortcut: "Refreshed via {shortcut}",
+        contactStatusUpdateMissingAdapter: "Failed to update request status: adapter method is missing.",
+        contactStatusUpdateFailed: "Failed to update request status.",
+        contactStatusUpdatedActivity: "Updated request status #{id} -> {status}",
+        bulkUpdateMissingAdapter: "Failed to run bulk update: adapter method is missing.",
+        bulkUpdateNoTargets: "No requests available for bulk update.",
+        bulkUpdateFailed: "Failed to run bulk status update.",
+        bulkUpdateActivity: "Bulk updated {count} requests: {from} -> {to}",
+        saveMissingAdapter: "Failed to save: adapter method is missing.",
+        saveRecordFailedDetails: "Failed to save record: {details}",
+        saveRecordFailed: "Failed to save record. Check data and try again.",
+        activityUpdated: "Updated {type}: {name}",
+        activityAdded: "Added {type}: {name}",
+        deleteConfirm: "Are you sure you want to delete this record?",
+        deleteMissingAdapter: "Failed to delete record: adapter method is missing.",
+        deleteFailed: "Failed to delete record.",
+        deleteActivity: "Deleted {type} #{id}",
+        settingsSelectProvider: "Select an active captcha provider when captcha is enabled.",
+        settingsMissingHcaptchaKeys: "For hCaptcha, both Site Key and Secret Key are required.",
+        settingsMissingRecaptchaKeys: "For reCAPTCHA v2, both Site Key and Secret Key are required.",
+        settingsInvalidDomain: "Domain must be a valid hostname, for example core64.online.",
+        settingsThresholdAdjusted: "'Warn up to' threshold must be greater than 'Good up to'. Value was adjusted automatically.",
+        settingsSaveMissingAdapter: "Failed to save settings: adapter method is missing.",
+        settingsSaveSuccess: "Settings saved",
+        settingsSaveFailed: "Failed to save settings",
+        activitySettingsUpdated: "Site settings updated",
+        activityThresholdsReset: "Latency thresholds reset to defaults (not saved)",
+        resetDataConfirm: "WARNING! This will reset local fallback data. Continue?",
+        resetDataUnsupported: "Reset is not available in current environment.",
+        resetDataFailed: "Failed to reset local data. Please try again.",
+        sponsorShortDescriptionWords: "Sponsor short description must contain 3 to 5 words.",
+        logoutMissingAdapter: "Failed to logout: adapter method is missing.",
+        logoutFailed: "Failed to logout from admin panel. Please try again.",
+        auditMissingAdapterMethods: "Audit error: adapter methods for loading logs are missing.",
+        auditInvalidFromDate: "Audit error: invalid 'From' date.",
+        auditInvalidToDate: "Audit error: invalid 'To' date.",
+        auditResumeRefreshFailed: "Failed to refresh audit after returning to the tab.",
+        activityAuditExported: "Exported {count} audit entries to CSV",
+        activityContactsExported: "Exported {count} requests to CSV",
+        uploadSizeDetectFailed: "Failed to detect file size.",
+        uploadUnsupportedFormat: "Unsupported format. Allowed: JPG, PNG, WEBP, GIF.",
+        uploadTooLarge: "File is too large. Maximum size: 500KB",
+        uploadReadError: "File read error",
         modalEditPrefix: "Edit",
         modalAddPrefix: "Add",
         typeRelease: "release",
@@ -1773,7 +1857,7 @@ function handleAuditVisibilityChange() {
         if (currentSection !== "audit") return;
         if (!auditSectionEl.isConnected) return;
         if (isAbortError(error)) return;
-        handleAuditLoadError(error, "Не вдалося оновити аудит після повернення на вкладку.");
+        handleAuditLoadError(error, tAdmin("auditResumeRefreshFailed"));
     });
 }
 
@@ -2180,7 +2264,7 @@ async function logout() {
     if (!logoutMethod) {
         console.warn("Adapter logout method is unavailable");
         if (currentSection !== sectionAtLogout) return;
-        alert("Не вдалося вийти: відсутній метод adapter.");
+        alert(tAdmin("logoutMissingAdapter"));
         return;
     }
     logoutInProgress = true;
@@ -2193,7 +2277,7 @@ async function logout() {
         if (sectionNavigationSeq !== navigationSeqAtLogout) return;
         if (currentSection !== sectionAtLogout) return;
         console.error("Logout failed", error);
-        alert("Не вдалося вийти з адмін-панелі. Спробуйте ще раз.");
+        alert(tAdmin("logoutFailed"));
     } finally {
         logoutInProgress = false;
     }
@@ -2890,7 +2974,7 @@ async function loadAuditLogs() {
             hasGetAuditLogs: !!getAuditLogsMethod,
             hasGetAuditFacets: !!getAuditFacetsMethod
         });
-        showAuditError("Помилка аудиту: відсутні методи adapter для завантаження журналу.");
+        showAuditError(tAdmin("auditMissingAdapterMethods"));
         return;
     }
     const limitEl = document.getElementById("audit-limit");
@@ -3081,12 +3165,12 @@ function validateAuditDateRange() {
     const to = normalizeIsoDateFilter(rawTo);
 
     if (rawFrom && !from) {
-        showAuditError("Помилка аудиту: некоректна дата 'Від'.");
+        showAuditError(tAdmin("auditInvalidFromDate"));
         return false;
     }
 
     if (rawTo && !to) {
-        showAuditError("Помилка аудиту: некоректна дата 'До'.");
+        showAuditError(tAdmin("auditInvalidToDate"));
         return false;
     }
 
@@ -3599,7 +3683,7 @@ function exportAuditCsv() {
             body.removeChild(link);
         }
         URL.revokeObjectURL(url);
-        addActivity(`Експортовано ${filtered.length} записів аудиту у CSV`);
+        addActivity(tAdminFormat("activityAuditExported", { count: filtered.length }));
     }).catch((error) => {
         if (isAbortError(error)) return;
         if (sectionNavigationSeq !== navigationSeqAtExport) return;
@@ -3875,7 +3959,7 @@ function exportContactsCsv() {
         bodyEl.removeChild(link);
     }
     URL.revokeObjectURL(url);
-    addActivity(`Експортовано ${filtered.length} звернень у CSV`);
+    addActivity(tAdminFormat("activityContactsExported", { count: filtered.length }));
 }
 
 function changeContactsPage(delta) {
@@ -3995,7 +4079,7 @@ async function changeContactStatus(id, status) {
             hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod,
             hasGetContactRequests: !!getContactRequestsMethod
         });
-        alert("Не вдалося оновити статус звернення: відсутній метод adapter.");
+        alert(tAdmin("contactStatusUpdateMissingAdapter"));
         return;
     }
 
@@ -4015,7 +4099,7 @@ async function changeContactStatus(id, status) {
         if (!contactsListEl || !contactsListEl.isConnected) return;
         renderContacts();
         if (currentSection !== sectionAtUpdate) return;
-        addActivity(`Оновлено статус звернення #${normalizedId} -> ${normalizedStatus}`);
+        addActivity(tAdminFormat("contactStatusUpdatedActivity", { id: normalizedId, status: normalizedStatus }));
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         console.error("Contact status update failed", error);
@@ -4025,7 +4109,7 @@ async function changeContactStatus(id, status) {
         const contactsListEl = document.getElementById("contacts-list");
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
-        alert("Не вдалося оновити статус звернення.");
+        alert(tAdmin("contactStatusUpdateFailed"));
     }
 }
 
@@ -4069,7 +4153,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
             hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod,
             hasGetContactRequests: !!getContactRequestsMethod
         });
-        alert("Не вдалося виконати масове оновлення: відсутній метод adapter.");
+        alert(tAdmin("bulkUpdateMissingAdapter"));
         return;
     }
 
@@ -4094,7 +4178,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
             return true;
         });
     if (!targets.length) {
-        alert("Немає звернень для масового оновлення.");
+        alert(tAdmin("bulkUpdateNoTargets"));
         return;
     }
 
@@ -4115,7 +4199,11 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         contactsPage = 1;
         renderContacts();
         if (currentSection !== sectionAtBulkUpdate) return;
-        addActivity(`Масово оновлено ${targets.length} звернень: ${normalizedFromStatus} -> ${normalizedToStatus}`);
+        addActivity(tAdminFormat("bulkUpdateActivity", {
+            count: targets.length,
+            from: normalizedFromStatus,
+            to: normalizedToStatus
+        }));
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         console.error("Bulk status update failed", error);
@@ -4125,7 +4213,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         const contactsListEl = document.getElementById("contacts-list");
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
-        alert("Не вдалося виконати масове оновлення статусів.");
+        alert(tAdmin("bulkUpdateFailed"));
     }
 }
 
@@ -4212,7 +4300,7 @@ function handleFileUpload(input) {
     if (typeof file.size !== "number" || !Number.isFinite(file.size) || file.size < 0) {
         if (currentSection === sectionAtUpload) {
             if (sectionEl && sectionEl.isConnected) {
-                alert("Не вдалося визначити розмір файлу.");
+                alert(tAdmin("uploadSizeDetectFailed"));
             }
         }
         if (input.isConnected) {
@@ -4224,7 +4312,7 @@ function handleFileUpload(input) {
     if (!isSupportedUploadImage(file)) {
         if (currentSection === sectionAtUpload) {
             if (sectionEl && sectionEl.isConnected) {
-                alert("Непідтримуваний формат. Дозволено JPG, PNG, WEBP, GIF.");
+                alert(tAdmin("uploadUnsupportedFormat"));
             }
         }
         if (input.isConnected) {
@@ -4236,7 +4324,7 @@ function handleFileUpload(input) {
     if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
         if (currentSection === sectionAtUpload) {
             if (sectionEl && sectionEl.isConnected) {
-                alert("Файл занадто великий. Максимальний розмір: 500KB");
+                alert(tAdmin("uploadTooLarge"));
             }
         }
         if (input.isConnected) {
@@ -4271,7 +4359,7 @@ function handleFileUpload(input) {
         if (currentSection !== sectionAtUpload) return;
         if (!input || input.isConnected === false) return;
         if (!sectionEl || !sectionEl.isConnected) return;
-        alert("Помилка читання файлу");
+        alert(tAdmin("uploadReadError"));
     };
 
     reader.readAsDataURL(file);
@@ -4653,7 +4741,7 @@ if (modalFormEl && modalFormEl.isConnected) {
             const shortDescriptionText = String(item.shortDescription || "").trim();
             const wordsCount = shortDescriptionText ? shortDescriptionText.split(/\s+/).filter(Boolean).length : 0;
             if (wordsCount < 3 || wordsCount > 5) {
-                alert("Короткий опис партнера має містити від 3 до 5 слів.");
+                alert(tAdmin("sponsorShortDescriptionWords"));
                 return;
             }
         }
@@ -4670,7 +4758,7 @@ if (modalFormEl && modalFormEl.isConnected) {
             if (currentSection !== sectionAtSubmit) return;
             const sectionEl = document.getElementById(`section-${sectionAtSubmit}`);
             if (!sectionEl || !sectionEl.isConnected) return;
-            alert("Не вдалося виконати збереження: відсутній метод adapter.");
+            alert(tAdmin("saveMissingAdapter"));
             return;
         }
 
@@ -4695,7 +4783,10 @@ if (modalFormEl && modalFormEl.isConnected) {
             if (sectionNavigationSeq !== navigationSeqAtSubmit) return;
             if (currentSection !== sectionAtSubmit) return;
             if (!sectionEl.isConnected) return;
-            addActivity(`${isEditMode ? "Оновлено" : "Додано"} ${getTypeName(editingTypeAtSubmit)}: ${item.title || item.name}`);
+            addActivity(tAdminFormat(isEditMode ? "activityUpdated" : "activityAdded", {
+                type: getTypeName(editingTypeAtSubmit),
+                name: item.title || item.name || "-"
+            }));
         } catch (error) {
             if (sectionNavigationSeq !== navigationSeqAtSubmit) return;
             console.error("Save failed", error);
@@ -4704,8 +4795,8 @@ if (modalFormEl && modalFormEl.isConnected) {
             if (!sectionEl || !sectionEl.isConnected) return;
             const details = error && typeof error.message === "string" ? error.message.trim() : "";
             const message = details
-                ? `Не вдалося зберегти запис: ${details}`
-                : "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.";
+                ? tAdminFormat("saveRecordFailedDetails", { details })
+                : tAdmin("saveRecordFailed");
             alert(message);
         }
         });
@@ -4731,14 +4822,14 @@ async function deleteItem(type, id) {
     const sectionAtDelete = currentSection;
     const navigationSeqAtDelete = sectionNavigationSeq;
     const typeName = getTypeName(type);
-    if (!confirm("Ви впевнені, що хочете видалити цей запис?")) return;
+    if (!confirm(tAdmin("deleteConfirm"))) return;
     const deleteItemMethod = getAdapterMethod("deleteItem");
     if (!deleteItemMethod) {
         console.warn("Adapter deleteItem method is unavailable");
         if (currentSection !== sectionAtDelete) return;
         const sectionEl = document.getElementById(`section-${sectionAtDelete}`);
         if (!sectionEl || !sectionEl.isConnected) return;
-        alert("Не вдалося видалити запис: відсутній метод adapter.");
+        alert(tAdmin("deleteMissingAdapter"));
         return;
     }
 
@@ -4756,14 +4847,14 @@ async function deleteItem(type, id) {
         if (sectionNavigationSeq !== navigationSeqAtDelete) return;
         if (currentSection !== sectionAtDelete) return;
         if (!sectionEl.isConnected) return;
-        addActivity(`Видалено ${typeName} #${normalizedId}`);
+        addActivity(tAdminFormat("deleteActivity", { type: typeName, id: normalizedId }));
     } catch (error) {
         if (sectionNavigationSeq !== navigationSeqAtDelete) return;
         console.error("Delete failed", error);
         if (currentSection !== sectionAtDelete) return;
         const sectionEl = document.getElementById(`section-${sectionAtDelete}`);
         if (!sectionEl || !sectionEl.isConnected) return;
-        alert("Не вдалося видалити запис.");
+        alert(tAdmin("deleteFailed"));
     }
 }
 
@@ -4803,22 +4894,22 @@ async function saveSettings(options = {}) {
     const contactCaptchaRecaptchaSecretKey = normalizeSettingsPlainText(recaptchaSecretKeyEl.value, "");
 
     if (contactCaptchaEnabled && contactCaptchaActiveProvider === "none") {
-        alert("Оберіть активного captcha-провайдера, якщо captcha увімкнена.");
+        alert(tAdmin("settingsSelectProvider"));
         return false;
     }
 
     if (contactCaptchaEnabled && contactCaptchaActiveProvider === "hcaptcha" && (!contactCaptchaHcaptchaSiteKey || !contactCaptchaHcaptchaSecretKey)) {
-        alert("Для hCaptcha потрібно заповнити Site Key і Secret Key.");
+        alert(tAdmin("settingsMissingHcaptchaKeys"));
         return false;
     }
 
     if (contactCaptchaEnabled && contactCaptchaActiveProvider === "recaptcha_v2" && (!contactCaptchaRecaptchaSiteKey || !contactCaptchaRecaptchaSecretKey)) {
-        alert("Для reCAPTCHA v2 потрібно заповнити Site Key і Secret Key.");
+        alert(tAdmin("settingsMissingRecaptchaKeys"));
         return false;
     }
 
     if (String(captchaDomainEl.value || "").trim() && !contactCaptchaAllowedDomain) {
-        alert("Домен має бути валідним hostname, наприклад core64.online.");
+        alert(tAdmin("settingsInvalidDomain"));
         return false;
     }
     const goodInputEl = document.getElementById("setting-audit-latency-good-max");
@@ -4837,7 +4928,7 @@ async function saveSettings(options = {}) {
         if (currentSection === sectionAtSave && currentSection === "settings") {
             const settingsSectionEl = document.getElementById("section-settings");
             if (settingsSectionEl && settingsSectionEl.isConnected) {
-                alert("Поріг 'Помірно до' має бути більшим за поріг 'Добре до'. Значення скориговано автоматично.");
+                alert(tAdmin("settingsThresholdAdjusted"));
             }
         }
     }
@@ -4872,7 +4963,7 @@ async function saveSettings(options = {}) {
         if (currentSection !== "settings") return false;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return false;
-        alert("Не вдалося зберегти налаштування: відсутній метод adapter.");
+        alert(tAdmin("settingsSaveMissingAdapter"));
         return false;
     }
 
@@ -4892,9 +4983,9 @@ async function saveSettings(options = {}) {
         if (currentSection !== "settings") return true;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return true;
-        addActivity("Оновлено налаштування сайту");
+        addActivity(tAdmin("activitySettingsUpdated"));
         if (notifySuccess) {
-            alert("Налаштування збережено");
+            alert(tAdmin("settingsSaveSuccess"));
         }
         return true;
     } catch (error) {
@@ -4904,7 +4995,7 @@ async function saveSettings(options = {}) {
         if (currentSection !== "settings") return false;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return false;
-        alert("Не вдалося зберегти налаштування");
+        alert(tAdmin("settingsSaveFailed"));
         return false;
     }
 }
@@ -4939,12 +5030,12 @@ function resetAuditLatencyThresholdsForm() {
     const settingsSectionEl = document.getElementById("section-settings");
     if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
 
-    addActivity("Скинуто пороги latency до дефолтних (без збереження)");
+    addActivity(tAdmin("activityThresholdsReset"));
 }
 
 function resetData() {
     if (resetDataInProgress) return;
-    if (!confirm("УВАГА! Це скине локальні fallback-дані. Продовжити?")) return;
+    if (!confirm(tAdmin("resetDataConfirm"))) return;
     const canUseLocalStorage = typeof localStorage !== "undefined" && typeof localStorage.removeItem === "function";
     const ensureLocalDefaultsMethod = getAdapterMethod("ensureLocalDefaults");
     const canEnsureLocalDefaults = !!ensureLocalDefaultsMethod;
@@ -4956,7 +5047,7 @@ function resetData() {
             canEnsureLocalDefaults,
             canReloadPage
         });
-        alert("Не вдалося виконати скидання в поточному середовищі.");
+        alert(tAdmin("resetDataUnsupported"));
         return;
     }
 
@@ -4967,7 +5058,7 @@ function resetData() {
         location.reload();
     } catch (error) {
         console.error("Reset data failed", error);
-        alert("Не вдалося скинути локальні дані. Спробуйте ще раз.");
+        alert(tAdmin("resetDataFailed"));
     } finally {
         resetDataInProgress = false;
     }
