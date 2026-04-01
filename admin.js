@@ -183,7 +183,44 @@ const ADMIN_I18N = {
         apiAdminLoadFailed: "Не вдалося завантажити адмін-панель через API. Спробуйте перезапустити backend.",
         authMissingMethod: "Помилка авторизації: відсутній метод adapter.",
         authInvalidPassword: "Невірний пароль",
-        authGenericFailed: "Помилка авторизації. Спробуйте ще раз."
+        authGenericFailed: "Помилка авторизації. Спробуйте ще раз.",
+        settingsPendingNone: "Відкладених повідомлень немає",
+        settingsPendingCount: "Відкладених повідомлень: {count}",
+        settingsToastDismissHint: "Натисніть Enter, пробіл або Escape, щоб закрити",
+        settingsToastPendingOnly: "Відкладених повідомлень: {count}.",
+        settingsToastWithDismiss: "{message}. Натисніть Enter, пробіл або Escape, щоб закрити.",
+        settingsToastWithPendingAndDismiss: "{message}. Відкладених повідомлень: {count}. Натисніть Enter, пробіл або Escape, щоб закрити.",
+        auditNoData: "немає даних",
+        auditThresholdHint: "Пороги: до {good}ms - добре, {warnFrom}-{warn}ms - помірно, понад {warn}ms - повільно",
+        auditStateNoData: "Поточний стан: немає даних.",
+        auditStateGood: "Поточний стан: добре ({avg} ms).",
+        auditStateModerate: "Поточний стан: помірно ({avg} ms).",
+        auditStateSlow: "Поточний стан: повільно ({avg} ms).",
+        auditStatusGood: "добре ({avg} ms)",
+        auditStatusModerate: "помірно ({avg} ms)",
+        auditStatusSlow: "повільно ({avg} ms)",
+        auditLegendGood: "добре: <= {good}ms",
+        auditLegendModerate: "помірно: {warnFrom}-{warn}ms",
+        auditLegendSlow: "повільно: > {warn}ms",
+        auditRefreshDisabled: "Автооновлення: вимкнено",
+        auditRefreshEco: "Автооновлення: економний режим (вручну, інтервал {seconds}с)",
+        auditRefreshPaused: "Автооновлення: пауза (вкладка неактивна, інтервал {seconds}с)",
+        auditRefreshIn: "Автооновлення: через {remaining}с (кожні {seconds}с)",
+        auditRefreshEvery: "Автооновлення: кожні {seconds}с",
+        auditLatencyIndicatorNoData: "Індикатор затримки: немає даних",
+        auditLatencyIndicatorGood: "Індикатор затримки: добре, {avg} мс",
+        auditLatencyIndicatorModerate: "Індикатор затримки: помірно, {avg} мс",
+        auditLatencyIndicatorSlow: "Індикатор затримки: повільно, {avg} мс",
+        settingsThresholdSavedToast: "Зміни порогів збережено",
+        settingsThresholdDiscardedToast: "Незбережені зміни порогів відкинуто",
+        settingsCaptchaErrorDefault: "Не вдалося пройти перевірку captcha.",
+        settingsCaptchaMissingTokenDefault: "Підтвердіть, що ви не робот.",
+        settingsCaptchaInvalidDomainDefault: "Відправка з цього домену заборонена.",
+        auditUpdatedAt: "Оновлено: {time}",
+        auditLastDuration: "Остання тривалість: {latency} ms",
+        auditAverageDuration: "Середня (останні {count}): {avg} ms",
+        auditErrorPrefix: "Помилка аудиту: {message}",
+        auditRefreshWait: "Зачекайте {seconds}с перед повторним оновленням"
     },
     en: {
         navDashboard: "Dashboard",
@@ -299,7 +336,44 @@ const ADMIN_I18N = {
         apiAdminLoadFailed: "Failed to load admin panel via API. Try restarting backend.",
         authMissingMethod: "Authorization error: missing adapter method.",
         authInvalidPassword: "Invalid password",
-        authGenericFailed: "Authorization failed. Please try again."
+        authGenericFailed: "Authorization failed. Please try again.",
+        settingsPendingNone: "No queued messages",
+        settingsPendingCount: "Queued messages: {count}",
+        settingsToastDismissHint: "Press Enter, Space, or Escape to close",
+        settingsToastPendingOnly: "Queued messages: {count}.",
+        settingsToastWithDismiss: "{message}. Press Enter, Space, or Escape to close.",
+        settingsToastWithPendingAndDismiss: "{message}. Queued messages: {count}. Press Enter, Space, or Escape to close.",
+        auditNoData: "no data",
+        auditThresholdHint: "Thresholds: up to {good}ms - good, {warnFrom}-{warn}ms - moderate, above {warn}ms - slow",
+        auditStateNoData: "Current state: no data.",
+        auditStateGood: "Current state: good ({avg} ms).",
+        auditStateModerate: "Current state: moderate ({avg} ms).",
+        auditStateSlow: "Current state: slow ({avg} ms).",
+        auditStatusGood: "good ({avg} ms)",
+        auditStatusModerate: "moderate ({avg} ms)",
+        auditStatusSlow: "slow ({avg} ms)",
+        auditLegendGood: "good: <= {good}ms",
+        auditLegendModerate: "moderate: {warnFrom}-{warn}ms",
+        auditLegendSlow: "slow: > {warn}ms",
+        auditRefreshDisabled: "Auto-refresh: disabled",
+        auditRefreshEco: "Auto-refresh: eco mode (manual, interval {seconds}s)",
+        auditRefreshPaused: "Auto-refresh: paused (tab inactive, interval {seconds}s)",
+        auditRefreshIn: "Auto-refresh in {remaining}s (every {seconds}s)",
+        auditRefreshEvery: "Auto-refresh: every {seconds}s",
+        auditLatencyIndicatorNoData: "Latency indicator: no data",
+        auditLatencyIndicatorGood: "Latency indicator: good, {avg} ms",
+        auditLatencyIndicatorModerate: "Latency indicator: moderate, {avg} ms",
+        auditLatencyIndicatorSlow: "Latency indicator: slow, {avg} ms",
+        settingsThresholdSavedToast: "Threshold changes saved",
+        settingsThresholdDiscardedToast: "Unsaved threshold changes discarded",
+        settingsCaptchaErrorDefault: "Captcha verification failed.",
+        settingsCaptchaMissingTokenDefault: "Please confirm you are not a robot.",
+        settingsCaptchaInvalidDomainDefault: "Submissions from this domain are not allowed.",
+        auditUpdatedAt: "Updated: {time}",
+        auditLastDuration: "Last duration: {latency} ms",
+        auditAverageDuration: "Average (last {count}): {avg} ms",
+        auditErrorPrefix: "Audit error: {message}",
+        auditRefreshWait: "Wait {seconds}s before refreshing again"
     }
 };
 
@@ -742,12 +816,12 @@ function updateSettingsUnsavedToastQueueBadge() {
         badgeEl.classList.add("hidden");
         badgeEl.textContent = "";
         badgeEl.removeAttribute("title");
-        badgeEl.setAttribute("aria-label", "Відкладених повідомлень немає");
+        badgeEl.setAttribute("aria-label", tAdmin("settingsPendingNone"));
         return;
     }
 
     badgeEl.textContent = `+${pendingCount}`;
-    const pendingText = `Відкладених повідомлень: ${pendingCount}`;
+    const pendingText = tAdminFormat("settingsPendingCount", { count: pendingCount });
     badgeEl.setAttribute("title", pendingText);
     badgeEl.setAttribute("aria-label", pendingText);
     badgeEl.classList.remove("hidden");
@@ -765,25 +839,25 @@ function updateSettingsUnsavedToastAriaLabel() {
 
     if (!currentMessage && !pendingCount) {
         toastEl.removeAttribute("aria-label");
-        toastEl.setAttribute("title", "Натисніть Enter, пробіл або Escape, щоб закрити");
+        toastEl.setAttribute("title", tAdmin("settingsToastDismissHint"));
         return;
     }
 
     if (!currentMessage && pendingCount) {
-        const label = `Відкладених повідомлень: ${pendingCount}.`;
+        const label = tAdminFormat("settingsToastPendingOnly", { count: pendingCount });
         toastEl.setAttribute("aria-label", label);
         toastEl.setAttribute("title", label);
         return;
     }
 
     if (!pendingCount) {
-        const label = `${currentMessage}. Натисніть Enter, пробіл або Escape, щоб закрити.`;
+        const label = tAdminFormat("settingsToastWithDismiss", { message: currentMessage });
         toastEl.setAttribute("aria-label", label);
         toastEl.setAttribute("title", label);
         return;
     }
 
-    const label = `${currentMessage}. Відкладених повідомлень: ${pendingCount}. Натисніть Enter, пробіл або Escape, щоб закрити.`;
+    const label = tAdminFormat("settingsToastWithPendingAndDismiss", { message: currentMessage, count: pendingCount });
     toastEl.setAttribute("aria-label", label);
     toastEl.setAttribute("title", label);
 }
@@ -1346,28 +1420,28 @@ function updateSettingsUnsavedModalDiffSummary() {
 
     if (!avg) {
         previewEl.classList.add("text-gray-200");
-        previewEl.textContent = "немає даних";
-        tooltipPreviewEl.textContent = `Пороги: до ${current.good}ms - добре, ${current.good + 1}-${current.warn}ms - помірно, понад ${current.warn}ms - повільно. Поточний стан: немає даних.`;
+        previewEl.textContent = tAdmin("auditNoData");
+        tooltipPreviewEl.textContent = `${tAdminFormat("auditThresholdHint", { good: current.good, warnFrom: current.good + 1, warn: current.warn })}. ${tAdmin("auditStateNoData")}`;
         return;
     }
 
     if (avg <= current.good) {
         previewEl.classList.add("text-emerald-300");
-        previewEl.textContent = `добре (${avg} ms)`;
-        tooltipPreviewEl.textContent = `Пороги: до ${current.good}ms - добре, ${current.good + 1}-${current.warn}ms - помірно, понад ${current.warn}ms - повільно. Поточний стан: добре (${avg} ms).`;
+        previewEl.textContent = tAdminFormat("auditStatusGood", { avg });
+        tooltipPreviewEl.textContent = `${tAdminFormat("auditThresholdHint", { good: current.good, warnFrom: current.good + 1, warn: current.warn })}. ${tAdminFormat("auditStateGood", { avg })}`;
         return;
     }
 
     if (avg <= current.warn) {
         previewEl.classList.add("text-amber-300");
-        previewEl.textContent = `помірно (${avg} ms)`;
-        tooltipPreviewEl.textContent = `Пороги: до ${current.good}ms - добре, ${current.good + 1}-${current.warn}ms - помірно, понад ${current.warn}ms - повільно. Поточний стан: помірно (${avg} ms).`;
+        previewEl.textContent = tAdminFormat("auditStatusModerate", { avg });
+        tooltipPreviewEl.textContent = `${tAdminFormat("auditThresholdHint", { good: current.good, warnFrom: current.good + 1, warn: current.warn })}. ${tAdminFormat("auditStateModerate", { avg })}`;
         return;
     }
 
     previewEl.classList.add("text-red-300");
-    previewEl.textContent = `повільно (${avg} ms)`;
-    tooltipPreviewEl.textContent = `Пороги: до ${current.good}ms - добре, ${current.good + 1}-${current.warn}ms - помірно, понад ${current.warn}ms - повільно. Поточний стан: повільно (${avg} ms).`;
+    previewEl.textContent = tAdminFormat("auditStatusSlow", { avg });
+    tooltipPreviewEl.textContent = `${tAdminFormat("auditThresholdHint", { good: current.good, warnFrom: current.good + 1, warn: current.warn })}. ${tAdminFormat("auditStateSlow", { avg })}`;
 }
 
 function isSettingsUnsavedModalOpen() {
@@ -1592,16 +1666,20 @@ async function loadAuditLatencyThresholdsFromSettings() {
 }
 
 function getAuditLatencyThresholdHint() {
-    return `Пороги: до ${auditLatencyGoodMaxMs}ms - добре, ${auditLatencyGoodMaxMs + 1}-${auditLatencyWarnMaxMs}ms - помірно, понад ${auditLatencyWarnMaxMs}ms - повільно`;
+    return tAdminFormat("auditThresholdHint", {
+        good: auditLatencyGoodMaxMs,
+        warnFrom: auditLatencyGoodMaxMs + 1,
+        warn: auditLatencyWarnMaxMs
+    });
 }
 
 function renderAuditLatencyLegend() {
     const goodEl = document.getElementById("audit-latency-legend-good");
     const warnEl = document.getElementById("audit-latency-legend-warn");
     const slowEl = document.getElementById("audit-latency-legend-slow");
-    if (goodEl && goodEl.isConnected) goodEl.textContent = `добре: <= ${auditLatencyGoodMaxMs}ms`;
-    if (warnEl && warnEl.isConnected) warnEl.textContent = `помірно: ${auditLatencyGoodMaxMs + 1}-${auditLatencyWarnMaxMs}ms`;
-    if (slowEl && slowEl.isConnected) slowEl.textContent = `повільно: > ${auditLatencyWarnMaxMs}ms`;
+    if (goodEl && goodEl.isConnected) goodEl.textContent = tAdminFormat("auditLegendGood", { good: auditLatencyGoodMaxMs });
+    if (warnEl && warnEl.isConnected) warnEl.textContent = tAdminFormat("auditLegendModerate", { warnFrom: auditLatencyGoodMaxMs + 1, warn: auditLatencyWarnMaxMs });
+    if (slowEl && slowEl.isConnected) slowEl.textContent = tAdminFormat("auditLegendSlow", { warn: auditLatencyWarnMaxMs });
 }
 
 function saveAuditUiState() {
@@ -1741,26 +1819,26 @@ function updateAuditRefreshBadge() {
 
     const seconds = getAuditRefreshSeconds();
     if (!seconds) {
-        badge.textContent = "Автооновлення: вимкнено";
+        badge.textContent = tAdmin("auditRefreshDisabled");
         return;
     }
 
     if (isAuditEcoModeEnabled()) {
-        badge.textContent = `Автооновлення: економний режим (вручну, інтервал ${seconds}с)`;
+        badge.textContent = tAdminFormat("auditRefreshEco", { seconds });
         return;
     }
 
     if (currentSection === "audit" && document.hidden) {
-        badge.textContent = `Автооновлення: пауза (вкладка неактивна, інтервал ${seconds}с)`;
+        badge.textContent = tAdminFormat("auditRefreshPaused", { seconds });
         return;
     }
 
     if (currentSection === "audit" && auditRefreshRemainingSec > 0) {
-        badge.textContent = `Автооновлення: через ${auditRefreshRemainingSec}с (кожні ${seconds}с)`;
+        badge.textContent = tAdminFormat("auditRefreshIn", { remaining: auditRefreshRemainingSec, seconds });
         return;
     }
 
-    badge.textContent = `Автооновлення: кожні ${seconds}с`;
+    badge.textContent = tAdminFormat("auditRefreshEvery", { seconds });
 }
 
 function resetAuditRefreshCountdown(seconds) {
@@ -1980,8 +2058,8 @@ function updateAuditLatencyIndicator(avgMs) {
     if (!Number.isFinite(avgMs) || avgMs <= 0) {
         if (!dotEl.isConnected || !avgLatencyEl.isConnected) return;
         dotEl.classList.add("bg-gray-500/70");
-        avgLatencyEl.setAttribute("title", `${baseHint}. Поточний стан: немає даних.`);
-        dotEl.setAttribute("aria-label", "Індикатор затримки: немає даних");
+        avgLatencyEl.setAttribute("title", `${baseHint}. ${tAdmin("auditStateNoData")}`);
+        dotEl.setAttribute("aria-label", tAdmin("auditLatencyIndicatorNoData"));
         return;
     }
 
@@ -1989,8 +2067,8 @@ function updateAuditLatencyIndicator(avgMs) {
         if (!dotEl.isConnected || !avgLatencyEl.isConnected) return;
         dotEl.classList.add("bg-emerald-400");
         avgLatencyEl.classList.add("text-emerald-300");
-        avgLatencyEl.setAttribute("title", `${baseHint}. Поточний стан: добре (${avgMs} ms).`);
-        dotEl.setAttribute("aria-label", `Індикатор затримки: добре, ${avgMs} мс`);
+        avgLatencyEl.setAttribute("title", `${baseHint}. ${tAdminFormat("auditStateGood", { avg: avgMs })}`);
+        dotEl.setAttribute("aria-label", tAdminFormat("auditLatencyIndicatorGood", { avg: avgMs }));
         return;
     }
 
@@ -1998,16 +2076,16 @@ function updateAuditLatencyIndicator(avgMs) {
         if (!dotEl.isConnected || !avgLatencyEl.isConnected) return;
         dotEl.classList.add("bg-amber-400");
         avgLatencyEl.classList.add("text-amber-300");
-        avgLatencyEl.setAttribute("title", `${baseHint}. Поточний стан: помірно (${avgMs} ms).`);
-        dotEl.setAttribute("aria-label", `Індикатор затримки: помірно, ${avgMs} мс`);
+        avgLatencyEl.setAttribute("title", `${baseHint}. ${tAdminFormat("auditStateModerate", { avg: avgMs })}`);
+        dotEl.setAttribute("aria-label", tAdminFormat("auditLatencyIndicatorModerate", { avg: avgMs }));
         return;
     }
 
     if (!dotEl.isConnected || !avgLatencyEl.isConnected) return;
     dotEl.classList.add("bg-red-400");
     avgLatencyEl.classList.add("text-red-300");
-    avgLatencyEl.setAttribute("title", `${baseHint}. Поточний стан: повільно (${avgMs} ms).`);
-    dotEl.setAttribute("aria-label", `Індикатор затримки: повільно, ${avgMs} мс`);
+    avgLatencyEl.setAttribute("title", `${baseHint}. ${tAdminFormat("auditStateSlow", { avg: avgMs })}`);
+    dotEl.setAttribute("aria-label", tAdminFormat("auditLatencyIndicatorSlow", { avg: avgMs }));
 }
 
 function showAuditShortcutToast(message) {
@@ -2323,11 +2401,11 @@ async function showSection(section) {
             if (!saved) {
                 return;
             }
-            showSettingsUnsavedToast("Зміни порогів збережено", "success");
+            showSettingsUnsavedToast(tAdmin("settingsThresholdSavedToast"), "success");
         } else if (decision === "cancel") {
             return;
         } else if (decision === "discard") {
-            showSettingsUnsavedToast("Незбережені зміни порогів відкинуто", "warn");
+            showSettingsUnsavedToast(tAdmin("settingsThresholdDiscardedToast"), "warn");
         }
     }
 
@@ -2374,13 +2452,13 @@ async function showSection(section) {
         const forceRefreshLabel = document.getElementById("audit-force-refresh-label");
         const forceRefreshSpinner = document.getElementById("audit-force-refresh-spinner");
         if (refreshNowLabel && refreshNowLabel.isConnected) {
-            refreshNowLabel.textContent = "Оновити зараз";
+            refreshNowLabel.textContent = tAdmin("auditRefreshNow");
         }
         if (refreshNowSpinner && refreshNowSpinner.isConnected) {
             refreshNowSpinner.classList.add("hidden");
         }
         if (forceRefreshLabel && forceRefreshLabel.isConnected) {
-            forceRefreshLabel.textContent = "Форс-оновлення";
+            forceRefreshLabel.textContent = tAdmin("auditForceRefresh");
         }
         if (forceRefreshSpinner && forceRefreshSpinner.isConnected) {
             forceRefreshSpinner.classList.add("hidden");
@@ -2901,13 +2979,13 @@ async function loadSettings() {
         recaptchaSecretKeyEl.value = decodeHtmlEntities(cache.settings.contactCaptchaRecaptchaSecretKey || "");
     }
     if (captchaErrorMessageEl && captchaErrorMessageEl.isConnected) {
-        captchaErrorMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaErrorMessage || "Не вдалося пройти перевірку captcha.");
+        captchaErrorMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaErrorMessage || tAdmin("settingsCaptchaErrorDefault"));
     }
     if (captchaMissingTokenMessageEl && captchaMissingTokenMessageEl.isConnected) {
-        captchaMissingTokenMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaMissingTokenMessage || "Підтвердіть, що ви не робот.");
+        captchaMissingTokenMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaMissingTokenMessage || tAdmin("settingsCaptchaMissingTokenDefault"));
     }
     if (captchaInvalidDomainMessageEl && captchaInvalidDomainMessageEl.isConnected) {
-        captchaInvalidDomainMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaInvalidDomainMessage || "Відправка з цього домену заборонена.");
+        captchaInvalidDomainMessageEl.value = decodeHtmlEntities(cache.settings.contactCaptchaInvalidDomainMessage || tAdmin("settingsCaptchaInvalidDomainDefault"));
     }
     const persisted = getNormalizedLatencyThresholds(cache.settings || {});
     const goodMaxInputEl = document.getElementById("setting-audit-latency-good-max");
@@ -3070,14 +3148,14 @@ async function loadAuditLogs() {
 
     const updatedEl = document.getElementById("audit-last-updated");
     if (updatedEl && updatedEl.isConnected) {
-        updatedEl.textContent = `Оновлено: ${formatNowTimeOrFallback()}`;
+        updatedEl.textContent = tAdminFormat("auditUpdatedAt", { time: formatNowTimeOrFallback() });
     }
 
     const endedAt = (typeof performance !== "undefined" && typeof performance.now === "function") ? performance.now() : Date.now();
     const latencyMs = Math.max(0, Math.round(endedAt - startedAt));
     const latencyEl = document.getElementById("audit-last-latency");
     if (latencyEl && latencyEl.isConnected) {
-        latencyEl.textContent = `Остання тривалість: ${latencyMs} ms`;
+        latencyEl.textContent = tAdminFormat("auditLastDuration", { latency: latencyMs });
     }
 
     auditLatencyHistory.push(latencyMs);
@@ -3091,9 +3169,9 @@ async function loadAuditLogs() {
         const avg = auditLatencyHistory.length ? Math.round(sum / auditLatencyHistory.length) : 0;
         const avgTextEl = avgLatencyEl.querySelector("span:last-child");
         if (avgTextEl && avgTextEl.isConnected) {
-            avgTextEl.textContent = `Середня (останні ${AUDIT_LATENCY_HISTORY_SIZE}): ${avg} ms`;
+            avgTextEl.textContent = tAdminFormat("auditAverageDuration", { count: AUDIT_LATENCY_HISTORY_SIZE, avg });
         } else {
-            avgLatencyEl.textContent = `Середня (останні ${AUDIT_LATENCY_HISTORY_SIZE}): ${avg} ms`;
+            avgLatencyEl.textContent = tAdminFormat("auditAverageDuration", { count: AUDIT_LATENCY_HISTORY_SIZE, avg });
         }
         updateAuditLatencyIndicator(avg);
     }
@@ -3153,7 +3231,7 @@ function handleAuditLoadError(error, fallbackMessage) {
     const details = error && error.message ? String(error.message) : "";
     const message = details || fallbackMessage || tAdmin("auditUpdateFailed");
     console.error("Audit request failed", error);
-    showAuditError(`Помилка аудиту: ${message}`);
+    showAuditError(tAdminFormat("auditErrorPrefix", { message }));
 }
 
 function validateAuditDateRange() {
@@ -3314,7 +3392,7 @@ async function refreshAuditNow() {
     if (button?.disabled) {
         const remaining = getManualAuditRefreshCooldownRemainingMs();
         if (remaining > 0) {
-            showAuditShortcutToast(`Зачекайте ${(remaining / 1000).toFixed(1)}с перед повторним оновленням`);
+            showAuditShortcutToast(tAdminFormat("auditRefreshWait", { seconds: (remaining / 1000).toFixed(1) }));
         }
         return false;
     }
@@ -3380,7 +3458,7 @@ async function forceRefreshAuditNow() {
     if (button?.disabled) {
         const remaining = getManualAuditRefreshCooldownRemainingMs();
         if (remaining > 0) {
-            showAuditShortcutToast(`Зачекайте ${(remaining / 1000).toFixed(1)}с перед повторним оновленням`);
+            showAuditShortcutToast(tAdminFormat("auditRefreshWait", { seconds: (remaining / 1000).toFixed(1) }));
         }
         return false;
     }
@@ -4948,9 +5026,9 @@ async function saveSettings(options = {}) {
         contactCaptchaHcaptchaSecretKey,
         contactCaptchaRecaptchaSiteKey,
         contactCaptchaRecaptchaSecretKey,
-        contactCaptchaErrorMessage: normalizeSettingsPlainText(captchaErrorMessageEl.value, "Не вдалося пройти перевірку captcha."),
-        contactCaptchaMissingTokenMessage: normalizeSettingsPlainText(captchaMissingTokenMessageEl.value, "Підтвердіть, що ви не робот."),
-        contactCaptchaInvalidDomainMessage: normalizeSettingsPlainText(captchaInvalidDomainMessageEl.value, "Відправка з цього домену заборонена."),
+        contactCaptchaErrorMessage: normalizeSettingsPlainText(captchaErrorMessageEl.value, tAdmin("settingsCaptchaErrorDefault")),
+        contactCaptchaMissingTokenMessage: normalizeSettingsPlainText(captchaMissingTokenMessageEl.value, tAdmin("settingsCaptchaMissingTokenDefault")),
+        contactCaptchaInvalidDomainMessage: normalizeSettingsPlainText(captchaInvalidDomainMessageEl.value, tAdmin("settingsCaptchaInvalidDomainDefault")),
         contactCaptchaAllowedDomain,
         auditLatencyGoodMaxMs: goodMax,
         auditLatencyWarnMaxMs: warnMax
