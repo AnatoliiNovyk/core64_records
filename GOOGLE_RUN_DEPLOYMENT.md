@@ -45,6 +45,8 @@ Manual CI option:
 - Required GitHub repository secret: `GCP_SA_KEY`.
 - Workflow builds image, pushes to Artifact Registry, deploys to Cloud Run, and can run post-deploy smoke-check.
 - Keep `run_post_deploy_smoke=true` for release runs.
+- Keep `run_db_migrate=true` for release runs.
+- Set `run_db_seed=true` only for first-time environment bootstrap.
 
 Set deployment variables in your shell:
 
