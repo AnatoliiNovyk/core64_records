@@ -119,6 +119,16 @@ jobs:
         with:
           project_id: ${{ github.event.inputs.gcp_project_id }}
 
+      - name: Enable required Google Cloud APIs
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+        run: |
+          gcloud services enable run.googleapis.com \
+            artifactregistry.googleapis.com \
+            secretmanager.googleapis.com \
+            cloudbuild.googleapis.com \
+            --project "$GCP_PROJECT_ID"
+
       - name: Validate deploy inputs
         env:
           CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
