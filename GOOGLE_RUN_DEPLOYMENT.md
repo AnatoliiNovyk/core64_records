@@ -13,6 +13,8 @@ Prepare the following values before deployment:
 - `GCP_REGION`
 - `GCP_SERVICE_NAME`
 - `IMAGE_URI` (container image to deploy)
+- `ARTIFACT_REPO` (Artifact Registry repo for container images)
+- `IMAGE_TAG` (for example: git SHA, release tag)
 - `DATABASE_URL` (Supabase pooled/postgres connection string)
 - `JWT_SECRET` (strong random secret)
 - `ADMIN_PASSWORD` (strong random password)
@@ -43,7 +45,16 @@ Set deployment variables in your shell:
 $env:GCP_PROJECT_ID = "<project-id>"
 $env:GCP_REGION = "<region>"
 $env:GCP_SERVICE_NAME = "core64-api"
-$env:IMAGE_URI = "<artifact-registry-image>"
+$env:ARTIFACT_REPO = "core64"
+$env:IMAGE_TAG = "<release-tag-or-sha>"
+$env:IMAGE_URI = "$env:GCP_REGION-docker.pkg.dev/$env:GCP_PROJECT_ID/$env:ARTIFACT_REPO/core64-backend:$env:IMAGE_TAG"
+```
+
+Build and push container image (from repository root):
+
+```powershell
+docker build -f backend/Dockerfile -t $env:IMAGE_URI backend
+docker push $env:IMAGE_URI
 ```
 
 Deploy revision:
@@ -69,6 +80,7 @@ Note:
 
 - Secret names in `--set-secrets` must exist in Secret Manager.
 - If captcha is disabled, keep `CONTACT_CAPTCHA_PROVIDER=none` and secret can be empty.
+- Backend container source is `backend/Dockerfile`.
 
 ## 4. Database Migration (Supabase)
 
