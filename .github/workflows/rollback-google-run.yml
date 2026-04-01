@@ -1,0 +1,138 @@
+name: Rollback Google Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      gcp_project_id:
+        description: GCP project ID
+        required: true
+        type: string
+      gcp_region:
+        description: Google Cloud region
+        required: false
+        default: europe-west1
+        type: string
+      service_name:
+        description: Cloud Run service name
+        required: false
+        default: core64-api
+        type: string
+      target_revision:
+        description: Optional target revision name (leave empty to auto-pick previous)
+        required: false
+        default: ""
+        type: string
+      admin_password_secret_name:
+        description: GCP Secret Manager secret name for ADMIN_PASSWORD
+        required: false
+        default: ADMIN_PASSWORD
+        type: string
+      run_post_rollback_smoke:
+        description: Run smoke-check after rollback (true/false)
+        required: false
+        default: "true"
+        type: string
+      core64_smoke_timeout_ms:
+        description: Smoke-check timeout in milliseconds
+        required: false
+        default: "15000"
+        type: string
+      core64_smoke_contact:
+        description: Enable optional contact endpoint check in post-rollback smoke (true/false)
+        required: false
+        default: "false"
+        type: string
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required workflow secret
+        env:
+          GCP_SA_KEY: ${{ secrets.GCP_SA_KEY }}
+        run: |
+          if [ -z "$GCP_SA_KEY" ]; then
+            echo "Missing required secret: GCP_SA_KEY"
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Setup gcloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ github.event.inputs.gcp_project_id }}
+
+      - name: Setup Node.js
+        if: ${{ github.event.inputs.run_post_rollback_smoke == 'true' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Select rollback revision
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+          TARGET_REVISION_INPUT: ${{ github.event.inputs.target_revision }}
+        run: |
+          if [ -n "$TARGET_REVISION_INPUT" ]; then
+            TARGET_REVISION="$TARGET_REVISION_INPUT"
+          else
+            mapfile -t REVISIONS < <(gcloud run revisions list --service "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --sort-by="~metadata.creationTimestamp" --format="value(metadata.name)")
+            if [ "${#REVISIONS[@]}" -lt 2 ]; then
+              echo "Unable to auto-select previous revision. Provide target_revision manually."
+              exit 1
+            fi
+            TARGET_REVISION="${REVISIONS[1]}"
+          fi
+
+          echo "TARGET_REVISION=$TARGET_REVISION" >> "$GITHUB_ENV"
+          echo "Rollback target revision: $TARGET_REVISION"
+
+      - name: Rollback traffic to selected revision
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+        run: |
+          gcloud run services update-traffic "$SERVICE_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --to-revisions "$TARGET_REVISION=100"
+
+      - name: Post-rollback smoke check
+        if: ${{ github.event.inputs.run_post_rollback_smoke == 'true' }}
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+          ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+        run: |
+          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
+          if [ -z "$SERVICE_URL" ]; then
+            echo "Unable to resolve Cloud Run service URL for smoke-check"
+            exit 1
+          fi
+
+          ADMIN_PASSWORD=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$ADMIN_PASSWORD_SECRET_NAME")
+          if [ -z "$ADMIN_PASSWORD" ]; then
+            echo "Unable to read admin password from Secret Manager"
+            exit 1
+          fi
+
+          export CORE64_API_BASE="$SERVICE_URL/api"
+          export CORE64_ADMIN_PASSWORD="$ADMIN_PASSWORD"
+
+          echo "Running post-rollback smoke-check against $CORE64_API_BASE"
+          node scripts/smoke-check.mjs

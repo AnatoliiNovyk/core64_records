@@ -220,6 +220,21 @@ Useful deploy inputs:
 - `core64_smoke_timeout_ms` (default `15000`)
 - `core64_smoke_contact` (default `true`)
 
+## CI Rollback Google Run
+
+GitHub Actions workflow is available at:
+
+- `.github/workflows/rollback-google-run.yml`
+
+It runs as manual rollback (`workflow_dispatch`) and performs:
+
+- traffic rollback to selected (or auto-detected previous) Cloud Run revision
+- optional post-rollback smoke-check against deployed service URL
+
+Required repository secret:
+
+- `GCP_SA_KEY`
+
 ## Local Unified Pre-Release Gate
 
 Run both checks locally with one command:

@@ -130,3 +130,9 @@ If critical checks fail:
 1. Shift traffic to previous stable Google Run revision.
 2. Revert bad code commit using `git revert` and redeploy.
 3. Re-run smoke checks until green.
+
+Manual CI rollback option:
+
+- Run workflow `.github/workflows/rollback-google-run.yml`.
+- Leave `target_revision` empty to auto-pick previous revision.
+- Keep `run_post_rollback_smoke=true` to validate rollback.
