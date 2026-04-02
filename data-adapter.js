@@ -156,7 +156,9 @@
     const STORAGE_TOKEN_KEY = "core64_admin_token";
     const STORAGE_MODE_KEY = "core64_data_mode";
     const STORAGE_LANG_KEY = "core64_language";
+    const STORAGE_API_BASE_KEY = "core64_api_base_url";
     const DEFAULT_API_TIMEOUT_MS = 15000;
+    let runtimeApiBaseUrl = "";
 
     function deepClone(value) {
         return JSON.parse(JSON.stringify(value));
@@ -167,8 +169,55 @@
         return configuredMode;
     }
 
+    function normalizeApiBaseUrl(value) {
+        const normalized = String(value || "").trim();
+        if (!normalized) return "";
+        return normalized.replace(/\/+$/, "");
+    }
+
+    function getQueryApiBaseUrlOverride() {
+        if (typeof window === "undefined" || !window.location || !window.location.search) return "";
+        const params = new URLSearchParams(window.location.search);
+        const fromApiBaseUrl = normalizeApiBaseUrl(params.get("apiBaseUrl"));
+        if (fromApiBaseUrl) return fromApiBaseUrl;
+        const fromApi = normalizeApiBaseUrl(params.get("api"));
+        return fromApi;
+    }
+
+    function setRuntimeApiBaseUrl(value) {
+        const normalized = normalizeApiBaseUrl(value);
+        if (!normalized) return;
+        runtimeApiBaseUrl = normalized;
+        try {
+            localStorage.setItem(STORAGE_API_BASE_KEY, normalized);
+        } catch (_error) {
+            // Ignore storage write failures.
+        }
+    }
+
     function getApiBaseUrl() {
-        return (window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl) || "/api";
+        const queryOverride = getQueryApiBaseUrlOverride();
+        if (queryOverride) {
+            setRuntimeApiBaseUrl(queryOverride);
+            return queryOverride;
+        }
+
+        if (runtimeApiBaseUrl) return runtimeApiBaseUrl;
+
+        const configBase = normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
+        if (configBase) {
+            runtimeApiBaseUrl = configBase;
+            return runtimeApiBaseUrl;
+        }
+
+        const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
+        if (storedBase) {
+            runtimeApiBaseUrl = storedBase;
+            return runtimeApiBaseUrl;
+        }
+
+        runtimeApiBaseUrl = "/api";
+        return runtimeApiBaseUrl;
     }
 
     function getApiTimeoutMs() {

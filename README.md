@@ -138,6 +138,12 @@ Admin password source for smoke auth check:
 - `backend/.env` -> `ADMIN_PASSWORD` (auto-detected fallback)
 - `core64admin` default (only if no value found above)
 
+Runtime frontend API override (emergency troubleshooting):
+
+- append `?apiBaseUrl=https://<your-api-domain>/api` to `index.html` or `admin.html`
+- shorthand `?api=https://<your-api-domain>/api` is also supported
+- override is persisted in browser localStorage for subsequent visits
+
 Optional contact smoke-check is disabled by default.
 
 Release procedure and rollback checklist:
