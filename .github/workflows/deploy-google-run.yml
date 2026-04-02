@@ -353,6 +353,9 @@ jobs:
           DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           RUN_DB_MIGRATE: ${{ github.event.inputs.run_db_migrate }}
           RUN_DB_SEED: ${{ github.event.inputs.run_db_seed }}
+          DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
+          DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
+          DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
         run: |
           export DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
           if [ -z "$DATABASE_URL" ]; then
@@ -360,19 +363,59 @@ jobs:
             exit 1
           fi
 
+          echo "Pre-migrate DATABASE_URL policy verdict (strict, safe metadata):"
+          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs --strict
+
+          echo "Pre-migrate DATABASE_URL target snapshot (safe metadata):"
+          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict
+
           export DB_SSL=true
           export DB_SSL_REJECT_UNAUTHORIZED=false
           export DB_SSL_ALLOW_SELF_SIGNED=true
+          export DB_CONNECTION_TIMEOUT_MS
+          export DB_QUERY_TIMEOUT_MS
+          export DB_STATEMENT_TIMEOUT_MS
 
           cd backend
           npm ci
 
+          retry_db_command() {
+            local label="$1"
+            shift
+
+            local max_attempts=3
+            local attempt=1
+            local tmp_log
+            tmp_log=$(mktemp)
+
+            while [ "$attempt" -le "$max_attempts" ]; do
+              echo "$label attempt $attempt/$max_attempts"
+              if "$@" 2>&1 | tee "$tmp_log"; then
+                rm -f "$tmp_log"
+                return 0
+              fi
+
+              if grep -Eiq 'Connection terminated due to connection timeout|Connection terminated unexpectedly|SELF_SIGNED_CERT_IN_CHAIN' "$tmp_log" && [ "$attempt" -lt "$max_attempts" ]; then
+                echo "$label transient DB connectivity/TLS error detected; retrying in 10s..."
+                sleep 10
+                attempt=$((attempt + 1))
+                continue
+              fi
+
+              rm -f "$tmp_log"
+              return 1
+            done
+
+            rm -f "$tmp_log"
+            return 1
+          }
+
           if [ "$RUN_DB_MIGRATE" = "true" ]; then
-            npm run migrate
+            retry_db_command "Migration" npm run migrate
           fi
 
           if [ "$RUN_DB_SEED" = "true" ]; then
-            npm run seed
+            retry_db_command "Seed" npm run seed
           fi
 
       - name: Configure Docker auth for Artifact Registry
