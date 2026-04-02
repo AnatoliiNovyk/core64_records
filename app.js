@@ -62,6 +62,7 @@ const PUBLIC_I18N = {
         contactSaved: "Дякуємо за повідомлення. Запит успішно збережено.",
         contactSaveFailedPrefix: "Не вдалося зберегти запит:",
         contactSaveFailedGeneric: "Не вдалося зберегти запит. Спробуйте пізніше.",
+        contactSaveFailedDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте надіслати запит пізніше.",
         captchaUnsupportedProvider: "Поточний провайдер капчі не підтримується на фронтенді.",
         captchaMissingSiteKey: "Captcha увімкнена, але не вказано site key.",
         captchaLoadFailed: "Не вдалося завантажити captcha. Оновіть сторінку або спробуйте пізніше.",
@@ -123,6 +124,7 @@ const PUBLIC_I18N = {
         contactSaved: "Thank you for your message. Request saved successfully.",
         contactSaveFailedPrefix: "Failed to save request:",
         contactSaveFailedGeneric: "Failed to save request. Please try again later.",
+        contactSaveFailedDatabaseUnavailable: "Database is temporarily unavailable. Please try again later.",
         captchaUnsupportedProvider: "The current captcha provider is not supported in the frontend.",
         captchaMissingSiteKey: "Captcha is enabled, but site key is missing.",
         captchaLoadFailed: "Failed to load captcha. Refresh the page or try again later.",
@@ -255,6 +257,12 @@ function updateContactStatus(message, isError) {
     statusEl.className = isError
         ? "mt-3 text-sm text-red-400"
         : "mt-3 text-sm text-green-400";
+}
+
+function isDatabaseUnavailableError(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
+    return code === "DB_UNAVAILABLE" || status === 503;
 }
 
 function getContactConfig() {
@@ -1054,6 +1062,10 @@ function initContactForm() {
             updateContactStatus(tPublic("contactSaved"), false);
         } catch (error) {
             console.error("Contact request failed", error);
+            if (isDatabaseUnavailableError(error)) {
+                updateContactStatus(tPublic("contactSaveFailedDatabaseUnavailable"), true);
+                return;
+            }
             const details = error && typeof error.message === "string" ? error.message.trim() : "";
             updateContactStatus(details ? `${tPublic("contactSaveFailedPrefix")} ${details}` : tPublic("contactSaveFailedGeneric"), true);
         }
