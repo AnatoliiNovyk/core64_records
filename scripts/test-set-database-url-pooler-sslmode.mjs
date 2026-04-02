@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 const targetScript = path.resolve(__dirname, "./set-database-url-pooler-sslmode.mjs");
 
 function runCase(name, databaseUrl, options = {}) {
-  const { strict = false, rawUrl = false } = options;
+  const { strict = false, rawUrl = false, extraEnv = {} } = options;
   const args = [targetScript];
   if (strict) args.push("--strict");
   if (rawUrl) args.push("--raw-url");
@@ -18,7 +18,8 @@ function runCase(name, databaseUrl, options = {}) {
     env: {
       ...process.env,
       DATABASE_URL_VALUE: databaseUrl,
-      DB_POOLER_SSLMODE: "require"
+      DB_POOLER_SSLMODE: "require",
+      ...extraEnv
     },
     encoding: "utf8"
   });
@@ -88,6 +89,21 @@ function main() {
 
   const strictInvalidCase = runCase("strict-invalid", "not-a-url", { strict: true });
   expect(strictInvalidCase.code === 1, `strict-invalid: expected exit 1, got ${strictInvalidCase.code}`);
+
+  const invalidTargetSslmodeCase = runCase(
+    "invalid-target-sslmode",
+    "postgresql://user:pass@aws-1-eu-west-1.pooler.supabase.com:6543/postgres",
+    {
+      strict: true,
+      extraEnv: {
+        DB_POOLER_SSLMODE: "disable"
+      }
+    }
+  );
+  expect(invalidTargetSslmodeCase.code === 1, `invalid-target-sslmode: expected exit 1, got ${invalidTargetSslmodeCase.code}`);
+  const invalidTargetSslmodeJson = parseJson(invalidTargetSslmodeCase.stdout, "invalid-target-sslmode");
+  expect(invalidTargetSslmodeJson.reason === "invalid_target_sslmode", "invalid-target-sslmode: reason mismatch");
+  expect(Array.isArray(invalidTargetSslmodeJson.allowedSslModes), "invalid-target-sslmode: missing allowed sslmode list");
 
   const rawUrlCase = runCase(
     "raw-url-output",

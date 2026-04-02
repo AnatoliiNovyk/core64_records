@@ -6,6 +6,7 @@ const targetSslmode = String(process.env.DB_POOLER_SSLMODE || "require").trim() 
 const rawDatabaseUrl = String(process.env.DATABASE_URL_VALUE || "");
 const outputRawUrl = process.argv.includes("--raw-url");
 const strict = process.argv.includes("--strict");
+const acceptedPoolerSslModes = new Set(["require", "verify-ca", "verify-full"]);
 
 function done(payload, code = 0) {
   if (outputRawUrl) {
@@ -20,6 +21,17 @@ function done(payload, code = 0) {
 export function setDatabaseUrlPoolerSslmode(raw, sslmode = "require") {
   const original = String(raw ?? "");
   const normalizedSslmode = String(sslmode || "require").trim().toLowerCase() || "require";
+
+  if (!acceptedPoolerSslModes.has(normalizedSslmode)) {
+    return {
+      ok: false,
+      changed: false,
+      reason: "invalid_target_sslmode",
+      targetSslmode: normalizedSslmode,
+      allowedSslModes: Array.from(acceptedPoolerSslModes),
+      updatedDatabaseUrl: ""
+    };
+  }
 
   if (!original) {
     return {
