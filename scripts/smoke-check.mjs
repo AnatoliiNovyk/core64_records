@@ -115,6 +115,42 @@ function countBadReleaseLinks(releases) {
     }).length;
 }
 
+function deriveHealthDbHint(kind, dbCode, durationMs) {
+    const normalizedKind = String(kind || "").trim().toLowerCase();
+    const normalizedCode = String(dbCode || "").trim().toUpperCase();
+    const maybeDuration = Number(durationMs);
+    const hasDuration = Number.isFinite(maybeDuration) && maybeDuration > 0;
+
+    if (normalizedKind === "timeout") {
+        if (hasDuration) {
+            return `DB connection timed out after ~${Math.round(maybeDuration)}ms. Check Cloud Run egress path and DATABASE_URL host/port reachability.`;
+        }
+        return "DB connection timed out. Check Cloud Run egress path and DATABASE_URL host/port reachability.";
+    }
+
+    if (normalizedKind === "dns") {
+        return "DB host lookup failed. Verify DATABASE_URL host name and DNS reachability from Cloud Run.";
+    }
+
+    if (normalizedKind === "tls") {
+        return "TLS/certificate issue while connecting to DB. Verify DB_SSL/DB_SSL_REJECT_UNAUTHORIZED and provider certificate requirements.";
+    }
+
+    if (normalizedKind === "auth" || normalizedCode === "28P01") {
+        return "DB authentication failed. Verify DATABASE_URL credentials and database role permissions.";
+    }
+
+    if (normalizedKind === "config") {
+        return "Invalid DB connection string format. Verify DATABASE_URL syntax and URL encoding.";
+    }
+
+    if (normalizedKind === "connection" || normalizedCode.startsWith("08")) {
+        return "DB connection could not be established. Check DB endpoint, network path, and server availability.";
+    }
+
+    return null;
+}
+
 async function run() {
     const report = {
         baseUrl,
@@ -138,8 +174,14 @@ async function run() {
         error: healthDb.json?.error || null,
         kind: healthDb.json?.details?.kind || null,
         dbCode: healthDb.json?.details?.dbCode || null,
-        durationMs: healthDb.json?.details?.durationMs ?? healthDb.json?.durationMs ?? null
+        durationMs: healthDb.json?.details?.durationMs ?? healthDb.json?.durationMs ?? null,
+        hint: null
     };
+    report.checks.healthDb.hint = deriveHealthDbHint(
+        report.checks.healthDb.kind,
+        report.checks.healthDb.dbCode,
+        report.checks.healthDb.durationMs
+    );
     if (!healthDb.response.ok) report.passed = false;
 
     if (smokeMode === "health") {

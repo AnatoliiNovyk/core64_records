@@ -307,6 +307,9 @@ jobs:
             exit 1
           fi
 
+          echo "DATABASE_URL target snapshot (safe metadata):"
+          DATABASE_URL_VALUE="$DATABASE_URL" node -e "const v=process.env.DATABASE_URL_VALUE||''; try { const u=new URL(v); const db=(u.pathname||'').replace(/^\//,'')||null; const sslmode=u.searchParams.get('sslmode'); console.log(JSON.stringify({ protocol:u.protocol.replace(':',''), host:u.hostname||null, port:u.port||null, database:db, sslmode:sslmode||null }, null, 2)); } catch { console.log('{\"databaseUrlParse\":\"failed\"}'); process.exit(1); }"
+
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             export CONTACT_CAPTCHA_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$CONTACT_CAPTCHA_SECRET_NAME")
           else
@@ -414,7 +417,7 @@ jobs:
           gcloud run services describe "$SERVICE_NAME" \
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
-            --format='yaml(status.url,status.latestReadyRevisionName,status.conditions,status.traffic,spec.template.spec.serviceAccountName,spec.template.spec.containers[0].env)'
+            --format='yaml(status.url,status.latestReadyRevisionName,status.conditions,status.traffic,spec.template.spec.serviceAccountName,spec.template.metadata.annotations,spec.template.spec.containers[0].env)'
 
       - name: Post-deploy smoke check
         if: ${{ github.event.inputs.run_post_deploy_smoke == 'true' }}
@@ -500,3 +503,9 @@ jobs:
               --order desc \
               --format='value(timestamp,severity,textPayload,jsonPayload.message)' || true
           fi
+
+          echo "Diagnostic: Cloud Run networking annotations"
+          gcloud run services describe "$SERVICE_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='yaml(spec.template.metadata.annotations)' || true

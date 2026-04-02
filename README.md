@@ -152,6 +152,7 @@ Smoke mode notes:
 
 - `CORE64_SMOKE_MODE=health` validates both `/api/health` and `/api/health/db`.
 - Health mode now fails when DB connectivity is degraded (`DB_UNAVAILABLE`).
+- Health mode output includes `checks.healthDb.hint` with an actionable remediation hint derived from `kind`/`dbCode`.
 
 Release procedure and rollback checklist:
 
@@ -276,6 +277,8 @@ It runs as manual deployment (`workflow_dispatch`) and performs:
 - deploy to Cloud Run with production env and GCP Secret Manager references
 - optional automatic post-deploy smoke-check against deployed service URL (health-only mode for release stability)
 - fail-fast validation of Artifact Registry repo and required Secret Manager secrets
+- post-failure diagnostics include Cloud Run networking annotations to inspect VPC/egress configuration during DB timeouts
+- runtime config validation logs a safe DATABASE_URL target snapshot (protocol/host/port/database/sslmode only, no credentials)
 
 Required repository secret:
 
@@ -318,6 +321,12 @@ Useful rollback inputs:
 - `core64_smoke_timeout_ms` (default `15000`)
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `false`)
+
+Rollback input validation:
+
+- boolean flags must be `true` or `false`
+- `core64_smoke_timeout_ms` must be integer `>= 1000`
+- `core64_smoke_retries` must be integer `>= 1`
 
 ## Local Unified Pre-Release Gate
 

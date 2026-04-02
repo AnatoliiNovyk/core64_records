@@ -76,6 +76,30 @@ jobs:
         with:
           project_id: ${{ github.event.inputs.gcp_project_id }}
 
+      - name: Validate rollback inputs
+        env:
+          RUN_POST_ROLLBACK_SMOKE: ${{ github.event.inputs.run_post_rollback_smoke }}
+          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
+        run: |
+          for flag in "$RUN_POST_ROLLBACK_SMOKE" "$CORE64_SMOKE_CONTACT"; do
+            if [ "$flag" != "true" ] && [ "$flag" != "false" ]; then
+              echo "Boolean inputs must be 'true' or 'false'"
+              exit 1
+            fi
+          done
+
+          if ! [[ "$CORE64_SMOKE_TIMEOUT_MS" =~ ^[0-9]+$ ]] || [ "$CORE64_SMOKE_TIMEOUT_MS" -lt 1000 ]; then
+            echo "core64_smoke_timeout_ms must be an integer >= 1000"
+            exit 1
+          fi
+
+          if ! [[ "$CORE64_SMOKE_RETRIES" =~ ^[0-9]+$ ]] || [ "$CORE64_SMOKE_RETRIES" -lt 1 ]; then
+            echo "core64_smoke_retries must be an integer >= 1"
+            exit 1
+          fi
+
       - name: Setup Node.js
         if: ${{ github.event.inputs.run_post_rollback_smoke == 'true' }}
         uses: actions/setup-node@v5
@@ -198,3 +222,9 @@ jobs:
               --order desc \
               --format='value(timestamp,severity,textPayload,jsonPayload.message)' || true
           fi
+
+          echo "Diagnostic: Cloud Run networking annotations"
+          gcloud run services describe "$SERVICE_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='yaml(spec.template.metadata.annotations)' || true
