@@ -360,6 +360,13 @@
         return "";
     }
 
+    function normalizeApiErrorDetails(value, fallback = "Request failed", maxLength = 180) {
+        const collapsed = String(value || "").replace(/\s+/g, " ").trim();
+        const base = collapsed || String(fallback || "Request failed");
+        if (base.length <= maxLength) return base;
+        return `${base.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+    }
+
     async function apiRequest(path, options) {
         const token = sessionStorage.getItem(STORAGE_TOKEN_KEY);
         const headers = Object.assign({ "Content-Type": "application/json" }, options && options.headers ? options.headers : {});
@@ -379,7 +386,8 @@
             });
         } catch (error) {
             const isTimeout = error && error.name === "AbortError";
-            const networkError = new Error(isTimeout ? "Request timeout" : (error && error.message ? error.message : "Network request failed"));
+            const networkMessage = isTimeout ? "Request timeout" : (error && error.message ? error.message : "Network request failed");
+            const networkError = new Error(normalizeApiErrorDetails(networkMessage, "Network request failed"));
             networkError.code = isTimeout ? "API_NETWORK_TIMEOUT" : "API_NETWORK_ERROR";
             networkError.status = 0;
             throw networkError;
@@ -394,13 +402,13 @@
             try {
                 payload = await response.json();
                 const validationMessage = extractValidationErrorMessage(payload);
-                details = validationMessage || payload.error || payload.message || details;
+                details = normalizeApiErrorDetails(validationMessage || payload.error || payload.message, details);
                 code = String(payload.code || "").trim();
             } catch (_err) {
                 // No-op: use fallback message.
             }
 
-            const apiError = new Error(details);
+            const apiError = new Error(normalizeApiErrorDetails(details, `HTTP ${response.status}`));
             apiError.status = response.status;
             apiError.code = code;
             apiError.payload = payload;
