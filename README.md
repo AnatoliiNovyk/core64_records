@@ -91,6 +91,7 @@ npm run seed
 - backend uses `ADMIN_PASSWORD` from `backend/.env`
 - default in `.env.example` is `core64admin`
 - if password contains `#`, wrap value in quotes in `.env` (example: `ADMIN_PASSWORD="my#pass"`)
+- login endpoint supports emergency auth via `ADMIN_PASSWORD` before DB lookup, so admin login can still work during temporary DB outages
 
 4. Validate login endpoint directly:
 

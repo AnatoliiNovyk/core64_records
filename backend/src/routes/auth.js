@@ -9,6 +9,13 @@ const router = Router();
 router.post("/auth/login", async (req, res) => {
   try {
     const password = String(req.body.password || "");
+
+    // Emergency path: if ADMIN_PASSWORD matches, allow login even when DB is degraded.
+    if (password && password === config.adminPassword) {
+      const token = createToken({ sub: "env-admin", username: "admin" });
+      return res.json({ data: { token } });
+    }
+
     const userResult = await pool.query("SELECT id, username, password_hash FROM admin_users LIMIT 1");
 
     if (!userResult.rows[0]) {
@@ -21,7 +28,7 @@ router.post("/auth/login", async (req, res) => {
     const user = userResult.rows[0];
     const isValid = await bcrypt.compare(password, user.password_hash);
 
-    if (!isValid && password !== config.adminPassword) {
+    if (!isValid) {
       return res.status(401).json({
         code: "AUTH_INVALID_CREDENTIALS",
         error: "Invalid credentials"

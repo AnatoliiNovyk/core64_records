@@ -138,6 +138,15 @@ async function run() {
         return;
     }
 
+    const healthDb = await requestJson("/health/db");
+    report.checks.healthDb = {
+        status: healthDb.response.status,
+        ok: healthDb.response.ok,
+        code: healthDb.json?.code || null,
+        error: healthDb.json?.error || null
+    };
+    if (!healthDb.response.ok) report.passed = false;
+
     const publicPayload = await requestJson("/public");
     const data = publicPayload.json?.data || {};
     const releases = Array.isArray(data.releases) ? data.releases : [];
@@ -198,7 +207,7 @@ async function run() {
         if (login.response.status === 401) {
             adminChecks.hint = "Set CORE64_ADMIN_PASSWORD to match backend ADMIN_PASSWORD, or update backend/.env and rerun seed.";
         } else if (login.response.status === 503) {
-            adminChecks.hint = "Auth service unavailable. Check backend DB connectivity and SSL settings (DB_SSL / DB_SSL_REJECT_UNAUTHORIZED).";
+            adminChecks.hint = "Auth service unavailable. Check /health/db and backend DB SSL settings (DB_SSL / DB_SSL_REJECT_UNAUTHORIZED).";
         }
         report.passed = false;
     } else {
