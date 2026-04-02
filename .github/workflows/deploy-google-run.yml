@@ -516,3 +516,9 @@ jobs:
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --format='yaml(spec.template.metadata.annotations)' || true
+
+          SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)
+          if [ -n "$SERVICE_JSON" ]; then
+            echo "Diagnostic: Cloud Run network routing hint"
+            CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" node scripts/print-cloud-run-network-hint.mjs || true
+          fi
