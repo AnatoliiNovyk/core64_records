@@ -5,7 +5,7 @@ import { config } from "../config.js";
 async function seed() {
   const hash = await bcrypt.hash(config.adminPassword, 10);
   await pool.query(
-    "INSERT INTO admin_users (username, password_hash) VALUES ('admin', $1) ON CONFLICT (username) DO NOTHING",
+    "INSERT INTO admin_users (username, password_hash) VALUES ('admin', $1) ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash",
     [hash]
   );
 

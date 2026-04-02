@@ -90,13 +90,15 @@ npm run seed
 
 - backend uses `ADMIN_PASSWORD` from `backend/.env`
 - default in `.env.example` is `core64admin`
+- if password contains `#`, wrap value in quotes in `.env` (example: `ADMIN_PASSWORD="my#pass"`)
 
 4. Validate login endpoint directly:
 
 ```bash
+export ADMIN_PASSWORD_FOR_TEST="<value-from-backend-.env-ADMIN_PASSWORD>"
 curl -X POST http://localhost:3000/api/auth/login \
 	-H "Content-Type: application/json" \
-	-d '{"password":"core64admin"}'
+	-d '{"password":"'"$ADMIN_PASSWORD_FOR_TEST"'"}'
 ```
 
 Expected:
