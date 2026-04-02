@@ -293,12 +293,12 @@ jobs:
           export CONTACT_CAPTCHA_PROVIDER
           export CORS_ORIGIN
 
+          POLICY_JSON=$(DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs)
+          POLICY_VALID=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(Boolean(p.valid)));});")
+          POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
+
           if [ "$AUTO_FIX_POOLER_SSLMODE" = "true" ]; then
             echo "Checking DATABASE_URL for optional pooler sslmode auto-remediation..."
-            POLICY_JSON=$(DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs)
-            POLICY_VALID=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(Boolean(p.valid)));});")
-            POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
-
             if [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
               UPDATED_DATABASE_URL=$(DATABASE_URL_VALUE="$DATABASE_URL" DB_POOLER_SSLMODE=require node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)
               if [ "$UPDATED_DATABASE_URL" != "$DATABASE_URL" ]; then
@@ -313,6 +313,9 @@ jobs:
                 fi
               fi
             fi
+          elif [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
+            echo "Tip: detected unsupported pooler sslmode while auto_fix_pooler_sslmode=false."
+            echo "Tip: re-run this workflow with input auto_fix_pooler_sslmode=true, or update DATABASE_URL secret manually before strict validation."
           fi
 
           echo "DATABASE_URL policy verdict (strict mode, safe metadata):"
