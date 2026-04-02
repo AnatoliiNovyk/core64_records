@@ -111,6 +111,9 @@ jobs:
             exit 1
           fi
 
+      - name: Validate DB snapshot helper
+        run: node scripts/test-print-db-target-snapshot.mjs
+
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}

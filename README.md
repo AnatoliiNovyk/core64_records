@@ -254,6 +254,7 @@ It runs both checks in one run and returns a single release verdict:
 
 - `smoke-check` (`scripts/smoke-check.mjs`)
 - branch protection policy verification (`scripts/verify-branch-protection.ps1`)
+- DB snapshot helper self-test (`scripts/test-print-db-target-snapshot.mjs`)
 
 Pre-release gate input validation:
 
