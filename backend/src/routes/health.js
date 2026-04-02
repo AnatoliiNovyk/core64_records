@@ -9,9 +9,16 @@ router.get("/health", (_req, res) => {
 });
 
 router.get("/health/db", async (_req, res) => {
+  const startedAt = Date.now();
   try {
     await pool.query("SELECT 1");
-    res.json({ status: "ok", database: "ok", service: "core64-api", time: new Date().toISOString() });
+    res.json({
+      status: "ok",
+      database: "ok",
+      service: "core64-api",
+      durationMs: Date.now() - startedAt,
+      time: new Date().toISOString()
+    });
   } catch (error) {
     const kind = classifyDatabaseError(error);
     const dbCode = sanitizeDatabaseErrorCode(error);
@@ -21,7 +28,7 @@ router.get("/health/db", async (_req, res) => {
       database: "unavailable",
       code: "DB_UNAVAILABLE",
       error: "Database connectivity check failed",
-      details: { kind, dbCode },
+      details: { kind, dbCode, durationMs: Date.now() - startedAt },
       time: new Date().toISOString()
     });
   }

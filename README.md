@@ -289,6 +289,9 @@ Useful deploy inputs:
 - `core64_smoke_timeout_ms` (default `60000`)
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `true`)
+- `db_connection_timeout_ms` (default `8000`)
+- `db_query_timeout_ms` (default `10000`)
+- `db_statement_timeout_ms` (default `10000`)
 - `require_release_owner_assignments` (default `true`)
 
 Note: deploy workflow runs smoke in `health` mode (`CORE64_SMOKE_MODE=health`).
@@ -303,11 +306,18 @@ GitHub Actions workflow is available at:
 It runs as manual rollback (`workflow_dispatch`) and performs:
 
 - traffic rollback to selected (or auto-detected previous) Cloud Run revision
-- optional post-rollback smoke-check against deployed service URL
+- optional post-rollback smoke-check against deployed service URL (health mode with retries)
 
 Required repository secret:
 
 - `GCP_SA_KEY`
+
+Useful rollback inputs:
+
+- `run_post_rollback_smoke` (default `true`)
+- `core64_smoke_timeout_ms` (default `15000`)
+- `core64_smoke_retries` (default `3`)
+- `core64_smoke_contact` (default `false`)
 
 ## Local Unified Pre-Release Gate
 

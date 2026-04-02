@@ -37,6 +37,9 @@ export const config = {
     .map((value) => String(value).trim().toLowerCase())
     .filter(Boolean),
   databaseUrl: readEnvString("DATABASE_URL"),
+  dbConnectionTimeoutMs: toNumber(process.env.DB_CONNECTION_TIMEOUT_MS, 8000),
+  dbQueryTimeoutMs: toNumber(process.env.DB_QUERY_TIMEOUT_MS, 10000),
+  dbStatementTimeoutMs: toNumber(process.env.DB_STATEMENT_TIMEOUT_MS, 10000),
   dbSsl: toBoolean(process.env.DB_SSL, true),
   dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
   dbSslAllowSelfSigned: toBoolean(process.env.DB_SSL_ALLOW_SELF_SIGNED, false),
@@ -71,6 +74,18 @@ export const validateConfig = () => {
 
   if (!config.databaseUrl) {
     errors.push("DATABASE_URL is required.");
+  }
+
+  if (!Number.isInteger(config.dbConnectionTimeoutMs) || config.dbConnectionTimeoutMs < 1000) {
+    errors.push("DB_CONNECTION_TIMEOUT_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.dbQueryTimeoutMs) || config.dbQueryTimeoutMs < 1000) {
+    errors.push("DB_QUERY_TIMEOUT_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.dbStatementTimeoutMs) || config.dbStatementTimeoutMs < 1000) {
+    errors.push("DB_STATEMENT_TIMEOUT_MS must be an integer >= 1000.");
   }
 
   if (isProduction) {

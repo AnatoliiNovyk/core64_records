@@ -37,6 +37,11 @@ on:
         required: false
         default: "15000"
         type: string
+      core64_smoke_retries:
+        description: Post-rollback smoke-check retry attempts
+        required: false
+        default: "3"
+        type: string
       core64_smoke_contact:
         description: Enable optional contact endpoint check in post-rollback smoke (true/false)
         required: false
@@ -117,7 +122,9 @@ jobs:
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          CORE64_SMOKE_MODE: health
         run: |
           SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
           if [ -z "$SERVICE_URL" ]; then
@@ -134,5 +141,60 @@ jobs:
           export CORE64_API_BASE="$SERVICE_URL/api"
           export CORE64_ADMIN_PASSWORD="$ADMIN_PASSWORD"
 
-          echo "Running post-rollback smoke-check against $CORE64_API_BASE"
-          node scripts/smoke-check.mjs
+          RETRIES=${CORE64_SMOKE_RETRIES:-3}
+          if ! [[ "$RETRIES" =~ ^[0-9]+$ ]] || [ "$RETRIES" -lt 1 ]; then
+            echo "Invalid CORE64_SMOKE_RETRIES value: $RETRIES"
+            exit 1
+          fi
+
+          attempt=1
+          until [ "$attempt" -gt "$RETRIES" ]; do
+            echo "Running post-rollback smoke-check against $CORE64_API_BASE (attempt $attempt/$RETRIES)"
+            if node scripts/smoke-check.mjs; then
+              echo "Post-rollback smoke-check passed on attempt $attempt."
+              exit 0
+            fi
+
+            if [ "$attempt" -lt "$RETRIES" ]; then
+              echo "Smoke-check failed on attempt $attempt; waiting 15s before retry."
+              sleep 15
+            fi
+
+            attempt=$((attempt + 1))
+          done
+
+          echo "Post-rollback smoke-check failed after $RETRIES attempts."
+          exit 1
+
+      - name: Collect diagnostics after rollback smoke failure
+        if: ${{ failure() && github.event.inputs.run_post_rollback_smoke == 'true' }}
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+        run: |
+          set +e
+
+          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
+          REVISION=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.latestReadyRevisionName)')
+
+          echo "Diagnostic: service URL = $SERVICE_URL"
+          echo "Diagnostic: latest ready revision = $REVISION"
+
+          if [ -n "$SERVICE_URL" ]; then
+            echo "Diagnostic: GET $SERVICE_URL/api/health"
+            curl -sS -i "$SERVICE_URL/api/health" || true
+
+            echo "Diagnostic: GET $SERVICE_URL/api/health/db"
+            curl -sS -i "$SERVICE_URL/api/health/db" || true
+          fi
+
+          if [ -n "$REVISION" ]; then
+            echo "Diagnostic: recent Cloud Run logs for revision $REVISION"
+            gcloud logging read \
+              "resource.type=cloud_run_revision AND resource.labels.service_name=$SERVICE_NAME AND resource.labels.revision_name=$REVISION" \
+              --project "$GCP_PROJECT_ID" \
+              --limit 80 \
+              --order desc \
+              --format='value(timestamp,severity,textPayload,jsonPayload.message)' || true
+          fi

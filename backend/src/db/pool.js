@@ -9,9 +9,9 @@ if (!config.databaseUrl) {
 
 export const pool = new Pool({
   connectionString: config.databaseUrl || undefined,
-  connectionTimeoutMillis: 8000,
-  query_timeout: 10000,
-  statement_timeout: 10000,
+  connectionTimeoutMillis: config.dbConnectionTimeoutMs,
+  query_timeout: config.dbQueryTimeoutMs,
+  statement_timeout: config.dbStatementTimeoutMs,
   keepAlive: true,
   ssl: config.dbSsl
     ? {

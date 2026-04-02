@@ -63,6 +63,24 @@ if (-not [string]::IsNullOrWhiteSpace($corsOrigin) -and $corsOrigin.Contains("*"
     $errors.Add("CORS_ORIGIN must not include wildcard '*' for production")
 }
 
+$dbTimeoutVars = @(
+    "DB_CONNECTION_TIMEOUT_MS",
+    "DB_QUERY_TIMEOUT_MS",
+    "DB_STATEMENT_TIMEOUT_MS"
+)
+
+foreach ($varName in $dbTimeoutVars) {
+    $rawValue = [string](Get-Item -Path "Env:$varName" -ErrorAction SilentlyContinue).Value
+    if ([string]::IsNullOrWhiteSpace($rawValue)) {
+        continue
+    }
+
+    $parsedValue = 0
+    if (-not [int]::TryParse($rawValue.Trim(), [ref]$parsedValue) -or $parsedValue -lt 1000) {
+        $errors.Add("$varName must be an integer >= 1000 when provided")
+    }
+}
+
 if ($errors.Count -gt 0) {
     Write-Host "Google Run deployment env check FAILED:" -ForegroundColor Red
     foreach ($entry in $errors) {
