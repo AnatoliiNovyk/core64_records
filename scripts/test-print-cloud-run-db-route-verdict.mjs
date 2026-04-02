@@ -102,6 +102,30 @@ function main() {
   const privateRangesJson = parseJson(privateRangesWithPublicIp.stdout, "private-ranges-public-ip");
   expect(privateRangesJson.routeVerdict === "incompatible", "private-ranges-public-ip: verdict mismatch");
 
+  const poolerWithoutSslMode = runCase(
+    "pooler-without-sslmode",
+    withConnectorAllTraffic,
+    "postgresql://user:pass@aws-1-eu-west-1.pooler.supabase.com:6543/postgres",
+    true
+  );
+  expect(poolerWithoutSslMode.code === 1, `pooler-without-sslmode: expected exit 1, got ${poolerWithoutSslMode.code}`);
+  const poolerWithoutSslJson = parseJson(poolerWithoutSslMode.stdout, "pooler-without-sslmode");
+  expect(poolerWithoutSslJson.routeVerdict === "incompatible", "pooler-without-sslmode: verdict mismatch");
+  expect(
+    poolerWithoutSslJson.reason === "missing_sslmode_require_for_pooler_endpoint",
+    "pooler-without-sslmode: reason mismatch"
+  );
+
+  const poolerWithSslMode = runCase(
+    "pooler-with-sslmode",
+    withConnectorAllTraffic,
+    "postgresql://user:pass@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?sslmode=require",
+    true
+  );
+  expect(poolerWithSslMode.code === 0, `pooler-with-sslmode: expected exit 0, got ${poolerWithSslMode.code}`);
+  const poolerWithSslJson = parseJson(poolerWithSslMode.stdout, "pooler-with-sslmode");
+  expect(poolerWithSslJson.routeVerdict === "compatible", "pooler-with-sslmode: verdict mismatch");
+
   const invalidInput = runCase("invalid-service-json", "{broken-json", "postgresql://user:pass@db.example.com:5432/core64", true);
   expect(invalidInput.code === 1, `invalid-service-json: expected exit 1, got ${invalidInput.code}`);
   const invalidJson = parseJson(invalidInput.stdout, "invalid-service-json");

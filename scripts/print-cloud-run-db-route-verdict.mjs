@@ -94,6 +94,18 @@ function classifyDbHost(host) {
 function evaluateRoute(serviceInfo, dbInfo, dbHostKind) {
   const hasConnector = Boolean(serviceInfo.vpcAccessConnector);
   const egress = serviceInfo.vpcAccessEgress;
+  const host = String(dbInfo.host || "").toLowerCase();
+  const sslmode = String(dbInfo.sslmode || "").toLowerCase();
+  const isSupabasePooler = host.endsWith(".pooler.supabase.com") || host.includes(".pooler.");
+
+  // Supabase pooler endpoints are expected to use TLS explicitly for predictable behavior.
+  if (isSupabasePooler && sslmode !== "require") {
+    return {
+      verdict: "incompatible",
+      reason: "missing_sslmode_require_for_pooler_endpoint",
+      hint: "DATABASE_URL points to a pooler endpoint but sslmode is not 'require'. Add ?sslmode=require to the connection string."
+    };
+  }
 
   if (!hasConnector && dbHostKind === "private-ip") {
     return {
