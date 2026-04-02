@@ -18,7 +18,14 @@ const toBoolean = (value, fallback) => {
 const readEnvString = (name, fallback = "") => {
   const raw = process.env[name];
   if (raw === undefined || raw === null) return fallback;
-  return String(raw).trim();
+  const trimmed = String(raw).trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
 };
 
 export const config = {
