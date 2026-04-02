@@ -73,7 +73,8 @@ export function evaluateDatabaseUrlPolicy(raw) {
       reason: "unsupported_sslmode_for_pooler_endpoint",
       hint: `DATABASE_URL points to a pooler endpoint but sslmode is not in allowed modes (require, verify-ca, verify-full). Append '${append}' to the connection string.`,
       remediation: {
-        action: "append_sslmode_require",
+        action: "append_allowed_pooler_sslmode",
+        legacyAction: "append_sslmode_require",
         append,
         allowedSslModes: Array.from(acceptedPoolerSslModes)
       },

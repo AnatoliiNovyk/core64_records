@@ -67,6 +67,8 @@ function main() {
   expect(poolerNoSslCase.code === 1, `pooler-missing-sslmode: expected exit 1, got ${poolerNoSslCase.code}`);
   const poolerNoSslJson = parseJson(poolerNoSslCase.stdout, "pooler-missing-sslmode");
   expect(poolerNoSslJson.reason === "unsupported_sslmode_for_pooler_endpoint", "pooler-missing-sslmode: reason mismatch");
+  expect(poolerNoSslJson.remediation?.action === "append_allowed_pooler_sslmode", "pooler-missing-sslmode: remediation action mismatch");
+  expect(poolerNoSslJson.remediation?.legacyAction === "append_sslmode_require", "pooler-missing-sslmode: remediation legacy action mismatch");
   expect(poolerNoSslJson.remediation?.append === "?sslmode=require", "pooler-missing-sslmode: remediation append mismatch");
 
   const poolerNoSslWithQueryCase = runCase(
@@ -77,6 +79,8 @@ function main() {
   expect(poolerNoSslWithQueryCase.code === 1, `pooler-missing-sslmode-with-query: expected exit 1, got ${poolerNoSslWithQueryCase.code}`);
   const poolerNoSslWithQueryJson = parseJson(poolerNoSslWithQueryCase.stdout, "pooler-missing-sslmode-with-query");
   expect(poolerNoSslWithQueryJson.reason === "unsupported_sslmode_for_pooler_endpoint", "pooler-missing-sslmode-with-query: reason mismatch");
+  expect(poolerNoSslWithQueryJson.remediation?.action === "append_allowed_pooler_sslmode", "pooler-missing-sslmode-with-query: remediation action mismatch");
+  expect(poolerNoSslWithQueryJson.remediation?.legacyAction === "append_sslmode_require", "pooler-missing-sslmode-with-query: remediation legacy action mismatch");
   expect(poolerNoSslWithQueryJson.remediation?.append === "&sslmode=require", "pooler-missing-sslmode-with-query: remediation append mismatch");
 
   const poolerVerifyCaCase = runCase(
