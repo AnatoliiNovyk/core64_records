@@ -321,6 +321,32 @@ Useful deploy inputs:
 Note: deploy workflow runs smoke in `health` mode (`CORE64_SMOKE_MODE=health`).
 Use `.github/workflows/smoke-check.yml` or local `node scripts/smoke-check.mjs` for full post-release validation.
 
+### Deploy Troubleshooting: unsupported_sslmode_for_pooler_endpoint
+
+If deploy fails with strict DATABASE_URL policy reason `unsupported_sslmode_for_pooler_endpoint`, your `DATABASE_URL` points to a Supabase pooler endpoint (typically port `6543`) without an allowed `sslmode`.
+
+Allowed pooler sslmodes:
+
+- `require`
+- `verify-ca`
+- `verify-full`
+
+Fast recovery options:
+
+1. Re-run deploy workflow with input `auto_fix_pooler_sslmode=true`.
+2. Apply manual remediation from workflow logs (copy-ready commands are printed when `auto_fix_pooler_sslmode=false`).
+3. Update `DATABASE_URL` in Secret Manager manually by appending `sslmode=require` as a query parameter and creating a new secret version.
+
+Manual one-shot remediation example:
+
+```bash
+CURRENT_DATABASE_URL="$(gcloud secrets versions access latest --project "core64records" --secret "DATABASE_URL")"
+UPDATED_DATABASE_URL="$(DATABASE_URL_VALUE="$CURRENT_DATABASE_URL" DB_POOLER_SSLMODE="require" node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)"
+printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "DATABASE_URL" --project "core64records" --data-file=-
+```
+
+After updating the secret, re-run deploy.
+
 ## CI Rollback Google Run
 
 GitHub Actions workflow is available at:

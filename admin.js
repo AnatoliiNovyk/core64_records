@@ -139,6 +139,7 @@ const ADMIN_I18N = {
         saveRecordFailedDetails: "Не вдалося зберегти запис: {details}",
         saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
         saveRecordDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте зберегти запис пізніше.",
+        databaseTemporarilyUnavailable: "База даних тимчасово недоступна. Спробуйте ще раз пізніше.",
         activityUpdated: "Оновлено {type}: {name}",
         activityAdded: "Додано {type}: {name}",
         deleteConfirm: "Ви впевнені, що хочете видалити цей запис?",
@@ -298,6 +299,7 @@ const ADMIN_I18N = {
         saveRecordFailedDetails: "Failed to save record: {details}",
         saveRecordFailed: "Failed to save record. Check data and try again.",
         saveRecordDatabaseUnavailable: "Database is temporarily unavailable. Please try to save again later.",
+        databaseTemporarilyUnavailable: "Database is temporarily unavailable. Please try again later.",
         activityUpdated: "Updated {type}: {name}",
         activityAdded: "Added {type}: {name}",
         deleteConfirm: "Are you sure you want to delete this record?",
@@ -448,12 +450,16 @@ function resolveLoginErrorMessage(error) {
     return tAdmin("authGenericFailed");
 }
 
-function resolveCrudSaveErrorMessage(error) {
+function isDatabaseUnavailableError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
+    return code === "DB_UNAVAILABLE" || status === 503;
+}
+
+function resolveCrudSaveErrorMessage(error) {
     const details = String(error && error.message ? error.message : "").trim();
 
-    if (code === "DB_UNAVAILABLE" || status === 503) {
+    if (isDatabaseUnavailableError(error)) {
         return tAdmin("saveRecordDatabaseUnavailable");
     }
 
@@ -4247,7 +4253,7 @@ async function changeContactStatus(id, status) {
         const contactsListEl = document.getElementById("contacts-list");
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
-        alert(tAdmin("contactStatusUpdateFailed"));
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("contactStatusUpdateFailed"));
     }
 }
 
@@ -4351,7 +4357,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         const contactsListEl = document.getElementById("contacts-list");
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
-        alert(tAdmin("bulkUpdateFailed"));
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("bulkUpdateFailed"));
     }
 }
 
@@ -4989,7 +4995,7 @@ async function deleteItem(type, id) {
         if (currentSection !== sectionAtDelete) return;
         const sectionEl = document.getElementById(`section-${sectionAtDelete}`);
         if (!sectionEl || !sectionEl.isConnected) return;
-        alert(tAdmin("deleteFailed"));
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("deleteFailed"));
     }
 }
 
@@ -5130,7 +5136,7 @@ async function saveSettings(options = {}) {
         if (currentSection !== "settings") return false;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return false;
-        alert(tAdmin("settingsSaveFailed"));
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("settingsSaveFailed"));
         return false;
     }
 }
