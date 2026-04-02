@@ -138,7 +138,7 @@ function main() {
   expect(poolerRemediationHintCase.code === 1, `pooler-remediation-hint: expected exit 1, got ${poolerRemediationHintCase.code}`);
   expect(poolerRemediationHintCase.stderr.includes("Remediation command"), "pooler-remediation-hint: missing remediation heading");
   expect(poolerRemediationHintCase.stderr.includes("gcloud secrets versions add"), "pooler-remediation-hint: missing gcloud add command");
-  expect(poolerRemediationHintCase.stderr.includes("node -e 'const u=new URL(process.argv[1]);u.searchParams.set(\"sslmode\",\"require\")"), "pooler-remediation-hint: missing copy-safe idempotent sslmode set command");
+  expect(poolerRemediationHintCase.stderr.includes("scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict"), "pooler-remediation-hint: missing centralized sslmode helper command");
 
   console.log("check-database-url-policy self-test PASSED");
 }

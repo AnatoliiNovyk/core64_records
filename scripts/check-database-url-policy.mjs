@@ -19,10 +19,11 @@ function printPoolerSslmodeRemediation(payload) {
 
   const projectId = process.env.GCP_PROJECT_ID || "<gcp-project-id>";
   const secretName = process.env.DATABASE_URL_SECRET_NAME || "DATABASE_URL";
+  const currentUrlVar = "${CURRENT_DATABASE_URL}";
 
   console.error("Remediation command (safe; does not print secret value):");
   console.error(`CURRENT_DATABASE_URL=\"$(gcloud secrets versions access latest --project \"${projectId}\" --secret \"${secretName}\")\"`);
-  console.error(`UPDATED_DATABASE_URL=\"$(node -e 'const u=new URL(process.argv[1]);u.searchParams.set("sslmode","${targetSslmode}");console.log(u.toString());' \"${"${CURRENT_DATABASE_URL}"}\")\"`);
+  console.error(`UPDATED_DATABASE_URL=\"$(DATABASE_URL_VALUE=\"${currentUrlVar}\" DB_POOLER_SSLMODE=\"${targetSslmode}\" node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)\"`);
   console.error(`printf '%s' \"${"${UPDATED_DATABASE_URL}"}\" | gcloud secrets versions add \"${secretName}\" --project \"${projectId}\" --data-file=-`);
 }
 
