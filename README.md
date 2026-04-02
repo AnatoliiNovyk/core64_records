@@ -255,6 +255,12 @@ It runs both checks in one run and returns a single release verdict:
 - `smoke-check` (`scripts/smoke-check.mjs`)
 - branch protection policy verification (`scripts/verify-branch-protection.ps1`)
 
+Pre-release gate input validation:
+
+- `core64_api_base` must start with `http://` or `https://`
+- `core64_smoke_timeout_ms` must be integer `>= 1000`
+- `core64_smoke_contact` must be `true` or `false`
+
 For contact endpoint coverage, enable smoke contact check:
 
 - CI input: `core64_smoke_contact=true`

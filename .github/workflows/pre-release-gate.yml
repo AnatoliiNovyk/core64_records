@@ -74,6 +74,8 @@ jobs:
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
           CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
         run: |
           if [ -z "$CORE64_API_BASE" ]; then
             echo "Missing required input: core64_api_base"
@@ -82,6 +84,21 @@ jobs:
 
           if [ -z "$CORE64_ADMIN_PASSWORD" ]; then
             echo "Missing required input: core64_admin_password"
+            exit 1
+          fi
+
+          if [[ "$CORE64_API_BASE" != http://* && "$CORE64_API_BASE" != https://* ]]; then
+            echo "core64_api_base must start with http:// or https://"
+            exit 1
+          fi
+
+          if ! [[ "$CORE64_SMOKE_TIMEOUT_MS" =~ ^[0-9]+$ ]] || [ "$CORE64_SMOKE_TIMEOUT_MS" -lt 1000 ]; then
+            echo "core64_smoke_timeout_ms must be an integer >= 1000"
+            exit 1
+          fi
+
+          if [ "$CORE64_SMOKE_CONTACT" != "true" ] && [ "$CORE64_SMOKE_CONTACT" != "false" ]; then
+            echo "core64_smoke_contact must be 'true' or 'false'"
             exit 1
           fi
 

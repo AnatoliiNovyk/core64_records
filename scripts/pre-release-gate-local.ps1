@@ -45,6 +45,14 @@ if ([string]::IsNullOrWhiteSpace($Token)) {
     throw "GitHub token is missing. Set GITHUB_TOKEN env var or pass -Token for branch protection verification."
 }
 
+if ([string]::IsNullOrWhiteSpace($Core64ApiBase) -or ($Core64ApiBase -notmatch '^https?://')) {
+    throw "Core64ApiBase must start with http:// or https://."
+}
+
+if ($Core64SmokeTimeoutMs -lt 1000) {
+    throw "Core64SmokeTimeoutMs must be >= 1000."
+}
+
 if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
     throw "MinimumApprovals must be between 1 and 6."
 }
