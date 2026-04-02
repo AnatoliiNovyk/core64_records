@@ -15,23 +15,29 @@ const toBoolean = (value, fallback) => {
   return fallback;
 };
 
+const readEnvString = (name, fallback = "") => {
+  const raw = process.env[name];
+  if (raw === undefined || raw === null) return fallback;
+  return String(raw).trim();
+};
+
 export const config = {
   port: toNumber(process.env.PORT, 3000),
-  nodeEnv: process.env.NODE_ENV || "development",
-  defaultLanguage: String(process.env.DEFAULT_LANGUAGE || "uk").trim().toLowerCase(),
-  supportedLanguages: String(process.env.SUPPORTED_LANGUAGES || "uk,en")
+  nodeEnv: readEnvString("NODE_ENV", "development") || "development",
+  defaultLanguage: readEnvString("DEFAULT_LANGUAGE", "uk").toLowerCase(),
+  supportedLanguages: readEnvString("SUPPORTED_LANGUAGES", "uk,en")
     .split(",")
     .map((value) => String(value).trim().toLowerCase())
     .filter(Boolean),
-  databaseUrl: process.env.DATABASE_URL || "",
+  databaseUrl: readEnvString("DATABASE_URL"),
   dbSsl: toBoolean(process.env.DB_SSL, true),
   dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
   dbSslAllowSelfSigned: toBoolean(process.env.DB_SSL_ALLOW_SELF_SIGNED, false),
-  jwtSecret: process.env.JWT_SECRET || "change-me",
-  corsOrigin: (process.env.CORS_ORIGIN || "*").split(",").map((v) => v.trim()),
-  adminPassword: process.env.ADMIN_PASSWORD || "core64admin",
-  contactCaptchaProvider: process.env.CONTACT_CAPTCHA_PROVIDER || "none",
-  contactCaptchaSecret: process.env.CONTACT_CAPTCHA_SECRET || ""
+  jwtSecret: readEnvString("JWT_SECRET", "change-me") || "change-me",
+  corsOrigin: readEnvString("CORS_ORIGIN", "*").split(",").map((v) => v.trim()),
+  adminPassword: readEnvString("ADMIN_PASSWORD", "core64admin") || "core64admin",
+  contactCaptchaProvider: readEnvString("CONTACT_CAPTCHA_PROVIDER", "none") || "none",
+  contactCaptchaSecret: readEnvString("CONTACT_CAPTCHA_SECRET")
 };
 
 const weakSecrets = new Set([
