@@ -255,6 +255,7 @@ It runs both checks in one run and returns a single release verdict:
 - `smoke-check` (`scripts/smoke-check.mjs`)
 - branch protection policy verification (`scripts/verify-branch-protection.ps1`)
 - DB snapshot helper self-test (`scripts/test-print-db-target-snapshot.mjs`)
+- Cloud Run network hint helper self-test (`scripts/test-print-cloud-run-network-hint.mjs`)
 
 Pre-release gate input validation:
 
@@ -352,6 +353,7 @@ pwsh -File scripts/pre-release-gate-local.ps1
 This local gate runs:
 
 - `scripts/test-print-db-target-snapshot.mjs`
+- `scripts/test-print-cloud-run-network-hint.mjs`
 - `scripts/smoke-check.mjs`
 - `scripts/verify-branch-protection.ps1`
 
