@@ -78,7 +78,7 @@ npm run dev
 curl http://localhost:3000/api/health
 ```
 
-2. Ensure DB schema and admin user exist:
+1. Ensure DB schema and admin user exist:
 
 ```bash
 cd backend
@@ -86,20 +86,20 @@ npm run migrate
 npm run seed
 ```
 
-3. Verify password source:
+1. Verify password source:
 
 - backend uses `ADMIN_PASSWORD` from `backend/.env`
 - default in `.env.example` is `core64admin`
 - if password contains `#`, wrap value in quotes in `.env` (example: `ADMIN_PASSWORD="my#pass"`)
 - login endpoint supports emergency auth via `ADMIN_PASSWORD` before DB lookup, so admin login can still work during temporary DB outages
 
-4. Validate login endpoint directly:
+1. Validate login endpoint directly:
 
 ```bash
 export ADMIN_PASSWORD_FOR_TEST="<value-from-backend-.env-ADMIN_PASSWORD>"
 curl -X POST http://localhost:3000/api/auth/login \
-	-H "Content-Type: application/json" \
-	-d '{"password":"'"$ADMIN_PASSWORD_FOR_TEST"'"}'
+  -H "Content-Type: application/json" \
+  -d '{"password":"'"$ADMIN_PASSWORD_FOR_TEST"'"}'
 ```
 
 Expected:
@@ -337,6 +337,7 @@ Required repository secret:
 Useful rollback inputs:
 
 - `run_post_rollback_smoke` (default `true`)
+- `database_url_secret_name` (default `DATABASE_URL`)
 - `core64_smoke_timeout_ms` (default `15000`)
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `false`)

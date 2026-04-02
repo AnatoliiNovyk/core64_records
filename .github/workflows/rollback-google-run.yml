@@ -27,6 +27,11 @@ on:
         required: false
         default: ADMIN_PASSWORD
         type: string
+      database_url_secret_name:
+        description: GCP Secret Manager secret name for DATABASE_URL
+        required: false
+        default: DATABASE_URL
+        type: string
       run_post_rollback_smoke:
         description: Run smoke-check after rollback (true/false)
         required: false
@@ -82,6 +87,7 @@ jobs:
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
+          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
         run: |
           for flag in "$RUN_POST_ROLLBACK_SMOKE" "$CORE64_SMOKE_CONTACT"; do
             if [ "$flag" != "true" ] && [ "$flag" != "false" ]; then
@@ -97,6 +103,11 @@ jobs:
 
           if ! [[ "$CORE64_SMOKE_RETRIES" =~ ^[0-9]+$ ]] || [ "$CORE64_SMOKE_RETRIES" -lt 1 ]; then
             echo "core64_smoke_retries must be an integer >= 1"
+            exit 1
+          fi
+
+          if [ -z "$DATABASE_URL_SECRET_NAME" ]; then
+            echo "database_url_secret_name must not be empty"
             exit 1
           fi
 
@@ -144,7 +155,7 @@ jobs:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
-          DATABASE_URL_SECRET_NAME: DATABASE_URL
+          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
@@ -212,7 +223,7 @@ jobs:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
-          DATABASE_URL_SECRET_NAME: DATABASE_URL
+          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
         run: |
           set +e
 
