@@ -70,7 +70,7 @@ export function evaluateDatabaseUrlPolicy(raw) {
     const append = (url.search || "").length > 0 ? "&sslmode=require" : "?sslmode=require";
     return {
       valid: false,
-      reason: "missing_sslmode_require_for_pooler_endpoint",
+      reason: "unsupported_sslmode_for_pooler_endpoint",
       hint: `DATABASE_URL points to a pooler endpoint but sslmode is not in allowed modes (require, verify-ca, verify-full). Append '${append}' to the connection string.`,
       remediation: {
         action: "append_sslmode_require",

@@ -112,7 +112,7 @@ function main() {
   const poolerWithoutSslJson = parseJson(poolerWithoutSslMode.stdout, "pooler-without-sslmode");
   expect(poolerWithoutSslJson.routeVerdict === "incompatible", "pooler-without-sslmode: verdict mismatch");
   expect(
-    poolerWithoutSslJson.reason === "missing_sslmode_require_for_pooler_endpoint",
+    poolerWithoutSslJson.reason === "unsupported_sslmode_for_pooler_endpoint",
     "pooler-without-sslmode: reason mismatch"
   );
 
