@@ -325,6 +325,7 @@ jobs:
             echo "CURRENT_DATABASE_URL=\"\$(gcloud secrets versions access latest --project \"$GCP_PROJECT_ID\" --secret \"$DATABASE_URL_SECRET_NAME\")\""
             echo "UPDATED_DATABASE_URL=\"\$(DATABASE_URL_VALUE=\"\$CURRENT_DATABASE_URL\" DB_POOLER_SSLMODE=\"require\" node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)\""
             echo "printf '%s' \"\$UPDATED_DATABASE_URL\" | gcloud secrets versions add \"$DATABASE_URL_SECRET_NAME\" --project \"$GCP_PROJECT_ID\" --data-file=-"
+            echo "PowerShell one-shot (Windows): pwsh -NoProfile -File scripts/set-database-url-pooler-sslmode-secret.ps1 -ProjectId \"$GCP_PROJECT_ID\" -SecretName \"$DATABASE_URL_SECRET_NAME\" -DesiredSslMode \"require\""
             echo "DATABASE_URL_VALUE=\"\$(gcloud secrets versions access latest --project \"$GCP_PROJECT_ID\" --secret \"$DATABASE_URL_SECRET_NAME\")\" node scripts/check-database-url-policy.mjs --strict"
             DATABASE_URL_POLICY_ARGS=(--strict)
           fi

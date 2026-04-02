@@ -345,6 +345,15 @@ UPDATED_DATABASE_URL="$(DATABASE_URL_VALUE="$CURRENT_DATABASE_URL" DB_POOLER_SSL
 printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "DATABASE_URL" --project "core64records" --data-file=-
 ```
 
+PowerShell one-shot remediation example (Windows):
+
+```powershell
+pwsh -NoProfile -File scripts/set-database-url-pooler-sslmode-secret.ps1 `
+  -ProjectId "core64records" `
+  -SecretName "DATABASE_URL" `
+  -DesiredSslMode "require"
+```
+
 Verify the latest secret passes strict policy before rerun:
 
 ```bash
