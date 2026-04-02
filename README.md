@@ -371,6 +371,8 @@ Pre-deploy env sanity check for Google Run:
 pwsh -File scripts/check-google-run-env.ps1
 ```
 
+The local env check uses the same centralized DATABASE_URL policy helper as CI (`scripts/check-database-url-policy.mjs`), so pooler sslmode validation is consistent (`require`, `verify-ca`, `verify-full`).
+
 ## Captcha Configuration
 
 Contact form supports two providers:
