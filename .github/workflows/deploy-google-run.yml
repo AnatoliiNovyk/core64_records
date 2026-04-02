@@ -255,7 +255,6 @@ jobs:
           fi
 
       - name: Setup Node.js
-        if: ${{ github.event.inputs.run_db_migrate == 'true' || github.event.inputs.run_db_seed == 'true' }}
         uses: actions/setup-node@v5
         with:
           node-version: 20

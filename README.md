@@ -283,6 +283,7 @@ GitHub Actions workflow is available at:
 It runs as manual deployment (`workflow_dispatch`) and performs:
 
 - backend container build (`backend/Dockerfile`)
+- deterministic Node.js setup (`node-version: 20`) before runtime secret/config validation
 - image push to Artifact Registry
 - deploy to Cloud Run with production env and GCP Secret Manager references
 - optional automatic post-deploy smoke-check against deployed service URL (health-only mode for release stability)
