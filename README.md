@@ -354,6 +354,16 @@ pwsh -NoProfile -File scripts/set-database-url-pooler-sslmode-secret.ps1 `
   -DesiredSslMode "require"
 ```
 
+PowerShell dry-run preview (no Secret Manager write):
+
+```powershell
+pwsh -NoProfile -File scripts/set-database-url-pooler-sslmode-secret.ps1 `
+  -ProjectId "core64records" `
+  -SecretName "DATABASE_URL" `
+  -DesiredSslMode "require" `
+  -DryRun
+```
+
 Verify the latest secret passes strict policy before rerun:
 
 ```bash

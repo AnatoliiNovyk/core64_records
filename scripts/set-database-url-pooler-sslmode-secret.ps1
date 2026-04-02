@@ -7,7 +7,10 @@ param(
 
     [Parameter(Mandatory = $false)]
     [ValidateSet("require", "verify-ca", "verify-full")]
-    [string]$DesiredSslMode = "require"
+    [string]$DesiredSslMode = "require",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -111,8 +114,13 @@ if ([string]::IsNullOrWhiteSpace($updatedUrl)) {
     throw "Pooler sslmode remediation returned an empty DATABASE_URL."
 }
 
+$candidateUrl = $updatedUrl
+
 if ($updatedUrl -eq $currentUrl) {
     Write-Host "No change needed: latest secret already has allowed pooler sslmode ($DesiredSslMode or equivalent)." -ForegroundColor Yellow
+}
+elseif ($DryRun.IsPresent) {
+    Write-Host "Dry-run mode: remediation preview generated. Secret '$SecretName' was not updated." -ForegroundColor Yellow
 }
 else {
     $tmpFile = [System.IO.Path]::GetTempFileName()
@@ -127,7 +135,11 @@ else {
     Write-Host "Updated secret '$SecretName' in project '$ProjectId' with pooler sslmode '$DesiredSslMode'." -ForegroundColor Green
 }
 
-$latestUrl = (Invoke-GcloudText -Args @("secrets", "versions", "access", "latest", "--project", $ProjectId, "--secret", $SecretName) -FailureMessage "Failed to re-read latest secret version for '$SecretName' in project '$ProjectId'").Trim()
+$latestUrl = $candidateUrl
+if (-not $DryRun.IsPresent -and $updatedUrl -ne $currentUrl) {
+    $latestUrl = (Invoke-GcloudText -Args @("secrets", "versions", "access", "latest", "--project", $ProjectId, "--secret", $SecretName) -FailureMessage "Failed to re-read latest secret version for '$SecretName' in project '$ProjectId'").Trim()
+}
+
 $previousDatabaseUrlValue = $env:DATABASE_URL_VALUE
 
 try {
@@ -143,4 +155,9 @@ finally {
     }
 }
 
-Write-Host "Strict DATABASE_URL verification passed on latest secret." -ForegroundColor Green
+if ($DryRun.IsPresent) {
+    Write-Host "Strict DATABASE_URL verification passed for dry-run candidate URL." -ForegroundColor Green
+}
+else {
+    Write-Host "Strict DATABASE_URL verification passed on latest secret." -ForegroundColor Green
+}
