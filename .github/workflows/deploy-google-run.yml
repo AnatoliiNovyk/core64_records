@@ -98,7 +98,7 @@ on:
       db_connection_timeout_ms:
         description: PostgreSQL connection timeout in milliseconds
         required: false
-        default: "8000"
+        default: "15000"
         type: string
       db_query_timeout_ms:
         description: PostgreSQL query timeout in milliseconds

@@ -311,7 +311,7 @@ Useful deploy inputs:
 - `core64_smoke_timeout_ms` (default `60000`)
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `true`)
-- `db_connection_timeout_ms` (default `8000`)
+- `db_connection_timeout_ms` (default `15000`)
 - `db_query_timeout_ms` (default `10000`)
 - `db_statement_timeout_ms` (default `10000`)
 - `auto_fix_pooler_sslmode` (default `false`) - if `true`, deploy may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict validation and verifies the updated latest secret value (enable via workflow_dispatch input when triggering the run)

@@ -123,9 +123,9 @@ function deriveHealthDbHint(kind, dbCode, durationMs) {
 
     if (normalizedKind === "timeout") {
         if (hasDuration) {
-            return `DB connection timed out after ~${Math.round(maybeDuration)}ms. Check Cloud Run egress path and DATABASE_URL host/port reachability.`;
+            return `DB connection timed out after ~${Math.round(maybeDuration)}ms. Check Cloud Run egress path and DATABASE_URL host/port reachability. If this persists, re-run deploy with db_connection_timeout_ms=15000 (or 20000).`;
         }
-        return "DB connection timed out. Check Cloud Run egress path and DATABASE_URL host/port reachability.";
+        return "DB connection timed out. Check Cloud Run egress path and DATABASE_URL host/port reachability. If this persists, re-run deploy with db_connection_timeout_ms=15000 (or 20000).";
     }
 
     if (normalizedKind === "dns") {

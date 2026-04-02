@@ -37,7 +37,7 @@ export const config = {
     .map((value) => String(value).trim().toLowerCase())
     .filter(Boolean),
   databaseUrl: readEnvString("DATABASE_URL"),
-  dbConnectionTimeoutMs: toNumber(process.env.DB_CONNECTION_TIMEOUT_MS, 8000),
+  dbConnectionTimeoutMs: toNumber(process.env.DB_CONNECTION_TIMEOUT_MS, 15000),
   dbQueryTimeoutMs: toNumber(process.env.DB_QUERY_TIMEOUT_MS, 10000),
   dbStatementTimeoutMs: toNumber(process.env.DB_STATEMENT_TIMEOUT_MS, 10000),
   dbSsl: toBoolean(process.env.DB_SSL, true),
