@@ -279,6 +279,7 @@ It runs as manual deployment (`workflow_dispatch`) and performs:
 - fail-fast validation of Artifact Registry repo and required Secret Manager secrets
 - post-failure diagnostics include Cloud Run networking annotations to inspect VPC/egress configuration during DB timeouts
 - runtime config validation logs a safe DATABASE_URL target snapshot (protocol/host/port/database/sslmode only, no credentials)
+- post-failure diagnostics also log the same safe DATABASE_URL target snapshot to correlate failed revision with DB endpoint metadata
 
 Required repository secret:
 
@@ -310,6 +311,7 @@ It runs as manual rollback (`workflow_dispatch`) and performs:
 
 - traffic rollback to selected (or auto-detected previous) Cloud Run revision
 - optional post-rollback smoke-check against deployed service URL (health mode with retries)
+- post-failure rollback diagnostics include safe DATABASE_URL target snapshot and Cloud Run networking annotations
 
 Required repository secret:
 
