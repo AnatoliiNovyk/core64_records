@@ -167,7 +167,7 @@
     }
 
     function getApiBaseUrl() {
-        return (window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl) || "http://localhost:3000/api";
+        return (window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl) || "/api";
     }
 
     function normalizeLanguageCode(input) {

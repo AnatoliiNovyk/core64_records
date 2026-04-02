@@ -633,9 +633,11 @@
     </div>
 
     <script>
+        const core64IsLocalHost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+        const core64ApiBaseUrl = core64IsLocalHost ? "http://localhost:3000/api" : "/api";
         window.CORE64_CONFIG = {
             dataMode: "api",
-            apiBaseUrl: "http://localhost:3000/api",
+            apiBaseUrl: core64ApiBaseUrl,
             defaultLanguage: "uk",
             supportedLanguages: ["uk", "en"]
         };
