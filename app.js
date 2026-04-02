@@ -265,6 +265,22 @@ function isDatabaseUnavailableError(error) {
     return code === "DB_UNAVAILABLE" || status === 503;
 }
 
+function resolveContactSubmitErrorMessage(error) {
+    if (isDatabaseUnavailableError(error)) {
+        return tPublic("contactSaveFailedDatabaseUnavailable");
+    }
+
+    const status = Number(error && error.status);
+    if (Number.isFinite(status) && status >= 500) {
+        return tPublic("contactSaveFailedGeneric");
+    }
+
+    const details = error && typeof error.message === "string" ? error.message.trim() : "";
+    return details
+        ? `${tPublic("contactSaveFailedPrefix")} ${details}`
+        : tPublic("contactSaveFailedGeneric");
+}
+
 function getContactConfig() {
     const source = window.CORE64_CONFIG && typeof window.CORE64_CONFIG === "object" ? window.CORE64_CONFIG : {};
     const settingsSource = contactRuntimeSettings && typeof contactRuntimeSettings === "object" ? contactRuntimeSettings : {};
@@ -1062,12 +1078,7 @@ function initContactForm() {
             updateContactStatus(tPublic("contactSaved"), false);
         } catch (error) {
             console.error("Contact request failed", error);
-            if (isDatabaseUnavailableError(error)) {
-                updateContactStatus(tPublic("contactSaveFailedDatabaseUnavailable"), true);
-                return;
-            }
-            const details = error && typeof error.message === "string" ? error.message.trim() : "";
-            updateContactStatus(details ? `${tPublic("contactSaveFailedPrefix")} ${details}` : tPublic("contactSaveFailedGeneric"), true);
+            updateContactStatus(resolveContactSubmitErrorMessage(error), true);
         }
     });
 }
