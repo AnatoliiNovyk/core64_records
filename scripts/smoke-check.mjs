@@ -115,7 +115,7 @@ function countBadReleaseLinks(releases) {
     }).length;
 }
 
-function deriveHealthDbHint(kind, dbCode, durationMs, connectionTimeoutMs) {
+function deriveHealthDbHint(kind, dbCode, durationMs, connectionTimeoutMs, probe) {
     const normalizedKind = String(kind || "").trim().toLowerCase();
     const normalizedCode = String(dbCode || "").trim().toUpperCase();
     const maybeDuration = Number(durationMs);
@@ -127,6 +127,12 @@ function deriveHealthDbHint(kind, dbCode, durationMs, connectionTimeoutMs) {
     if (normalizedKind === "timeout") {
         if (hasDuration) {
             if (nearConfiguredTimeout) {
+                if (probe?.attempted && probe?.dns?.resolved === false) {
+                    return `DB connection timed out after ~${Math.round(maybeDuration)}ms (near configured DB_CONNECTION_TIMEOUT_MS=${Math.round(configuredTimeout)}). DNS probe failed for DB host from runtime. Investigate Cloud Run DNS resolver and outbound egress path.`;
+                }
+                if (probe?.attempted && probe?.dns?.resolved === true && probe?.tcp?.reachable === false) {
+                    return `DB connection timed out after ~${Math.round(maybeDuration)}ms (near configured DB_CONNECTION_TIMEOUT_MS=${Math.round(configuredTimeout)}). DNS resolves but TCP probe to DB host/port failed. Investigate egress/NAT/firewall/allowlist path.`;
+                }
                 return `DB connection timed out after ~${Math.round(maybeDuration)}ms (near configured DB_CONNECTION_TIMEOUT_MS=${Math.round(configuredTimeout)}). This usually indicates network reachability issues from Cloud Run to DB host/port. If this persists after trying db_connection_timeout_ms=20000, investigate egress/NAT/allowlist/DNS path.`;
             }
             return `DB connection timed out after ~${Math.round(maybeDuration)}ms. Check Cloud Run egress path and DATABASE_URL host/port reachability. If this persists, re-run deploy with db_connection_timeout_ms=15000 (or 20000).`;
@@ -183,13 +189,15 @@ async function run() {
         durationMs: healthDb.json?.details?.durationMs ?? healthDb.json?.durationMs ?? null,
         connectionTimeoutMs: healthDb.json?.details?.connectionTimeoutMs ?? healthDb.json?.connectionTimeoutMs ?? null,
         target: healthDb.json?.details?.target ?? healthDb.json?.target ?? null,
+        probe: healthDb.json?.details?.probe ?? null,
         hint: null
     };
     report.checks.healthDb.hint = deriveHealthDbHint(
         report.checks.healthDb.kind,
         report.checks.healthDb.dbCode,
         report.checks.healthDb.durationMs,
-        report.checks.healthDb.connectionTimeoutMs
+        report.checks.healthDb.connectionTimeoutMs,
+        report.checks.healthDb.probe
     );
     if (!healthDb.response.ok) report.passed = false;
 
