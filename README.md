@@ -312,7 +312,7 @@ Useful deploy inputs:
 - `db_connection_timeout_ms` (default `8000`)
 - `db_query_timeout_ms` (default `10000`)
 - `db_statement_timeout_ms` (default `10000`)
-- `auto_fix_pooler_sslmode` (default `false`) - if `true`, deploy may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict validation and verifies the updated latest secret value
+- `auto_fix_pooler_sslmode` (default `false`) - if `true`, deploy may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict validation and verifies the updated latest secret value (enable via workflow_dispatch input when triggering the run)
 - `require_release_owner_assignments` (default `true`)
 
 Note: deploy workflow runs smoke in `health` mode (`CORE64_SMOKE_MODE=health`).
@@ -341,7 +341,7 @@ Useful rollback inputs:
 
 - `run_post_rollback_smoke` (default `true`)
 - `database_url_secret_name` (default `DATABASE_URL`)
-- `auto_fix_pooler_sslmode` (default `false`) - if `true`, rollback may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict pre-smoke verdict
+- `auto_fix_pooler_sslmode` (default `false`) - if `true`, rollback may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict pre-smoke verdict (enable via workflow_dispatch input when triggering the run)
 - `core64_smoke_timeout_ms` (default `15000`)
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `false`)
