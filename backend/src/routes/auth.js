@@ -11,14 +11,20 @@ router.post("/auth/login", async (req, res) => {
   const userResult = await pool.query("SELECT id, username, password_hash FROM admin_users LIMIT 1");
 
   if (!userResult.rows[0]) {
-    return res.status(500).json({ error: "Admin user is not initialized" });
+    return res.status(500).json({
+      code: "AUTH_ADMIN_NOT_INITIALIZED",
+      error: "Admin user is not initialized"
+    });
   }
 
   const user = userResult.rows[0];
   const isValid = await bcrypt.compare(password, user.password_hash);
 
   if (!isValid && password !== config.adminPassword) {
-    return res.status(401).json({ error: "Invalid credentials" });
+    return res.status(401).json({
+      code: "AUTH_INVALID_CREDENTIALS",
+      error: "Invalid credentials"
+    });
   }
 
   const token = createToken({ sub: user.id, username: user.username });

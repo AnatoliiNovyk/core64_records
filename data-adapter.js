@@ -293,23 +293,39 @@
             headers.Authorization = `Bearer ${token}`;
         }
 
-        const response = await fetch(`${getApiBaseUrl()}${path}`, {
-            method: (options && options.method) || "GET",
-            headers,
-            body: options && options.body ? JSON.stringify(options.body) : undefined,
-            signal: options && options.signal ? options.signal : undefined
-        });
+        let response;
+        try {
+            response = await fetch(`${getApiBaseUrl()}${path}`, {
+                method: (options && options.method) || "GET",
+                headers,
+                body: options && options.body ? JSON.stringify(options.body) : undefined,
+                signal: options && options.signal ? options.signal : undefined
+            });
+        } catch (error) {
+            const networkError = new Error(error && error.message ? error.message : "Network request failed");
+            networkError.code = "API_NETWORK_ERROR";
+            networkError.status = 0;
+            throw networkError;
+        }
 
         if (!response.ok) {
             let details = `HTTP ${response.status}`;
+            let code = "";
+            let payload = null;
             try {
-                const payload = await response.json();
+                payload = await response.json();
                 const validationMessage = extractValidationErrorMessage(payload);
                 details = validationMessage || payload.error || payload.message || details;
+                code = String(payload.code || "").trim();
             } catch (_err) {
                 // No-op: use fallback message.
             }
-            throw new Error(details);
+
+            const apiError = new Error(details);
+            apiError.status = response.status;
+            apiError.code = code;
+            apiError.payload = payload;
+            throw apiError;
         }
 
         if (response.status === 204) {
@@ -546,13 +562,24 @@
 
         async login(password) {
             if (await shouldUseApi()) {
-                const response = await apiRequest("/auth/login", {
-                    method: "POST",
-                    body: { password }
-                });
-                sessionStorage.setItem(STORAGE_TOKEN_KEY, response.data.token);
-                sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
-                return true;
+                try {
+                    const response = await apiRequest("/auth/login", {
+                        method: "POST",
+                        body: { password }
+                    });
+                    sessionStorage.setItem(STORAGE_TOKEN_KEY, response.data.token);
+                    sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                    return true;
+                } catch (error) {
+                    const errorCode = String(error && error.code ? error.code : "").trim();
+                    if (errorCode === "AUTH_INVALID_CREDENTIALS") {
+                        return false;
+                    }
+                    if (Number(error && error.status) === 401 && /invalid credentials/i.test(String(error && error.message ? error.message : ""))) {
+                        return false;
+                    }
+                    throw error;
+                }
             }
 
             const localPassword = localStorage.getItem("core64_admin_password") || "core64admin";

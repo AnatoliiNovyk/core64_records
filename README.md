@@ -66,6 +66,45 @@ The frontend adapter mode is auto:
 - if API is available, reads/writes through backend
 - if API is unavailable, falls back to localStorage
 
+## Admin Login Troubleshooting
+
+If admin login fails, use this sequence:
+
+1. Start backend and verify health:
+
+```bash
+cd backend
+npm run dev
+curl http://localhost:3000/api/health
+```
+
+2. Ensure DB schema and admin user exist:
+
+```bash
+cd backend
+npm run migrate
+npm run seed
+```
+
+3. Verify password source:
+
+- backend uses `ADMIN_PASSWORD` from `backend/.env`
+- default in `.env.example` is `core64admin`
+
+4. Validate login endpoint directly:
+
+```bash
+curl -X POST http://localhost:3000/api/auth/login \
+	-H "Content-Type: application/json" \
+	-d '{"password":"core64admin"}'
+```
+
+Expected:
+
+- `200` with token: password and backend are OK
+- `401` invalid credentials: wrong password
+- `500` admin is not initialized: run migrate + seed
+
 ## Smoke Check (Public + Admin)
 
 Run a one-shot smoke verification from project root:

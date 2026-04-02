@@ -184,6 +184,9 @@ const ADMIN_I18N = {
         authMissingMethod: "Помилка авторизації: відсутній метод adapter.",
         authInvalidPassword: "Невірний пароль",
         authGenericFailed: "Помилка авторизації. Спробуйте ще раз.",
+        authAdminNotInitialized: "Адмін-користувач не ініціалізований. Виконайте міграції та seed для backend.",
+        authNetworkFailed: "Не вдалося з'єднатися з API. Перевірте, що backend запущений і CORS налаштований.",
+        authApiRejected: "Авторизацію відхилено API: {details}",
         settingsPendingNone: "Відкладених повідомлень немає",
         settingsPendingCount: "Відкладених повідомлень: {count}",
         settingsToastDismissHint: "Натисніть Enter, пробіл або Escape, щоб закрити",
@@ -337,6 +340,9 @@ const ADMIN_I18N = {
         authMissingMethod: "Authorization error: missing adapter method.",
         authInvalidPassword: "Invalid password",
         authGenericFailed: "Authorization failed. Please try again.",
+        authAdminNotInitialized: "Admin user is not initialized. Run backend migrations and seed.",
+        authNetworkFailed: "Unable to reach API. Verify backend is running and CORS is configured.",
+        authApiRejected: "API rejected authorization: {details}",
         settingsPendingNone: "No queued messages",
         settingsPendingCount: "Queued messages: {count}",
         settingsToastDismissHint: "Press Enter, Space, or Escape to close",
@@ -402,6 +408,30 @@ function tAdminFormat(key, params = {}) {
         template = template.replaceAll(`{${paramKey}}`, String(value));
     });
     return template;
+}
+
+function resolveLoginErrorMessage(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
+    const details = String(error && error.message ? error.message : "").trim();
+
+    if (code === "AUTH_ADMIN_NOT_INITIALIZED") {
+        return tAdmin("authAdminNotInitialized");
+    }
+
+    if (code === "API_NETWORK_ERROR") {
+        return tAdmin("authNetworkFailed");
+    }
+
+    if (status === 401) {
+        return tAdmin("authInvalidPassword");
+    }
+
+    if (status >= 400 && details) {
+        return tAdminFormat("authApiRejected", { details });
+    }
+
+    return tAdmin("authGenericFailed");
 }
 
 function applyAdminStaticTranslations() {
@@ -2328,7 +2358,7 @@ async function handleLogin(e) {
             console.error("Login failed", error);
             return;
         }
-        errorEl.textContent = tAdmin("authGenericFailed");
+        errorEl.textContent = resolveLoginErrorMessage(error);
         errorEl.classList.remove("hidden");
         console.error("Login failed", error);
     }
