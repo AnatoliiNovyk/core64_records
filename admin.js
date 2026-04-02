@@ -138,6 +138,7 @@ const ADMIN_I18N = {
         saveMissingAdapter: "Не вдалося виконати збереження: відсутній метод adapter.",
         saveRecordFailedDetails: "Не вдалося зберегти запис: {details}",
         saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
+        saveRecordDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте зберегти запис пізніше.",
         activityUpdated: "Оновлено {type}: {name}",
         activityAdded: "Додано {type}: {name}",
         deleteConfirm: "Ви впевнені, що хочете видалити цей запис?",
@@ -296,6 +297,7 @@ const ADMIN_I18N = {
         saveMissingAdapter: "Failed to save: adapter method is missing.",
         saveRecordFailedDetails: "Failed to save record: {details}",
         saveRecordFailed: "Failed to save record. Check data and try again.",
+        saveRecordDatabaseUnavailable: "Database is temporarily unavailable. Please try to save again later.",
         activityUpdated: "Updated {type}: {name}",
         activityAdded: "Added {type}: {name}",
         deleteConfirm: "Are you sure you want to delete this record?",
@@ -444,6 +446,22 @@ function resolveLoginErrorMessage(error) {
     }
 
     return tAdmin("authGenericFailed");
+}
+
+function resolveCrudSaveErrorMessage(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
+    const details = String(error && error.message ? error.message : "").trim();
+
+    if (code === "DB_UNAVAILABLE" || status === 503) {
+        return tAdmin("saveRecordDatabaseUnavailable");
+    }
+
+    if (details) {
+        return tAdminFormat("saveRecordFailedDetails", { details });
+    }
+
+    return tAdmin("saveRecordFailed");
 }
 
 function applyAdminStaticTranslations() {
@@ -4913,10 +4931,7 @@ if (modalFormEl && modalFormEl.isConnected) {
             if (currentSection !== sectionAtSubmit) return;
             const sectionEl = document.getElementById(`section-${sectionAtSubmit}`);
             if (!sectionEl || !sectionEl.isConnected) return;
-            const details = error && typeof error.message === "string" ? error.message.trim() : "";
-            const message = details
-                ? tAdminFormat("saveRecordFailedDetails", { details })
-                : tAdmin("saveRecordFailed");
+            const message = resolveCrudSaveErrorMessage(error);
             alert(message);
         }
         });
