@@ -287,7 +287,7 @@ jobs:
           export CORS_ORIGIN
 
           echo "DATABASE_URL policy verdict (strict mode, safe metadata):"
-          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs --strict
+          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs --strict --emit-remediation-command
 
           echo "DATABASE_URL target snapshot (safe metadata):"
           DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict

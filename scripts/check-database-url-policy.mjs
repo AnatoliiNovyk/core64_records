@@ -3,11 +3,28 @@
 import { pathToFileURL } from "node:url";
 
 const strict = process.argv.includes("--strict");
+const emitRemediationCommand = process.argv.includes("--emit-remediation-command");
 const value = String(process.env.DATABASE_URL_VALUE || "");
 
 function done(payload, code = 0) {
   console.log(JSON.stringify(payload, null, 2));
   if (code !== 0) process.exit(code);
+}
+
+function printPoolerSslmodeRemediation(payload) {
+  if (!payload || payload.valid) return;
+  if (payload.reason !== "unsupported_sslmode_for_pooler_endpoint") return;
+
+  const append = String(payload.remediation?.append || "");
+  if (!append) return;
+
+  const projectId = process.env.GCP_PROJECT_ID || "<gcp-project-id>";
+  const secretName = process.env.DATABASE_URL_SECRET_NAME || "DATABASE_URL";
+
+  console.error("Remediation command (safe; does not print secret value):");
+  console.error(`CURRENT_DATABASE_URL=\"$(gcloud secrets versions access latest --project \"${projectId}\" --secret \"${secretName}\")\"`);
+  console.error(`UPDATED_DATABASE_URL=\"${"${CURRENT_DATABASE_URL}"}${append}\"`);
+  console.error(`printf '%s' \"${"${UPDATED_DATABASE_URL}"}\" | gcloud secrets versions add \"${secretName}\" --project \"${projectId}\" --data-file=-`);
 }
 
 export function evaluateDatabaseUrlPolicy(raw) {
@@ -106,5 +123,8 @@ const invokedAsScript = process.argv[1] && pathToFileURL(process.argv[1]).href =
 
 if (invokedAsScript) {
   const result = evaluateDatabaseUrlPolicy(value);
+  if (emitRemediationCommand && strict && !result.valid) {
+    printPoolerSslmodeRemediation(result);
+  }
   done(result, strict && !result.valid ? 1 : 0);
 }
