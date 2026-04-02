@@ -110,6 +110,11 @@ on:
         required: false
         default: "10000"
         type: string
+      auto_fix_pooler_sslmode:
+        description: Auto-fix DATABASE_URL pooler sslmode in Secret Manager before strict validation (true/false)
+        required: false
+        default: "false"
+        type: string
       require_release_owner_assignments:
         description: Require RELEASE_OWNERS_AND_ESCALATION.md to have real names (true/false)
         required: false
@@ -161,6 +166,7 @@ jobs:
           DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
           DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
           DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
+          AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
           REQUIRE_RELEASE_OWNER_ASSIGNMENTS: ${{ github.event.inputs.require_release_owner_assignments }}
         run: |
           if [ -z "$CORS_ORIGIN" ]; then
@@ -185,7 +191,7 @@ jobs:
             exit 1
           fi
 
-          for flag in "$RUN_DB_MIGRATE" "$RUN_DB_SEED" "$RUN_POST_DEPLOY_SMOKE" "$CORE64_SMOKE_CONTACT"; do
+          for flag in "$RUN_DB_MIGRATE" "$RUN_DB_SEED" "$RUN_POST_DEPLOY_SMOKE" "$CORE64_SMOKE_CONTACT" "$AUTO_FIX_POOLER_SSLMODE"; do
             if [ "$flag" != "true" ] && [ "$flag" != "false" ]; then
               echo "Boolean inputs must be 'true' or 'false'"
               exit 1
@@ -271,6 +277,7 @@ jobs:
           DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
           DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
           DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
+          AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
         run: |
           export NODE_ENV=production
           export DB_SSL=true
@@ -285,6 +292,22 @@ jobs:
           export ADMIN_PASSWORD=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$ADMIN_PASSWORD_SECRET_NAME")
           export CONTACT_CAPTCHA_PROVIDER
           export CORS_ORIGIN
+
+          if [ "$AUTO_FIX_POOLER_SSLMODE" = "true" ]; then
+            echo "Checking DATABASE_URL for optional pooler sslmode auto-remediation..."
+            POLICY_JSON=$(DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs)
+            POLICY_VALID=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(Boolean(p.valid)));});")
+            POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
+
+            if [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
+              UPDATED_DATABASE_URL=$(node -e 'const u=new URL(process.argv[1]);u.searchParams.set("sslmode","require");process.stdout.write(u.toString());' "$DATABASE_URL")
+              if [ "$UPDATED_DATABASE_URL" != "$DATABASE_URL" ]; then
+                printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "$DATABASE_URL_SECRET_NAME" --project "$GCP_PROJECT_ID" --data-file=- >/dev/null
+                DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+                echo "Applied pooler sslmode auto-remediation to DATABASE_URL secret."
+              fi
+            fi
+          fi
 
           echo "DATABASE_URL policy verdict (strict mode, safe metadata):"
           DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs --strict --emit-remediation-command
