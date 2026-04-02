@@ -349,6 +349,7 @@ pwsh -File scripts/pre-release-gate-local.ps1
 
 This local gate runs:
 
+- `scripts/test-print-db-target-snapshot.mjs`
 - `scripts/smoke-check.mjs`
 - `scripts/verify-branch-protection.ps1`
 
