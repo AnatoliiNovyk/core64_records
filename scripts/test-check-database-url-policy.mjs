@@ -67,6 +67,17 @@ function main() {
   expect(poolerNoSslCase.code === 1, `pooler-missing-sslmode: expected exit 1, got ${poolerNoSslCase.code}`);
   const poolerNoSslJson = parseJson(poolerNoSslCase.stdout, "pooler-missing-sslmode");
   expect(poolerNoSslJson.reason === "missing_sslmode_require_for_pooler_endpoint", "pooler-missing-sslmode: reason mismatch");
+  expect(poolerNoSslJson.remediation?.append === "?sslmode=require", "pooler-missing-sslmode: remediation append mismatch");
+
+  const poolerNoSslWithQueryCase = runCase(
+    "pooler-missing-sslmode-with-query",
+    "postgresql://user:pass@aws-1-eu-west-1.pooler.supabase.com:6543/postgres?pgbouncer=true",
+    true
+  );
+  expect(poolerNoSslWithQueryCase.code === 1, `pooler-missing-sslmode-with-query: expected exit 1, got ${poolerNoSslWithQueryCase.code}`);
+  const poolerNoSslWithQueryJson = parseJson(poolerNoSslWithQueryCase.stdout, "pooler-missing-sslmode-with-query");
+  expect(poolerNoSslWithQueryJson.reason === "missing_sslmode_require_for_pooler_endpoint", "pooler-missing-sslmode-with-query: reason mismatch");
+  expect(poolerNoSslWithQueryJson.remediation?.append === "&sslmode=require", "pooler-missing-sslmode-with-query: remediation append mismatch");
 
   console.log("check-database-url-policy self-test PASSED");
 }

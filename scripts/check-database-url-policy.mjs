@@ -66,10 +66,15 @@ export function evaluateDatabaseUrlPolicy(raw) {
   const isPooler = host.includes(".pooler.") || host.endsWith(".pooler.supabase.com");
 
   if (isPooler && sslmode !== "require") {
+    const append = (url.search || "").length > 0 ? "&sslmode=require" : "?sslmode=require";
     return {
       valid: false,
       reason: "missing_sslmode_require_for_pooler_endpoint",
-      hint: "DATABASE_URL points to a pooler endpoint but sslmode is not 'require'. Add ?sslmode=require to the connection string.",
+      hint: `DATABASE_URL points to a pooler endpoint but sslmode is not 'require'. Append '${append}' to the connection string.`,
+      remediation: {
+        action: "append_sslmode_require",
+        append
+      },
       snapshot: {
         protocol: url.protocol.replace(":", "") || null,
         host: url.hostname || null,
