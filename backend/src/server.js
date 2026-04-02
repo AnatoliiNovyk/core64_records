@@ -43,9 +43,38 @@ app.get("/admin", (_req, res) => {
   res.sendFile(path.join(publicDir, "admin.html"));
 });
 
+const isDatabaseConnectivityError = (error) => {
+  if (!error) return false;
+
+  const code = String(error.code || "").trim().toUpperCase();
+  if (["ECONNREFUSED", "ETIMEDOUT", "ENOTFOUND", "SELF_SIGNED_CERT_IN_CHAIN"].includes(code)) {
+    return true;
+  }
+
+  // PostgreSQL SQLSTATE class 08 = connection exception.
+  if (/^08[A-Z0-9]{3}$/.test(code)) {
+    return true;
+  }
+
+  const message = String(error.message || "").toLowerCase();
+  if (message.includes("timeout") || message.includes("certificate") || message.includes("connection") || message.includes("could not connect")) {
+    return true;
+  }
+
+  return false;
+};
+
 app.use((error, _req, res, _next) => {
   if (error instanceof ZodError) {
     return res.status(400).json({ error: "Validation failed", details: error.flatten() });
+  }
+
+  if (isDatabaseConnectivityError(error)) {
+    console.error("Database unavailable", error);
+    return res.status(503).json({
+      code: "DB_UNAVAILABLE",
+      error: "Database is unavailable"
+    });
   }
 
   console.error(error);

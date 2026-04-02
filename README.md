@@ -118,6 +118,7 @@ node scripts/smoke-check.mjs
 The script checks:
 
 - `/api/health`
+- `/api/health/db` (database connectivity)
 - `/api/public` payload quality (missing media, `static.photos`, bad release links)
 - admin auth flow (`/api/auth/login`, `/api/auth/me`, `/api/settings`)
 
