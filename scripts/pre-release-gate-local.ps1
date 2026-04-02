@@ -74,19 +74,25 @@ if ($LASTEXITCODE -ne 0) {
     throw "DATABASE_URL policy helper self-test failed."
 }
 
-Write-Host "[3/6] Running Cloud Run network hint helper self-test..."
+Write-Host "[3/7] Running DATABASE_URL pooler sslmode helper self-test..."
+node scripts/test-set-database-url-pooler-sslmode.mjs
+if ($LASTEXITCODE -ne 0) {
+    throw "DATABASE_URL pooler sslmode helper self-test failed."
+}
+
+Write-Host "[4/7] Running Cloud Run network hint helper self-test..."
 node scripts/test-print-cloud-run-network-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run network hint helper self-test failed."
 }
 
-Write-Host "[4/6] Running Cloud Run DB route verdict helper self-test..."
+Write-Host "[5/7] Running Cloud Run DB route verdict helper self-test..."
 node scripts/test-print-cloud-run-db-route-verdict.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run DB route verdict helper self-test failed."
 }
 
-Write-Host "[5/6] Running smoke check..."
+Write-Host "[6/7] Running smoke check..."
 $env:CORE64_API_BASE = $Core64ApiBase
 $env:CORE64_ADMIN_PASSWORD = $Core64AdminPassword
 $env:CORE64_SMOKE_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
@@ -97,7 +103,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Smoke check failed."
 }
 
-Write-Host "[6/6] Running branch protection policy verification..."
+Write-Host "[7/7] Running branch protection policy verification..."
 & pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
     -Owner $Owner `
     -Repo $Repo `

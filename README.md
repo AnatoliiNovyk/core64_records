@@ -256,6 +256,7 @@ It runs both checks in one run and returns a single release verdict:
 - branch protection policy verification (`scripts/verify-branch-protection.ps1`)
 - DB snapshot helper self-test (`scripts/test-print-db-target-snapshot.mjs`)
 - DATABASE_URL policy helper self-test (`scripts/test-check-database-url-policy.mjs`)
+- DATABASE_URL pooler sslmode helper self-test (`scripts/test-set-database-url-pooler-sslmode.mjs`)
 - Cloud Run network hint helper self-test (`scripts/test-print-cloud-run-network-hint.mjs`)
 - Cloud Run DB route verdict helper self-test (`scripts/test-print-cloud-run-db-route-verdict.mjs`)
 
@@ -365,6 +366,7 @@ This local gate runs:
 
 - `scripts/test-print-db-target-snapshot.mjs`
 - `scripts/test-check-database-url-policy.mjs`
+- `scripts/test-set-database-url-pooler-sslmode.mjs`
 - `scripts/test-print-cloud-run-network-hint.mjs`
 - `scripts/test-print-cloud-run-db-route-verdict.mjs`
 - `scripts/smoke-check.mjs`

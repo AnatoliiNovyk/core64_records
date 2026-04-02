@@ -300,7 +300,7 @@ jobs:
             POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
 
             if [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
-              UPDATED_DATABASE_URL=$(node -e 'const u=new URL(process.argv[1]);u.searchParams.set("sslmode","require");process.stdout.write(u.toString());' "$DATABASE_URL")
+              UPDATED_DATABASE_URL=$(DATABASE_URL_VALUE="$DATABASE_URL" DB_POOLER_SSLMODE=require node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)
               if [ "$UPDATED_DATABASE_URL" != "$DATABASE_URL" ]; then
                 printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "$DATABASE_URL_SECRET_NAME" --project "$GCP_PROJECT_ID" --data-file=- >/dev/null
                 VERIFIED_DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
