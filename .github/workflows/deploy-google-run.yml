@@ -421,3 +421,36 @@ jobs:
 
           echo "Post-deploy smoke-check failed after $RETRIES attempts."
           exit 1
+
+      - name: Collect diagnostics after smoke failure
+        if: ${{ failure() && github.event.inputs.run_post_deploy_smoke == 'true' }}
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+        run: |
+          set +e
+
+          SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
+          REVISION=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.latestReadyRevisionName)')
+
+          echo "Diagnostic: service URL = $SERVICE_URL"
+          echo "Diagnostic: latest ready revision = $REVISION"
+
+          if [ -n "$SERVICE_URL" ]; then
+            echo "Diagnostic: GET $SERVICE_URL/api/health"
+            curl -sS -i "$SERVICE_URL/api/health" || true
+
+            echo "Diagnostic: GET $SERVICE_URL/api/health/db"
+            curl -sS -i "$SERVICE_URL/api/health/db" || true
+          fi
+
+          if [ -n "$REVISION" ]; then
+            echo "Diagnostic: recent Cloud Run logs for revision $REVISION"
+            gcloud logging read \
+              "resource.type=cloud_run_revision AND resource.labels.service_name=$SERVICE_NAME AND resource.labels.revision_name=$REVISION" \
+              --project "$GCP_PROJECT_ID" \
+              --limit 80 \
+              --order desc \
+              --format='value(timestamp,severity,textPayload,jsonPayload.message)' || true
+          fi
