@@ -22,7 +22,7 @@ function printPoolerSslmodeRemediation(payload) {
 
   console.error("Remediation command (safe; does not print secret value):");
   console.error(`CURRENT_DATABASE_URL=\"$(gcloud secrets versions access latest --project \"${projectId}\" --secret \"${secretName}\")\"`);
-  console.error(`UPDATED_DATABASE_URL=\"$(node -e \"const u=new URL(process.argv[1]);u.searchParams.set('sslmode','${targetSslmode}');console.log(u.toString());\" \"${"${CURRENT_DATABASE_URL}"}\")\"`);
+  console.error(`UPDATED_DATABASE_URL=\"$(node -e 'const u=new URL(process.argv[1]);u.searchParams.set("sslmode","${targetSslmode}");console.log(u.toString());' \"${"${CURRENT_DATABASE_URL}"}\")\"`);
   console.error(`printf '%s' \"${"${UPDATED_DATABASE_URL}"}\" | gcloud secrets versions add \"${secretName}\" --project \"${projectId}\" --data-file=-`);
 }
 
