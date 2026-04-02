@@ -280,6 +280,7 @@ It runs as manual deployment (`workflow_dispatch`) and performs:
 - post-failure diagnostics include Cloud Run networking annotations to inspect VPC/egress configuration during DB timeouts
 - runtime config validation logs a safe DATABASE_URL target snapshot (protocol/host/port/database/sslmode only, no credentials)
 - post-failure diagnostics also log the same safe DATABASE_URL target snapshot to correlate failed revision with DB endpoint metadata
+- safe snapshot generation is centralized in `scripts/print-db-target-snapshot.mjs`
 
 Required repository secret:
 

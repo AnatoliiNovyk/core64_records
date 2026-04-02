@@ -308,7 +308,7 @@ jobs:
           fi
 
           echo "DATABASE_URL target snapshot (safe metadata):"
-          DATABASE_URL_VALUE="$DATABASE_URL" node -e "const v=process.env.DATABASE_URL_VALUE||''; try { const u=new URL(v); const db=(u.pathname||'').replace(/^\//,'')||null; const sslmode=u.searchParams.get('sslmode'); console.log(JSON.stringify({ protocol:u.protocol.replace(':',''), host:u.hostname||null, port:u.port||null, database:db, sslmode:sslmode||null }, null, 2)); } catch { console.log('{\"databaseUrlParse\":\"failed\"}'); process.exit(1); }"
+          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict
 
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             export CONTACT_CAPTCHA_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$CONTACT_CAPTCHA_SECRET_NAME")
@@ -490,7 +490,7 @@ jobs:
           DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
           if [ -n "$DATABASE_URL" ]; then
             echo "Diagnostic: DATABASE_URL target snapshot (safe metadata)"
-            DATABASE_URL_VALUE="$DATABASE_URL" node -e "const v=process.env.DATABASE_URL_VALUE||''; try { const u=new URL(v); const db=(u.pathname||'').replace(/^\//,'')||null; const sslmode=u.searchParams.get('sslmode'); console.log(JSON.stringify({ protocol:u.protocol.replace(':',''), host:u.hostname||null, port:u.port||null, database:db, sslmode:sslmode||null }, null, 2)); } catch { console.log('{\"databaseUrlParse\":\"failed\"}'); }"
+            DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs
           fi
 
           if [ -n "$SERVICE_URL" ]; then
