@@ -219,6 +219,7 @@ jobs:
           POLICY_JSON=$(DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs)
           POLICY_VALID=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(Boolean(p.valid)));});")
           POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
+          DATABASE_URL_POLICY_ARGS=(--strict --emit-remediation-command)
 
           if [ "$AUTO_FIX_POOLER_SSLMODE" = "true" ]; then
             echo "Checking DATABASE_URL for optional pooler sslmode auto-remediation..."
@@ -247,7 +248,11 @@ jobs:
             echo "CURRENT_DATABASE_URL=\"\$(gcloud secrets versions access latest --project \"$GCP_PROJECT_ID\" --secret \"$DATABASE_URL_SECRET_NAME\")\""
             echo "UPDATED_DATABASE_URL=\"\$(DATABASE_URL_VALUE=\"\$CURRENT_DATABASE_URL\" DB_POOLER_SSLMODE=\"require\" node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)\""
             echo "printf '%s' \"\$UPDATED_DATABASE_URL\" | gcloud secrets versions add \"$DATABASE_URL_SECRET_NAME\" --project \"$GCP_PROJECT_ID\" --data-file=-"
+            DATABASE_URL_POLICY_ARGS=(--strict)
           fi
+
+          echo "DATABASE_URL policy verdict (strict mode, safe metadata):"
+          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs "${DATABASE_URL_POLICY_ARGS[@]}"
 
           SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)
           if [ -z "$SERVICE_JSON" ]; then

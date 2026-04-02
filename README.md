@@ -335,6 +335,7 @@ It runs as manual rollback (`workflow_dispatch`) and performs:
 - post-failure rollback diagnostics include safe DATABASE_URL target snapshot and Cloud Run networking annotations
 - post-failure rollback diagnostics also include a structured Cloud Run network routing hint from `scripts/print-cloud-run-network-hint.mjs`
 - pre-smoke rollback gate runs strict DB route compatibility verdict (`scripts/print-cloud-run-db-route-verdict.mjs --strict`) before retries (including pooler sslmode validation: `require`, `verify-ca`, `verify-full`)
+- pre-smoke rollback gate also prints strict DATABASE_URL policy verdict from `scripts/check-database-url-policy.mjs` (safe metadata, with remediation command output unless already printed in the manual-tip block)
 
 Required repository secret:
 
