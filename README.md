@@ -345,6 +345,13 @@ UPDATED_DATABASE_URL="$(DATABASE_URL_VALUE="$CURRENT_DATABASE_URL" DB_POOLER_SSL
 printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "DATABASE_URL" --project "core64records" --data-file=-
 ```
 
+Verify the latest secret passes strict policy before rerun:
+
+```bash
+DATABASE_URL_VALUE="$(gcloud secrets versions access latest --project "core64records" --secret "DATABASE_URL")" \
+  node scripts/check-database-url-policy.mjs --strict
+```
+
 After updating the secret, re-run deploy.
 
 ## CI Rollback Google Run
