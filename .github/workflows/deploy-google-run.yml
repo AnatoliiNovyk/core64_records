@@ -320,6 +320,10 @@ jobs:
           elif [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
             echo "Tip: detected unsupported pooler sslmode while auto_fix_pooler_sslmode=false."
             echo "Tip: re-run this workflow with input auto_fix_pooler_sslmode=true, or update DATABASE_URL secret manually before strict validation."
+            echo "Manual remediation commands (safe; do not print secret value):"
+            echo "CURRENT_DATABASE_URL=\"\$(gcloud secrets versions access latest --project \"$GCP_PROJECT_ID\" --secret \"$DATABASE_URL_SECRET_NAME\")\""
+            echo "UPDATED_DATABASE_URL=\"\$(DATABASE_URL_VALUE=\"\$CURRENT_DATABASE_URL\" DB_POOLER_SSLMODE=\"require\" node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)\""
+            echo "printf '%s' \"\$UPDATED_DATABASE_URL\" | gcloud secrets versions add \"$DATABASE_URL_SECRET_NAME\" --project \"$GCP_PROJECT_ID\" --data-file=-"
           fi
 
           echo "DATABASE_URL policy verdict (strict mode, safe metadata):"

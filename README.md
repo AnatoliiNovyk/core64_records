@@ -315,6 +315,7 @@ Useful deploy inputs:
 - `db_statement_timeout_ms` (default `10000`)
 - `auto_fix_pooler_sslmode` (default `false`) - if `true`, deploy may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict validation and verifies the updated latest secret value (enable via workflow_dispatch input when triggering the run)
   - requires Secret Manager write permission for the workflow identity (for example `roles/secretmanager.secretVersionAdder` on the target secret)
+  - when `false` and strict policy detects unsupported pooler sslmode, workflow logs include copy-ready manual remediation commands using `scripts/set-database-url-pooler-sslmode.mjs`
 - `require_release_owner_assignments` (default `true`)
 
 Note: deploy workflow runs smoke in `health` mode (`CORE64_SMOKE_MODE=health`).
@@ -345,6 +346,7 @@ Useful rollback inputs:
 - `database_url_secret_name` (default `DATABASE_URL`)
 - `auto_fix_pooler_sslmode` (default `false`) - if `true`, rollback may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict pre-smoke verdict (enable via workflow_dispatch input when triggering the run)
   - requires Secret Manager write permission for the workflow identity (for example `roles/secretmanager.secretVersionAdder` on the target secret)
+  - when `false` and strict policy detects unsupported pooler sslmode, workflow logs include copy-ready manual remediation commands using `scripts/set-database-url-pooler-sslmode.mjs`
 - `core64_smoke_timeout_ms` (default `15000`)
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `false`)
