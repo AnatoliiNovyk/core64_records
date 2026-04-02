@@ -303,8 +303,14 @@ jobs:
               UPDATED_DATABASE_URL=$(node -e 'const u=new URL(process.argv[1]);u.searchParams.set("sslmode","require");process.stdout.write(u.toString());' "$DATABASE_URL")
               if [ "$UPDATED_DATABASE_URL" != "$DATABASE_URL" ]; then
                 printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "$DATABASE_URL_SECRET_NAME" --project "$GCP_PROJECT_ID" --data-file=- >/dev/null
-                DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
-                echo "Applied pooler sslmode auto-remediation to DATABASE_URL secret."
+                VERIFIED_DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+                if [ "$VERIFIED_DATABASE_URL" = "$UPDATED_DATABASE_URL" ]; then
+                  DATABASE_URL="$VERIFIED_DATABASE_URL"
+                  echo "Applied pooler sslmode auto-remediation to DATABASE_URL secret."
+                else
+                  echo "Failed to verify DATABASE_URL secret update after remediation"
+                  exit 1
+                fi
               fi
             fi
           fi
