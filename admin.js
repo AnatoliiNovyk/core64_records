@@ -443,6 +443,10 @@ function resolveLoginErrorMessage(error) {
         return tAdmin("authInvalidPassword");
     }
 
+    if (Number.isFinite(status) && status >= 500) {
+        return tAdmin("authServiceUnavailable");
+    }
+
     if (status >= 400 && details) {
         return tAdminFormat("authApiRejected", { details });
     }
@@ -458,9 +462,14 @@ function isDatabaseUnavailableError(error) {
 
 function resolveCrudSaveErrorMessage(error) {
     const details = String(error && error.message ? error.message : "").trim();
+    const status = Number(error && error.status);
 
     if (isDatabaseUnavailableError(error)) {
         return tAdmin("saveRecordDatabaseUnavailable");
+    }
+
+    if (Number.isFinite(status) && status >= 500) {
+        return tAdmin("saveRecordFailed");
     }
 
     if (details) {
