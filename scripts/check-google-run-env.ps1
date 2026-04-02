@@ -63,6 +63,24 @@ if (-not [string]::IsNullOrWhiteSpace($corsOrigin) -and $corsOrigin.Contains("*"
     $errors.Add("CORS_ORIGIN must not include wildcard '*' for production")
 }
 
+$databaseUrl = [string](Get-Item -Path "Env:DATABASE_URL" -ErrorAction SilentlyContinue).Value
+if (-not [string]::IsNullOrWhiteSpace($databaseUrl)) {
+    try {
+        $dbUri = [Uri]::new($databaseUrl.Trim())
+        $dbHost = $dbUri.Host.ToLowerInvariant()
+        $dbQuery = [string]$dbUri.Query
+        $sslModeMatch = [regex]::Match($dbQuery, '(?i)(?:^\?|&)sslmode=([^&]+)')
+        $sslMode = if ($sslModeMatch.Success) { $sslModeMatch.Groups[1].Value.ToLowerInvariant() } else { "" }
+
+        if (($dbHost.Contains('.pooler.') -or $dbHost.EndsWith('.pooler.supabase.com')) -and $sslMode -ne 'require') {
+            $errors.Add("DATABASE_URL policy: pooler endpoints require sslmode=require")
+        }
+    }
+    catch {
+        $errors.Add("DATABASE_URL is not a valid URI")
+    }
+}
+
 $dbTimeoutVars = @(
     "DB_CONNECTION_TIMEOUT_MS",
     "DB_QUERY_TIMEOUT_MS",
