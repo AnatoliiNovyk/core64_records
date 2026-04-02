@@ -287,35 +287,11 @@ jobs:
           export CONTACT_CAPTCHA_PROVIDER
           export CORS_ORIGIN
 
-          if [ -z "$DATABASE_URL" ]; then
-            echo "DATABASE_URL secret is empty"
-            exit 1
-          fi
-
-          if [[ "$DATABASE_URL" =~ ^[\"\'].*[\"\']$ ]]; then
-            echo "DATABASE_URL must not be wrapped in quotes"
-            exit 1
-          fi
-
-          if [[ "$DATABASE_URL" =~ [[:space:]] ]]; then
-            echo "DATABASE_URL must not contain whitespace characters"
-            exit 1
-          fi
-
-          if [[ "$DATABASE_URL" != postgres://* && "$DATABASE_URL" != postgresql://* ]]; then
-            echo "DATABASE_URL must start with postgres:// or postgresql://"
-            exit 1
-          fi
+          echo "DATABASE_URL policy verdict (strict mode, safe metadata):"
+          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs --strict
 
           echo "DATABASE_URL target snapshot (safe metadata):"
           DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict
-
-          if DATABASE_URL_VALUE="$DATABASE_URL" node -e "const u=new URL(process.env.DATABASE_URL_VALUE); const h=(u.hostname||'').toLowerCase(); const s=(u.searchParams.get('sslmode')||'').toLowerCase(); process.exit((h.includes('.pooler.') || h.endsWith('.pooler.supabase.com')) && s!=='require' ? 1 : 0)"; then
-            echo "DATABASE_URL policy check passed."
-          else
-            echo "DATABASE_URL policy check failed: pooler endpoints require sslmode=require"
-            exit 1
-          fi
 
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             export CONTACT_CAPTCHA_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$CONTACT_CAPTCHA_SECRET_NAME")

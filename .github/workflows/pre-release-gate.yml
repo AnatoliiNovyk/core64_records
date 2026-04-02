@@ -114,6 +114,9 @@ jobs:
       - name: Validate DB snapshot helper
         run: node scripts/test-print-db-target-snapshot.mjs
 
+      - name: Validate DATABASE_URL policy helper
+        run: node scripts/test-check-database-url-policy.mjs
+
       - name: Validate Cloud Run network hint helper
         run: node scripts/test-print-cloud-run-network-hint.mjs
 

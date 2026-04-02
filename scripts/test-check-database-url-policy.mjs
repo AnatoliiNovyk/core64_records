@@ -1,0 +1,74 @@
+#!/usr/bin/env node
+
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const targetScript = path.resolve(__dirname, "./check-database-url-policy.mjs");
+
+function runCase(name, databaseUrl, strict = false) {
+  const args = [targetScript];
+  if (strict) args.push("--strict");
+
+  const result = spawnSync(process.execPath, args, {
+    env: {
+      ...process.env,
+      DATABASE_URL_VALUE: databaseUrl
+    },
+    encoding: "utf8"
+  });
+
+  return {
+    name,
+    code: result.status ?? 1,
+    stdout: String(result.stdout || "").trim()
+  };
+}
+
+function expect(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function parseJson(output, caseName) {
+  try {
+    return JSON.parse(output);
+  } catch {
+    throw new Error(`${caseName}: output is not valid JSON: ${output}`);
+  }
+}
+
+function main() {
+  const okCase = runCase(
+    "valid-url",
+    "postgresql://user:pass@db.example.com:5432/core64?sslmode=require",
+    true
+  );
+  expect(okCase.code === 0, `valid-url: expected exit 0, got ${okCase.code}`);
+  const okJson = parseJson(okCase.stdout, "valid-url");
+  expect(okJson.valid === true, "valid-url: expected valid true");
+
+  const emptyCase = runCase("empty", "", true);
+  expect(emptyCase.code === 1, `empty: expected exit 1, got ${emptyCase.code}`);
+  const emptyJson = parseJson(emptyCase.stdout, "empty");
+  expect(emptyJson.reason === "empty", "empty: reason mismatch");
+
+  const invalidProtocolCase = runCase("invalid-protocol", "mysql://user:pass@db.example.com/core64", true);
+  expect(invalidProtocolCase.code === 1, `invalid-protocol: expected exit 1, got ${invalidProtocolCase.code}`);
+  const invalidProtocolJson = parseJson(invalidProtocolCase.stdout, "invalid-protocol");
+  expect(invalidProtocolJson.reason === "invalid_protocol", "invalid-protocol: reason mismatch");
+
+  const poolerNoSslCase = runCase(
+    "pooler-missing-sslmode",
+    "postgresql://user:pass@aws-1-eu-west-1.pooler.supabase.com:6543/postgres",
+    true
+  );
+  expect(poolerNoSslCase.code === 1, `pooler-missing-sslmode: expected exit 1, got ${poolerNoSslCase.code}`);
+  const poolerNoSslJson = parseJson(poolerNoSslCase.stdout, "pooler-missing-sslmode");
+  expect(poolerNoSslJson.reason === "missing_sslmode_require_for_pooler_endpoint", "pooler-missing-sslmode: reason mismatch");
+
+  console.log("check-database-url-policy self-test PASSED");
+}
+
+main();
