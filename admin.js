@@ -186,6 +186,7 @@ const ADMIN_I18N = {
         authGenericFailed: "Помилка авторизації. Спробуйте ще раз.",
         authAdminNotInitialized: "Адмін-користувач не ініціалізований. Виконайте міграції та seed для backend.",
         authNetworkFailed: "Не вдалося з'єднатися з API. Перевірте, що backend запущений і CORS налаштований.",
+        authServiceUnavailable: "Сервіс авторизації тимчасово недоступний. Перевірте підключення backend до бази даних.",
         authApiRejected: "Авторизацію відхилено API: {details}",
         settingsPendingNone: "Відкладених повідомлень немає",
         settingsPendingCount: "Відкладених повідомлень: {count}",
@@ -342,6 +343,7 @@ const ADMIN_I18N = {
         authGenericFailed: "Authorization failed. Please try again.",
         authAdminNotInitialized: "Admin user is not initialized. Run backend migrations and seed.",
         authNetworkFailed: "Unable to reach API. Verify backend is running and CORS is configured.",
+        authServiceUnavailable: "Authentication service is temporarily unavailable. Verify backend database connectivity.",
         authApiRejected: "API rejected authorization: {details}",
         settingsPendingNone: "No queued messages",
         settingsPendingCount: "Queued messages: {count}",
@@ -421,6 +423,10 @@ function resolveLoginErrorMessage(error) {
 
     if (code === "API_NETWORK_ERROR") {
         return tAdmin("authNetworkFailed");
+    }
+
+    if (code === "AUTH_SERVICE_UNAVAILABLE") {
+        return tAdmin("authServiceUnavailable");
     }
 
     if (status === 401) {
