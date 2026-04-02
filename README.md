@@ -325,6 +325,7 @@ GitHub Actions workflow is available at:
 It runs as manual rollback (`workflow_dispatch`) and performs:
 
 - traffic rollback to selected (or auto-detected previous) Cloud Run revision
+- fail-fast validation of required rollback secrets (`DATABASE_URL`, `ADMIN_PASSWORD`) before post-rollback smoke
 - optional post-rollback smoke-check against deployed service URL (health mode with retries)
 - post-failure rollback diagnostics include safe DATABASE_URL target snapshot and Cloud Run networking annotations
 - post-failure rollback diagnostics also include a structured Cloud Run network routing hint from `scripts/print-cloud-run-network-hint.mjs`
