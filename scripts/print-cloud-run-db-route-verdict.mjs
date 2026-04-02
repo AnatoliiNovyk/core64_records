@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { evaluateDatabaseUrlPolicy } from "./check-database-url-policy.mjs";
+
 const strict = process.argv.includes("--strict");
 const serviceRaw = String(process.env.CLOUD_RUN_SERVICE_JSON || "").trim();
 const dbUrlRaw = String(process.env.DATABASE_URL_VALUE || "").trim();
@@ -33,27 +35,6 @@ function parseService(raw) {
     };
   } catch {
     return { ok: false, error: "invalid_service_json" };
-  }
-}
-
-function parseDb(raw) {
-  if (!raw) {
-    return { ok: false, error: "missing_database_url" };
-  }
-
-  try {
-    const url = new URL(raw);
-    const database = (url.pathname || "").replace(/^\//, "") || null;
-    const sslmode = url.searchParams.get("sslmode");
-    return {
-      ok: true,
-      host: url.hostname || null,
-      port: url.port || null,
-      database,
-      sslmode: sslmode || null
-    };
-  } catch {
-    return { ok: false, error: "invalid_database_url" };
   }
 }
 
@@ -94,18 +75,6 @@ function classifyDbHost(host) {
 function evaluateRoute(serviceInfo, dbInfo, dbHostKind) {
   const hasConnector = Boolean(serviceInfo.vpcAccessConnector);
   const egress = serviceInfo.vpcAccessEgress;
-  const host = String(dbInfo.host || "").toLowerCase();
-  const sslmode = String(dbInfo.sslmode || "").toLowerCase();
-  const isSupabasePooler = host.endsWith(".pooler.supabase.com") || host.includes(".pooler.");
-
-  // Supabase pooler endpoints are expected to use TLS explicitly for predictable behavior.
-  if (isSupabasePooler && sslmode !== "require") {
-    return {
-      verdict: "incompatible",
-      reason: "missing_sslmode_require_for_pooler_endpoint",
-      hint: "DATABASE_URL points to a pooler endpoint but sslmode is not 'require'. Add ?sslmode=require to the connection string."
-    };
-  }
 
   if (!hasConnector && dbHostKind === "private-ip") {
     return {
@@ -139,9 +108,15 @@ function evaluateRoute(serviceInfo, dbInfo, dbHostKind) {
 }
 
 const serviceInfo = parseService(serviceRaw);
-const dbInfo = parseDb(dbUrlRaw);
+const dbPolicy = evaluateDatabaseUrlPolicy(dbUrlRaw);
+const dbInfo = {
+  host: dbPolicy.snapshot?.host || null,
+  port: dbPolicy.snapshot?.port || null,
+  database: dbPolicy.snapshot?.database || null,
+  sslmode: dbPolicy.snapshot?.sslmode || null
+};
 
-if (!serviceInfo.ok || !dbInfo.ok) {
+if (!serviceInfo.ok) {
   done(
     {
       cloudRun: {
@@ -151,20 +126,44 @@ if (!serviceInfo.ok || !dbInfo.ok) {
         vpcAccessEgress: serviceInfo.vpcAccessEgress || null
       },
       database: {
-        parse: dbInfo.ok ? "ok" : "failed",
-        error: dbInfo.ok ? null : dbInfo.error,
-        host: dbInfo.host || null,
-        port: dbInfo.port || null,
-        database: dbInfo.database || null,
-        sslmode: dbInfo.sslmode || null
+        parse: dbPolicy.valid ? "ok" : "failed",
+        error: dbPolicy.valid ? null : dbPolicy.reason,
+        host: dbInfo.host,
+        port: dbInfo.port,
+        database: dbInfo.database,
+        sslmode: dbInfo.sslmode
       },
-      dbHostKind: dbInfo.ok ? classifyDbHost(dbInfo.host) : "unknown",
+      dbHostKind: dbInfo.host ? classifyDbHost(dbInfo.host) : "unknown",
       routeVerdict: "unknown",
       reason: "insufficient_inputs",
       hint: "Could not parse Cloud Run service JSON or DATABASE_URL metadata."
     },
     strict ? 1 : 0
   );
+}
+
+if (!dbPolicy.valid) {
+  const dbHostKind = dbInfo.host ? classifyDbHost(dbInfo.host) : "unknown";
+  const payload = {
+    cloudRun: {
+      parse: "ok",
+      vpcAccessConnector: serviceInfo.vpcAccessConnector,
+      vpcAccessEgress: serviceInfo.vpcAccessEgress
+    },
+    database: {
+      parse: "failed",
+      error: dbPolicy.reason,
+      host: dbInfo.host,
+      port: dbInfo.port,
+      database: dbInfo.database,
+      sslmode: dbInfo.sslmode
+    },
+    dbHostKind,
+    routeVerdict: "incompatible",
+    reason: dbPolicy.reason,
+    hint: dbPolicy.hint
+  };
+  done(payload, strict ? 1 : 0);
 }
 
 const dbHostKind = classifyDbHost(dbInfo.host);

@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import { pathToFileURL } from "node:url";
+
 const strict = process.argv.includes("--strict");
 const value = String(process.env.DATABASE_URL_VALUE || "");
 
@@ -8,7 +10,7 @@ function done(payload, code = 0) {
   if (code !== 0) process.exit(code);
 }
 
-function evaluate(raw) {
+export function evaluateDatabaseUrlPolicy(raw) {
   const original = String(raw ?? "");
 
   if (!original) {
@@ -92,5 +94,9 @@ function evaluate(raw) {
   };
 }
 
-const result = evaluate(value);
-done(result, strict && !result.valid ? 1 : 0);
+const invokedAsScript = process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url;
+
+if (invokedAsScript) {
+  const result = evaluateDatabaseUrlPolicy(value);
+  done(result, strict && !result.valid ? 1 : 0);
+}
