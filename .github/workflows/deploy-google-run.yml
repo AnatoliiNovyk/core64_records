@@ -302,7 +302,11 @@ jobs:
             if [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
               UPDATED_DATABASE_URL=$(DATABASE_URL_VALUE="$DATABASE_URL" DB_POOLER_SSLMODE=require node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)
               if [ "$UPDATED_DATABASE_URL" != "$DATABASE_URL" ]; then
-                printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "$DATABASE_URL_SECRET_NAME" --project "$GCP_PROJECT_ID" --data-file=- >/dev/null
+                if ! printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "$DATABASE_URL_SECRET_NAME" --project "$GCP_PROJECT_ID" --data-file=- >/dev/null; then
+                  echo "Failed to add a new version for secret '$DATABASE_URL_SECRET_NAME' during auto-fix."
+                  echo "Ensure the deploy identity has Secret Manager write access (for example roles/secretmanager.secretVersionAdder on this secret)."
+                  exit 1
+                fi
                 VERIFIED_DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
                 if [ "$VERIFIED_DATABASE_URL" = "$UPDATED_DATABASE_URL" ]; then
                   DATABASE_URL="$VERIFIED_DATABASE_URL"
