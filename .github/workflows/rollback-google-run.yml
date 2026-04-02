@@ -32,6 +32,11 @@ on:
         required: false
         default: DATABASE_URL
         type: string
+      auto_fix_pooler_sslmode:
+        description: Auto-fix DATABASE_URL pooler sslmode in Secret Manager before strict verdict (true/false)
+        required: false
+        default: "false"
+        type: string
       run_post_rollback_smoke:
         description: Run smoke-check after rollback (true/false)
         required: false
@@ -85,12 +90,13 @@ jobs:
         env:
           RUN_POST_ROLLBACK_SMOKE: ${{ github.event.inputs.run_post_rollback_smoke }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
           DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
         run: |
-          for flag in "$RUN_POST_ROLLBACK_SMOKE" "$CORE64_SMOKE_CONTACT"; do
+          for flag in "$RUN_POST_ROLLBACK_SMOKE" "$CORE64_SMOKE_CONTACT" "$AUTO_FIX_POOLER_SSLMODE"; do
             if [ "$flag" != "true" ] && [ "$flag" != "false" ]; then
               echo "Boolean inputs must be 'true' or 'false'"
               exit 1
@@ -180,6 +186,7 @@ jobs:
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
           CORE64_SMOKE_MODE: health
         run: |
           SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
@@ -207,6 +214,28 @@ jobs:
           if [ -z "$DATABASE_URL" ]; then
             echo "Unable to read DATABASE_URL from Secret Manager"
             exit 1
+          fi
+
+          if [ "$AUTO_FIX_POOLER_SSLMODE" = "true" ]; then
+            echo "Checking DATABASE_URL for optional pooler sslmode auto-remediation..."
+            POLICY_JSON=$(DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs)
+            POLICY_VALID=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(Boolean(p.valid)));});")
+            POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
+
+            if [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
+              UPDATED_DATABASE_URL=$(node -e 'const u=new URL(process.argv[1]);u.searchParams.set("sslmode","require");process.stdout.write(u.toString());' "$DATABASE_URL")
+              if [ "$UPDATED_DATABASE_URL" != "$DATABASE_URL" ]; then
+                printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "$DATABASE_URL_SECRET_NAME" --project "$GCP_PROJECT_ID" --data-file=- >/dev/null
+                VERIFIED_DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+                if [ "$VERIFIED_DATABASE_URL" = "$UPDATED_DATABASE_URL" ]; then
+                  DATABASE_URL="$VERIFIED_DATABASE_URL"
+                  echo "Applied pooler sslmode auto-remediation to DATABASE_URL secret."
+                else
+                  echo "Failed to verify DATABASE_URL secret update after remediation"
+                  exit 1
+                fi
+              fi
+            fi
           fi
 
           SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)

@@ -341,6 +341,7 @@ Useful rollback inputs:
 
 - `run_post_rollback_smoke` (default `true`)
 - `database_url_secret_name` (default `DATABASE_URL`)
+- `auto_fix_pooler_sslmode` (default `false`) - if `true`, rollback may auto-update `DATABASE_URL` secret to `sslmode=require` for unsupported pooler sslmode before strict pre-smoke verdict
 - `core64_smoke_timeout_ms` (default `15000`)
 - `core64_smoke_retries` (default `3`)
 - `core64_smoke_contact` (default `false`)
