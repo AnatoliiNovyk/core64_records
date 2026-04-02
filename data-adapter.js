@@ -156,6 +156,7 @@
     const STORAGE_TOKEN_KEY = "core64_admin_token";
     const STORAGE_MODE_KEY = "core64_data_mode";
     const STORAGE_LANG_KEY = "core64_language";
+    const DEFAULT_API_TIMEOUT_MS = 15000;
 
     function deepClone(value) {
         return JSON.parse(JSON.stringify(value));
@@ -168,6 +169,30 @@
 
     function getApiBaseUrl() {
         return (window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl) || "/api";
+    }
+
+    function getApiTimeoutMs() {
+        const configTimeout = Number(window.CORE64_CONFIG && window.CORE64_CONFIG.apiTimeoutMs);
+        if (Number.isFinite(configTimeout) && configTimeout >= 1000) {
+            return Math.round(configTimeout);
+        }
+        return DEFAULT_API_TIMEOUT_MS;
+    }
+
+    function withRequestTimeout(signal, timeoutMs) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+        if (signal) {
+            signal.addEventListener("abort", () => controller.abort(signal.reason), { once: true });
+        }
+
+        return {
+            signal: controller.signal,
+            cancel() {
+                clearTimeout(timeoutId);
+            }
+        };
     }
 
     function normalizeLanguageCode(input) {
@@ -293,19 +318,24 @@
             headers.Authorization = `Bearer ${token}`;
         }
 
+        const timeout = withRequestTimeout(options && options.signal ? options.signal : undefined, getApiTimeoutMs());
+
         let response;
         try {
             response = await fetch(`${getApiBaseUrl()}${path}`, {
                 method: (options && options.method) || "GET",
                 headers,
                 body: options && options.body ? JSON.stringify(options.body) : undefined,
-                signal: options && options.signal ? options.signal : undefined
+                signal: timeout.signal
             });
         } catch (error) {
-            const networkError = new Error(error && error.message ? error.message : "Network request failed");
-            networkError.code = "API_NETWORK_ERROR";
+            const isTimeout = error && error.name === "AbortError";
+            const networkError = new Error(isTimeout ? "Request timeout" : (error && error.message ? error.message : "Network request failed"));
+            networkError.code = isTimeout ? "API_NETWORK_TIMEOUT" : "API_NETWORK_ERROR";
             networkError.status = 0;
             throw networkError;
+        } finally {
+            timeout.cancel();
         }
 
         if (!response.ok) {
