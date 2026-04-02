@@ -144,6 +144,7 @@ jobs:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
+          DATABASE_URL_SECRET_NAME: DATABASE_URL
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
@@ -170,6 +171,21 @@ jobs:
             echo "Invalid CORE64_SMOKE_RETRIES value: $RETRIES"
             exit 1
           fi
+
+          DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Unable to read DATABASE_URL from Secret Manager"
+            exit 1
+          fi
+
+          SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)
+          if [ -z "$SERVICE_JSON" ]; then
+            echo "Unable to fetch Cloud Run service JSON for DB route compatibility check"
+            exit 1
+          fi
+
+          echo "Pre-smoke DB route compatibility verdict (strict mode):"
+          CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-cloud-run-db-route-verdict.mjs --strict
 
           attempt=1
           until [ "$attempt" -gt "$RETRIES" ]; do
@@ -240,4 +256,9 @@ jobs:
           if [ -n "$SERVICE_JSON" ]; then
             echo "Diagnostic: Cloud Run network routing hint"
             CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" node scripts/print-cloud-run-network-hint.mjs || true
+
+            if [ -n "$DATABASE_URL" ]; then
+              echo "Diagnostic: Cloud Run and DB route compatibility verdict"
+              CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-cloud-run-db-route-verdict.mjs || true
+            fi
           fi

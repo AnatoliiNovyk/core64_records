@@ -62,19 +62,25 @@ if ($ExpectedCheckContexts.Count -eq 0) {
     throw "ExpectedCheckContexts cannot be empty."
 }
 
-Write-Host "[1/4] Running DB snapshot helper self-test..."
+Write-Host "[1/5] Running DB snapshot helper self-test..."
 node scripts/test-print-db-target-snapshot.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DB snapshot helper self-test failed."
 }
 
-Write-Host "[2/4] Running Cloud Run network hint helper self-test..."
+Write-Host "[2/5] Running Cloud Run network hint helper self-test..."
 node scripts/test-print-cloud-run-network-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run network hint helper self-test failed."
 }
 
-Write-Host "[3/4] Running smoke check..."
+Write-Host "[3/5] Running Cloud Run DB route verdict helper self-test..."
+node scripts/test-print-cloud-run-db-route-verdict.mjs
+if ($LASTEXITCODE -ne 0) {
+    throw "Cloud Run DB route verdict helper self-test failed."
+}
+
+Write-Host "[4/5] Running smoke check..."
 $env:CORE64_API_BASE = $Core64ApiBase
 $env:CORE64_ADMIN_PASSWORD = $Core64AdminPassword
 $env:CORE64_SMOKE_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
@@ -85,7 +91,7 @@ if ($LASTEXITCODE -ne 0) {
     throw "Smoke check failed."
 }
 
-Write-Host "[4/4] Running branch protection policy verification..."
+Write-Host "[5/5] Running branch protection policy verification..."
 & pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
     -Owner $Owner `
     -Repo $Repo `

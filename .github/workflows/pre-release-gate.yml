@@ -117,6 +117,9 @@ jobs:
       - name: Validate Cloud Run network hint helper
         run: node scripts/test-print-cloud-run-network-hint.mjs
 
+      - name: Validate Cloud Run DB route verdict helper
+        run: node scripts/test-print-cloud-run-db-route-verdict.mjs
+
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
