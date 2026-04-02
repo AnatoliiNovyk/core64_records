@@ -64,16 +64,18 @@ export function evaluateDatabaseUrlPolicy(raw) {
   const host = (url.hostname || "").toLowerCase();
   const sslmode = (url.searchParams.get("sslmode") || "").toLowerCase();
   const isPooler = host.includes(".pooler.") || host.endsWith(".pooler.supabase.com");
+  const acceptedPoolerSslModes = new Set(["require", "verify-ca", "verify-full"]);
 
-  if (isPooler && sslmode !== "require") {
+  if (isPooler && !acceptedPoolerSslModes.has(sslmode)) {
     const append = (url.search || "").length > 0 ? "&sslmode=require" : "?sslmode=require";
     return {
       valid: false,
       reason: "missing_sslmode_require_for_pooler_endpoint",
-      hint: `DATABASE_URL points to a pooler endpoint but sslmode is not 'require'. Append '${append}' to the connection string.`,
+      hint: `DATABASE_URL points to a pooler endpoint but sslmode is not in allowed modes (require, verify-ca, verify-full). Append '${append}' to the connection string.`,
       remediation: {
         action: "append_sslmode_require",
-        append
+        append,
+        allowedSslModes: Array.from(acceptedPoolerSslModes)
       },
       snapshot: {
         protocol: url.protocol.replace(":", "") || null,
