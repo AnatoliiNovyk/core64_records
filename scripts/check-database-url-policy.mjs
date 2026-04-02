@@ -15,15 +15,14 @@ function printPoolerSslmodeRemediation(payload) {
   if (!payload || payload.valid) return;
   if (payload.reason !== "unsupported_sslmode_for_pooler_endpoint") return;
 
-  const append = String(payload.remediation?.append || "");
-  if (!append) return;
+  const targetSslmode = String(payload.remediation?.targetSslmode || "require");
 
   const projectId = process.env.GCP_PROJECT_ID || "<gcp-project-id>";
   const secretName = process.env.DATABASE_URL_SECRET_NAME || "DATABASE_URL";
 
   console.error("Remediation command (safe; does not print secret value):");
   console.error(`CURRENT_DATABASE_URL=\"$(gcloud secrets versions access latest --project \"${projectId}\" --secret \"${secretName}\")\"`);
-  console.error(`UPDATED_DATABASE_URL=\"${"${CURRENT_DATABASE_URL}"}${append}\"`);
+  console.error(`UPDATED_DATABASE_URL=\"$(node -e \"const u=new URL(process.argv[1]);u.searchParams.set('sslmode','${targetSslmode}');console.log(u.toString());\" \"${"${CURRENT_DATABASE_URL}"}\")\"`);
   console.error(`printf '%s' \"${"${UPDATED_DATABASE_URL}"}\" | gcloud secrets versions add \"${secretName}\" --project \"${projectId}\" --data-file=-`);
 }
 
@@ -80,18 +79,22 @@ export function evaluateDatabaseUrlPolicy(raw) {
 
   const host = (url.hostname || "").toLowerCase();
   const sslmode = (url.searchParams.get("sslmode") || "").toLowerCase();
+  const hasSslmodeParam = url.searchParams.has("sslmode");
   const isPooler = host.includes(".pooler.") || host.endsWith(".pooler.supabase.com");
   const acceptedPoolerSslModes = new Set(["require", "verify-ca", "verify-full"]);
 
   if (isPooler && !acceptedPoolerSslModes.has(sslmode)) {
     const append = (url.search || "").length > 0 ? "&sslmode=require" : "?sslmode=require";
+    const operation = hasSslmodeParam ? "replace" : "append";
     return {
       valid: false,
       reason: "unsupported_sslmode_for_pooler_endpoint",
-      hint: `DATABASE_URL points to a pooler endpoint but sslmode is not in allowed modes (require, verify-ca, verify-full). Append '${append}' to the connection string.`,
+      hint: `DATABASE_URL points to a pooler endpoint but sslmode is not in allowed modes (require, verify-ca, verify-full). ${operation === "replace" ? "Replace the existing sslmode with 'require'." : `Append '${append}' to the connection string.`}`,
       remediation: {
-        action: "append_allowed_pooler_sslmode",
+        action: "set_allowed_pooler_sslmode",
         legacyAction: "append_sslmode_require",
+        operation,
+        targetSslmode: "require",
         append,
         allowedSslModes: Array.from(acceptedPoolerSslModes)
       },
