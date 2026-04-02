@@ -148,6 +148,11 @@ Runtime frontend API override (emergency troubleshooting):
 
 Optional contact smoke-check is disabled by default.
 
+Smoke mode notes:
+
+- `CORE64_SMOKE_MODE=health` validates both `/api/health` and `/api/health/db`.
+- Health mode now fails when DB connectivity is degraded (`DB_UNAVAILABLE`).
+
 Release procedure and rollback checklist:
 
 - See `RELEASE_RUNBOOK.md`

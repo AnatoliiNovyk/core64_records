@@ -130,14 +130,6 @@ async function run() {
     };
     if (!health.response.ok) report.passed = false;
 
-    if (smokeMode === "health") {
-        console.log(JSON.stringify(report, null, 2));
-        if (!report.passed) {
-            process.exitCode = 1;
-        }
-        return;
-    }
-
     const healthDb = await requestJson("/health/db");
     report.checks.healthDb = {
         status: healthDb.response.status,
@@ -146,6 +138,14 @@ async function run() {
         error: healthDb.json?.error || null
     };
     if (!healthDb.response.ok) report.passed = false;
+
+    if (smokeMode === "health") {
+        console.log(JSON.stringify(report, null, 2));
+        if (!report.passed) {
+            process.exitCode = 1;
+        }
+        return;
+    }
 
     const publicPayload = await requestJson("/public");
     const data = publicPayload.json?.data || {};
