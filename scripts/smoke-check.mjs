@@ -1,7 +1,50 @@
 #!/usr/bin/env node
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 const baseUrl = (process.env.CORE64_API_BASE || "http://localhost:3000/api").replace(/\/+$/, "");
-const adminPassword = process.env.CORE64_ADMIN_PASSWORD || "core64admin";
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+function readAdminPasswordFromBackendEnv() {
+    try {
+        const envPath = path.resolve(__dirname, "../backend/.env");
+        if (!fs.existsSync(envPath)) return "";
+        const raw = fs.readFileSync(envPath, "utf8");
+        const lines = raw.split(/\r?\n/);
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || trimmed.startsWith("#")) continue;
+
+            const match = trimmed.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+            if (!match) continue;
+            if (match[1] !== "ADMIN_PASSWORD") continue;
+
+            const rawValue = match[2].trim();
+            if (!rawValue) return "";
+
+            const isDoubleQuoted = rawValue.startsWith('"') && rawValue.endsWith('"') && rawValue.length >= 2;
+            const isSingleQuoted = rawValue.startsWith("'") && rawValue.endsWith("'") && rawValue.length >= 2;
+            if (isDoubleQuoted || isSingleQuoted) {
+                return rawValue.slice(1, -1);
+            }
+
+            return rawValue.split("#")[0].trim();
+        }
+
+        return "";
+    } catch (_error) {
+        return "";
+    }
+}
+
+const envAdminPassword = String(process.env.CORE64_ADMIN_PASSWORD || "").trim();
+const backendEnvAdminPassword = readAdminPasswordFromBackendEnv();
+const adminPassword = envAdminPassword || backendEnvAdminPassword || "core64admin";
+const adminPasswordSource = envAdminPassword ? "CORE64_ADMIN_PASSWORD" : (backendEnvAdminPassword ? "backend/.env:ADMIN_PASSWORD" : "default:core64admin");
 const requestTimeoutMs = Number(process.env.CORE64_SMOKE_TIMEOUT_MS || 10000);
 const smokeMode = String(process.env.CORE64_SMOKE_MODE || "full").trim().toLowerCase();
 const smokeContactEnabled = ["1", "true", "yes", "on"].includes(String(process.env.CORE64_SMOKE_CONTACT || "").trim().toLowerCase());
@@ -142,12 +185,21 @@ async function run() {
 
     const adminChecks = {
         loginStatus: login.response.status,
+        loginCode: login.json?.code || null,
+        loginError: login.json?.error || null,
         tokenIssued: Boolean(token),
+        passwordSource: adminPasswordSource,
+        hint: null,
         meStatus: null,
         settingsStatus: null
     };
 
     if (!login.response.ok || !token) {
+        if (login.response.status === 401) {
+            adminChecks.hint = "Set CORE64_ADMIN_PASSWORD to match backend ADMIN_PASSWORD, or update backend/.env and rerun seed.";
+        } else if (login.response.status === 503) {
+            adminChecks.hint = "Auth service unavailable. Check backend DB connectivity and SSL settings (DB_SSL / DB_SSL_REJECT_UNAUTHORIZED).";
+        }
         report.passed = false;
     } else {
         const authHeaders = { authorization: `Bearer ${token}` };

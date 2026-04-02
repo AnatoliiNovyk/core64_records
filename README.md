@@ -132,6 +132,12 @@ CORE64_SMOKE_CONTACT_EXPECTED_STATUS=201
 CORE64_SMOKE_CONTACT_CAPTCHA_TOKEN=
 ```
 
+Admin password source for smoke auth check:
+
+- `CORE64_ADMIN_PASSWORD` (highest priority)
+- `backend/.env` -> `ADMIN_PASSWORD` (auto-detected fallback)
+- `core64admin` default (only if no value found above)
+
 Optional contact smoke-check is disabled by default.
 
 Release procedure and rollback checklist:

@@ -24,17 +24,17 @@ async function seed() {
   );
 
   await pool.query(
-    "INSERT INTO releases (title, artist, genre, release_type, release_date, year, image, link, ticket_link) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) ON CONFLICT DO NOTHING",
+    "INSERT INTO releases (title, artist, genre, release_type, release_date, year, image, link, ticket_link) SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9 WHERE NOT EXISTS (SELECT 1 FROM releases WHERE title = $1 AND artist = $2)",
     ["Neural Network", "Cybernetic", "Neurofunk", "single", "2024-01-10", "2024", "http://static.photos/technology/640x360/1", "#", ""]
   );
 
   await pool.query(
-    "INSERT INTO artists (name, genre, bio, image, soundcloud, instagram) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT DO NOTHING",
+    "INSERT INTO artists (name, genre, bio, image, soundcloud, instagram) SELECT $1, $2, $3, $4, $5, $6 WHERE NOT EXISTS (SELECT 1 FROM artists WHERE name = $1)",
     ["Cybernetic", "Neurofunk", "Піонер української нейрофанк сцени.", "http://static.photos/people/640x360/10", "#", "#"]
   );
 
   await pool.query(
-    "INSERT INTO events (title, date, time, venue, description, image, ticket_link) VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT DO NOTHING",
+    "INSERT INTO events (title, date, time, venue, description, image, ticket_link) SELECT $1, $2, $3, $4, $5, $6, $7 WHERE NOT EXISTS (SELECT 1 FROM events WHERE title = $1 AND date = $2)",
     ["CORE64 Label Night", "2024-02-15", "22:00", "Київ, Atlas", "Великий лейбл-ніч з усіма артистами CORE64.", "http://static.photos/nightlife/640x360/20", ""]
   );
 
@@ -49,6 +49,23 @@ async function seed() {
   await pool.query(
     "INSERT INTO sponsors (name, short_description, logo, link, sort_order) SELECT $1, $2, $3, $4, $5 WHERE NOT EXISTS (SELECT 1 FROM sponsors WHERE name = $1)",
     ["DnB Family UA", "Друзі з комʼюніті", "http://static.photos/people/640x360/33", "#", 3]
+  );
+
+  // Keep seed idempotent and normalize legacy demo placeholders that break smoke checks.
+  await pool.query(
+    "UPDATE releases SET image = '/images/Screenshot_1.png' WHERE image LIKE 'http://static.photos/%'"
+  );
+  await pool.query(
+    "UPDATE artists SET image = '/images/Screenshot_9.png' WHERE image LIKE 'http://static.photos/%'"
+  );
+  await pool.query(
+    "UPDATE events SET image = '/images/Screenshot_6.png' WHERE image LIKE 'http://static.photos/%'"
+  );
+  await pool.query(
+    "UPDATE sponsors SET logo = '/images/Screenshot_8.png' WHERE logo LIKE 'http://static.photos/%'"
+  );
+  await pool.query(
+    "UPDATE releases SET link = 'https://soundcloud.com/core64records' WHERE link IN ('https://soundcloud.com/', 'https://www.youtube.com/', 'https://open.spotify.com/', 'https://music.apple.com/', '#', '')"
   );
 
   console.log("Seed completed");
