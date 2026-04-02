@@ -369,6 +369,9 @@ jobs:
           echo "Pre-migrate DATABASE_URL target snapshot (safe metadata):"
           DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict
 
+          echo "Pre-migrate runtime TLS hint (safe metadata):"
+          DATABASE_URL_VALUE="$DATABASE_URL" DB_SSL=true DB_SSL_REJECT_UNAUTHORIZED=false DB_SSL_ALLOW_SELF_SIGNED=true node scripts/print-db-runtime-tls-hint.mjs --strict
+
           export DB_SSL=true
           export DB_SSL_REJECT_UNAUTHORIZED=false
           export DB_SSL_ALLOW_SELF_SIGNED=true

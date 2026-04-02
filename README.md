@@ -291,6 +291,7 @@ It runs as manual deployment (`workflow_dispatch`) and performs:
 - fail-fast validation of Artifact Registry repo and required Secret Manager secrets
 - post-failure diagnostics include Cloud Run networking annotations to inspect VPC/egress configuration during DB timeouts
 - runtime config validation logs a safe DATABASE_URL target snapshot (protocol/host/port/database/sslmode only, no credentials)
+- pre-migrate step logs a runtime TLS hint (`scripts/print-db-runtime-tls-hint.mjs`) with effective self-signed/libpq-compat semantics (safe metadata, no credentials)
 - runtime config validation runs centralized DATABASE_URL policy helper (`scripts/check-database-url-policy.mjs --strict`) and fails fast on invalid format or unsupported pooler sslmode (allowed: `require`, `verify-ca`, `verify-full`) before Cloud Run rollout
 - when strict policy fails on pooler sslmode, CI logs include a copy-ready idempotent remediation command that sets/replaces `sslmode=require` before `gcloud secrets versions add` (still fails fast; no policy relaxation)
 - post-failure diagnostics also log the same safe DATABASE_URL target snapshot to correlate failed revision with DB endpoint metadata
