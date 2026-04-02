@@ -135,7 +135,9 @@ async function run() {
         status: healthDb.response.status,
         ok: healthDb.response.ok,
         code: healthDb.json?.code || null,
-        error: healthDb.json?.error || null
+        error: healthDb.json?.error || null,
+        kind: healthDb.json?.details?.kind || null,
+        dbCode: healthDb.json?.details?.dbCode || null
     };
     if (!healthDb.response.ok) report.passed = false;
 

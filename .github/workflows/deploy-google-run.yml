@@ -370,6 +370,18 @@ jobs:
             --min-instances 0 \
             --max-instances 4
 
+      - name: Snapshot deployed runtime wiring
+        env:
+          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
+          GCP_REGION: ${{ github.event.inputs.gcp_region }}
+          SERVICE_NAME: ${{ github.event.inputs.service_name }}
+        run: |
+          echo "Deployed service summary (safe metadata only):"
+          gcloud run services describe "$SERVICE_NAME" \
+            --project "$GCP_PROJECT_ID" \
+            --region "$GCP_REGION" \
+            --format='yaml(status.url,status.latestReadyRevisionName,status.conditions,status.traffic,spec.template.spec.serviceAccountName,spec.template.spec.containers[0].env)'
+
       - name: Post-deploy smoke check
         if: ${{ github.event.inputs.run_post_deploy_smoke == 'true' }}
         env:
