@@ -418,10 +418,17 @@ function tAdminFormat(key, params = {}) {
     return template;
 }
 
+function normalizeUiErrorDetails(value, maxLength = 180) {
+    const collapsed = String(value || "").replace(/\s+/g, " ").trim();
+    if (!collapsed) return "";
+    if (collapsed.length <= maxLength) return collapsed;
+    return `${collapsed.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
 function resolveLoginErrorMessage(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
-    const details = String(error && error.message ? error.message : "").trim();
+    const details = normalizeUiErrorDetails(error && error.message ? error.message : "");
 
     if (code === "AUTH_ADMIN_NOT_INITIALIZED") {
         return tAdmin("authAdminNotInitialized");
@@ -461,7 +468,7 @@ function isDatabaseUnavailableError(error) {
 }
 
 function resolveCrudSaveErrorMessage(error) {
-    const details = String(error && error.message ? error.message : "").trim();
+    const details = normalizeUiErrorDetails(error && error.message ? error.message : "");
     const status = Number(error && error.status);
 
     if (isDatabaseUnavailableError(error)) {

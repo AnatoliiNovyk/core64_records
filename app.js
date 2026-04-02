@@ -259,6 +259,13 @@ function updateContactStatus(message, isError) {
         : "mt-3 text-sm text-green-400";
 }
 
+function normalizeUiErrorDetails(value, maxLength = 180) {
+    const collapsed = String(value || "").replace(/\s+/g, " ").trim();
+    if (!collapsed) return "";
+    if (collapsed.length <= maxLength) return collapsed;
+    return `${collapsed.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
 function isDatabaseUnavailableError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
@@ -275,7 +282,7 @@ function resolveContactSubmitErrorMessage(error) {
         return tPublic("contactSaveFailedGeneric");
     }
 
-    const details = error && typeof error.message === "string" ? error.message.trim() : "";
+    const details = normalizeUiErrorDetails(error && error.message ? error.message : "");
     return details
         ? `${tPublic("contactSaveFailedPrefix")} ${details}`
         : tPublic("contactSaveFailedGeneric");
