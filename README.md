@@ -141,6 +141,35 @@ Admin password source for smoke auth check:
 - `backend/.env` -> `ADMIN_PASSWORD` (auto-detected fallback)
 - `core64admin` default (only if no value found above)
 
+## UI Smoke (Section Settings)
+
+Run browser smoke for admin/public section settings from project root:
+
+```bash
+npm install
+npm run ui-smoke:install
+npm run ui-smoke
+```
+
+The script:
+
+- starts a temporary static server for `admin.html` and `index.html` when `CORE64_UI_BASE` is not set
+- logs into admin via the real login form
+- changes section order/title/visibility through the admin UI
+- verifies the public page applied the new title, order, and hidden nav state
+- reloads admin to confirm persistence
+- restores the original settings bundle at the end
+
+Optional environment overrides:
+
+```bash
+CORE64_API_BASE=http://localhost:3000/api
+CORE64_UI_BASE=http://127.0.0.1:5500
+CORE64_ADMIN_PASSWORD=core64admin
+CORE64_UI_HEADLESS=true
+CORE64_UI_SMOKE_TIMEOUT_MS=15000
+```
+
 Runtime frontend API override (emergency troubleshooting):
 
 - append `?apiBaseUrl=https://<your-api-domain>/api` to `index.html` or `admin.html`

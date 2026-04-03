@@ -1,0 +1,12 @@
+{
+  "name": "core64-records-tooling",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "ui-smoke": "node scripts/ui-smoke.mjs",
+    "ui-smoke:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "^1.52.0"
+  }
+}

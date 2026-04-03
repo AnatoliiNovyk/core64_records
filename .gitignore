@@ -1,5 +1,7 @@
 core64records-0a442b8aa8ec.json
 .venv/
+node_modules/
+**/node_modules/
 
 # Local environment files (keep templates only)
 **/.env
