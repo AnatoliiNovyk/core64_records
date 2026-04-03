@@ -64,6 +64,40 @@ const isWeakSecret = (value) => {
   return !normalized || weakSecrets.has(normalized);
 };
 
+const validateDatabaseUrl = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return "DATABASE_URL is required.";
+  }
+
+  let parsed;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    return "DATABASE_URL must be a valid postgres URL. If password contains special characters (@, #, %, !), URL-encode them (for example @ -> %40, # -> %23).";
+  }
+
+  const protocol = String(parsed.protocol || "").toLowerCase();
+  if (protocol !== "postgres:" && protocol !== "postgresql:") {
+    return "DATABASE_URL must start with postgres:// or postgresql://.";
+  }
+
+  if (!String(parsed.hostname || "").trim()) {
+    return "DATABASE_URL must include a database host.";
+  }
+
+  const dbName = String(parsed.pathname || "").replace(/^\//, "").trim();
+  if (!dbName) {
+    return "DATABASE_URL must include a database name path (for example /postgres).";
+  }
+
+  if (String(parsed.hash || "").trim()) {
+    return "DATABASE_URL must not contain URL fragment/hash. URL-encode password special characters instead of raw '#' or '@'.";
+  }
+
+  return null;
+};
+
 export const validateConfig = () => {
   const errors = [];
   const isProduction = config.nodeEnv === "production";
@@ -72,8 +106,9 @@ export const validateConfig = () => {
     errors.push("DEFAULT_LANGUAGE must be included in SUPPORTED_LANGUAGES.");
   }
 
-  if (!config.databaseUrl) {
-    errors.push("DATABASE_URL is required.");
+  const databaseUrlError = validateDatabaseUrl(config.databaseUrl);
+  if (databaseUrlError) {
+    errors.push(databaseUrlError);
   }
 
   if (!Number.isInteger(config.dbConnectionTimeoutMs) || config.dbConnectionTimeoutMs < 1000) {
