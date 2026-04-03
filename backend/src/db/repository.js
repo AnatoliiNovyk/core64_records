@@ -82,10 +82,13 @@ async function upsertAdminSettings(queryable, payload) {
         contact_captcha_error_message,
         contact_captcha_missing_token_message,
         contact_captcha_invalid_domain_message,
-        contact_captcha_allowed_domain
+        contact_captcha_allowed_domain,
+        audit_latency_good_max_ms,
+        audit_latency_warn_max_ms
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18,
+        $19, $20
       ) RETURNING *`,
       [
         payload.title,
@@ -105,7 +108,9 @@ async function upsertAdminSettings(queryable, payload) {
         payload.contactCaptchaErrorMessage,
         payload.contactCaptchaMissingTokenMessage,
         payload.contactCaptchaInvalidDomainMessage,
-        payload.contactCaptchaAllowedDomain
+        payload.contactCaptchaAllowedDomain,
+        payload.auditLatencyGoodMaxMs,
+        payload.auditLatencyWarnMaxMs
       ]
     );
     return;
@@ -131,6 +136,8 @@ async function upsertAdminSettings(queryable, payload) {
       contact_captcha_missing_token_message = $16,
       contact_captcha_invalid_domain_message = $17,
       contact_captcha_allowed_domain = $18,
+      audit_latency_good_max_ms = $19,
+      audit_latency_warn_max_ms = $20,
       updated_at = NOW()
     WHERE id = (SELECT id FROM settings ORDER BY id ASC LIMIT 1)
     RETURNING id`,
@@ -152,7 +159,9 @@ async function upsertAdminSettings(queryable, payload) {
       payload.contactCaptchaErrorMessage,
       payload.contactCaptchaMissingTokenMessage,
       payload.contactCaptchaInvalidDomainMessage,
-      payload.contactCaptchaAllowedDomain
+      payload.contactCaptchaAllowedDomain,
+      payload.auditLatencyGoodMaxMs,
+      payload.auditLatencyWarnMaxMs
     ]
   );
 }
@@ -523,7 +532,9 @@ const ADMIN_SETTINGS_SELECT = `
     contact_captcha_error_message AS "contactCaptchaErrorMessage",
     contact_captcha_missing_token_message AS "contactCaptchaMissingTokenMessage",
     contact_captcha_invalid_domain_message AS "contactCaptchaInvalidDomainMessage",
-    contact_captcha_allowed_domain AS "contactCaptchaAllowedDomain"
+    contact_captcha_allowed_domain AS "contactCaptchaAllowedDomain",
+    audit_latency_good_max_ms AS "auditLatencyGoodMaxMs",
+    audit_latency_warn_max_ms AS "auditLatencyWarnMaxMs"
   FROM settings
   ORDER BY id ASC
   LIMIT 1

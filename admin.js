@@ -5287,9 +5287,10 @@ async function saveSettings(options = {}) {
         auditLatencyWarnMaxMs: warnMax
     };
 
+    const saveSettingsBundleMethod = getAdapterMethod("saveSettingsBundle");
     const saveCollectionMethod = getAdapterMethod("saveCollection");
-    if (!saveCollectionMethod) {
-        console.warn("Adapter saveCollection method is unavailable during settings save");
+    if (!saveSettingsBundleMethod && !saveCollectionMethod) {
+        console.warn("Adapter settings save methods are unavailable during settings save");
         if (currentSection !== sectionAtSave) return false;
         if (currentSection !== "settings") return false;
         const settingsSectionEl = document.getElementById("section-settings");
@@ -5300,7 +5301,6 @@ async function saveSettings(options = {}) {
 
     try {
         const sectionSettingsDraft = getSectionSettingsDraftFromForm();
-        const saveSettingsBundleMethod = getAdapterMethod("saveSettingsBundle");
 
         if (saveSettingsBundleMethod) {
             const savedBundle = await saveSettingsBundleMethod.call(adapter, {

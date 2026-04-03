@@ -146,7 +146,9 @@
             contactCaptchaErrorMessage: "Не вдалося пройти перевірку captcha.",
             contactCaptchaMissingTokenMessage: "Підтвердіть, що ви не робот.",
             contactCaptchaInvalidDomainMessage: "Відправка з цього домену заборонена.",
-            contactCaptchaAllowedDomain: ""
+            contactCaptchaAllowedDomain: "",
+            auditLatencyGoodMaxMs: 300,
+            auditLatencyWarnMaxMs: 800
         },
         sectionSettings: [
             {

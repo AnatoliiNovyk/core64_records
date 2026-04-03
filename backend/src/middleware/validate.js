@@ -97,7 +97,9 @@ export const settingsSchema = z.object({
   contactCaptchaErrorMessage: z.string().trim().max(255).optional().default("Не вдалося пройти перевірку captcha."),
   contactCaptchaMissingTokenMessage: z.string().trim().max(255).optional().default("Підтвердіть, що ви не робот."),
   contactCaptchaInvalidDomainMessage: z.string().trim().max(255).optional().default("Відправка з цього домену заборонена."),
-  contactCaptchaAllowedDomain: z.string().trim().max(255).optional().default("")
+  contactCaptchaAllowedDomain: z.string().trim().max(255).optional().default(""),
+  auditLatencyGoodMaxMs: z.number().int().min(50).max(5000).optional().default(300),
+  auditLatencyWarnMaxMs: z.number().int().min(100).max(10000).optional().default(800)
 }).superRefine((payload, ctx) => {
   if (!payload.contactCaptchaEnabled) return;
 
@@ -151,6 +153,14 @@ export const settingsSchema = z.object({
       path: ["contactCaptchaAllowedDomain"],
       code: z.ZodIssueCode.custom,
       message: "Allowed domain must be a valid hostname"
+    });
+  }
+
+  if (payload.auditLatencyWarnMaxMs <= payload.auditLatencyGoodMaxMs) {
+    ctx.addIssue({
+      path: ["auditLatencyWarnMaxMs"],
+      code: z.ZodIssueCode.custom,
+      message: "Warn threshold must be greater than good threshold"
     });
   }
 });
