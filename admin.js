@@ -156,11 +156,12 @@ const ADMIN_I18N = {
         settingsSaveSuccess: "Налаштування збережено",
         settingsSaveFailed: "Не вдалося зберегти налаштування",
         activitySettingsUpdated: "Оновлено налаштування сайту",
-        activitySectionSettingsUpdated: "Оновлено заголовки та порядок секцій",
+        activitySectionSettingsUpdated: "Оновлено заголовки, порядок і видимість секцій",
         sectionReleasesLabel: "Релізи",
         sectionArtistsLabel: "Артисти",
         sectionEventsLabel: "Події",
         sectionSponsorsLabel: "Спонсори",
+        sectionVisibilityLabel: "Показувати секцію",
         sectionMoveUp: "Вгору",
         sectionMoveDown: "Вниз",
         activityThresholdsReset: "Скинуто пороги latency до дефолтних (без збереження)",
@@ -323,11 +324,12 @@ const ADMIN_I18N = {
         settingsSaveSuccess: "Settings saved",
         settingsSaveFailed: "Failed to save settings",
         activitySettingsUpdated: "Site settings updated",
-        activitySectionSettingsUpdated: "Section titles and order updated",
+        activitySectionSettingsUpdated: "Section titles, order, and visibility updated",
         sectionReleasesLabel: "Releases",
         sectionArtistsLabel: "Artists",
         sectionEventsLabel: "Events",
         sectionSponsorsLabel: "Sponsors",
+        sectionVisibilityLabel: "Show section",
         sectionMoveUp: "Up",
         sectionMoveDown: "Down",
         activityThresholdsReset: "Latency thresholds reset to defaults (not saved)",
@@ -2740,6 +2742,7 @@ function renderSectionSettingsEditor() {
         const safeSectionKey = sanitizeInput(row.sectionKey);
         const safeTitleUk = sanitizeInput(row.titleUk || "");
         const safeTitleEn = sanitizeInput(row.titleEn || "");
+        const enabledChecked = row.isEnabled !== false ? "checked" : "";
         const canMoveUp = index > 0;
         const canMoveDown = index < rows.length - 1;
 
@@ -2752,6 +2755,10 @@ function renderSectionSettingsEditor() {
                         <button type="button" onclick="moveSectionSetting('${safeSectionKey}', 1)" class="px-3 py-1 rounded text-xs border border-gray-500/40 text-gray-200 hover:bg-gray-700/40 disabled:opacity-40" ${canMoveDown ? "" : "disabled"}>${sanitizeInput(tAdmin("sectionMoveDown"))}</button>
                     </div>
                 </div>
+                <label class="flex items-center gap-3 mb-3 text-sm text-gray-200 cursor-pointer">
+                    <input type="checkbox" id="section-enabled-${safeSectionKey}" class="h-4 w-4 accent-cyan-400" ${enabledChecked}>
+                    <span>${sanitizeInput(tAdmin("sectionVisibilityLabel"))}</span>
+                </label>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                         <label class="block text-gray-400 mb-1 uppercase text-xs">Title UK</label>
@@ -2800,12 +2807,13 @@ function getSectionSettingsDraftFromForm() {
         const defaults = defaultsByKey[row.sectionKey] || row;
         const titleUkEl = document.getElementById(`section-title-uk-${row.sectionKey}`);
         const titleEnEl = document.getElementById(`section-title-en-${row.sectionKey}`);
+        const enabledEl = document.getElementById(`section-enabled-${row.sectionKey}`);
         const titleUk = normalizeSettingsPlainText(titleUkEl ? titleUkEl.value : row.titleUk, defaults.titleUk);
         const titleEn = normalizeSettingsPlainText(titleEnEl ? titleEnEl.value : row.titleEn, defaults.titleEn);
         return {
             sectionKey: row.sectionKey,
             sortOrder: index + 1,
-            isEnabled: row.isEnabled !== false,
+            isEnabled: enabledEl ? enabledEl.checked : row.isEnabled !== false,
             titleUk,
             titleEn
         };
@@ -5291,21 +5299,38 @@ async function saveSettings(options = {}) {
     }
 
     try {
-        await saveCollectionMethod.call(adapter, "settings", settings);
-        const saveSectionSettingsMethod = getAdapterMethod("saveSectionSettings");
         const sectionSettingsDraft = getSectionSettingsDraftFromForm();
-        if (saveSectionSettingsMethod) {
-            const savedSectionSettings = await saveSectionSettingsMethod.call(adapter, { sections: sectionSettingsDraft });
-            const rows = savedSectionSettings && Array.isArray(savedSectionSettings.sections)
-                ? savedSectionSettings.sections
-                : savedSectionSettings;
-            cache.sectionSettings = normalizeSectionSettings(rows);
+        const saveSettingsBundleMethod = getAdapterMethod("saveSettingsBundle");
+
+        if (saveSettingsBundleMethod) {
+            const savedBundle = await saveSettingsBundleMethod.call(adapter, {
+                settings,
+                sections: sectionSettingsDraft
+            });
+
+            const savedSettings = savedBundle && savedBundle.settings ? savedBundle.settings : settings;
+            const savedSectionSettings = savedBundle && Array.isArray(savedBundle.sections)
+                ? savedBundle.sections
+                : sectionSettingsDraft;
+
+            cache.settings = savedSettings;
+            cache.sectionSettings = normalizeSectionSettings(savedSectionSettings);
         } else {
-            cache.sectionSettings = normalizeSectionSettings(sectionSettingsDraft);
+            await saveCollectionMethod.call(adapter, "settings", settings);
+            const saveSectionSettingsMethod = getAdapterMethod("saveSectionSettings");
+            if (saveSectionSettingsMethod) {
+                const savedSectionSettings = await saveSectionSettingsMethod.call(adapter, { sections: sectionSettingsDraft });
+                const rows = savedSectionSettings && Array.isArray(savedSectionSettings.sections)
+                    ? savedSectionSettings.sections
+                    : savedSectionSettings;
+                cache.sectionSettings = normalizeSectionSettings(rows);
+            } else {
+                cache.sectionSettings = normalizeSectionSettings(sectionSettingsDraft);
+            }
+            cache.settings = settings;
         }
         renderSectionSettingsEditor();
         if (sectionNavigationSeq !== navigationSeqAtSave) return false;
-        cache.settings = settings;
         applyAuditLatencyThresholds(settings);
         if (goodInputEl.isConnected) {
             goodInputEl.value = String(goodMax);

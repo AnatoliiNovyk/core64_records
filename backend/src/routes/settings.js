@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
 import { settingsSchema, sectionSettingsSchema } from "../middleware/validate.js";
-import { getAdminSettings, saveSettings, getAdminSectionSettings, saveSectionSettings } from "../db/repository.js";
+import { getAdminSettings, saveSettings, getAdminSectionSettings, saveSectionSettings, saveSettingsBundle } from "../db/repository.js";
 
 const router = Router();
 
@@ -19,6 +19,18 @@ router.put("/settings", requireAuth, async (req, res, next) => {
     const payload = req.body.data || req.body;
     const validated = settingsSchema.parse(payload);
     const data = await saveSettings(validated);
+    res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/settings/bundle", requireAuth, async (req, res, next) => {
+  try {
+    const payload = req.body.data || req.body;
+    const settings = settingsSchema.parse(payload.settings || {});
+    const sectionPayload = sectionSettingsSchema.parse({ sections: payload.sections || [] });
+    const data = await saveSettingsBundle({ settings, sections: sectionPayload.sections });
     res.json({ data });
   } catch (error) {
     next(error);

@@ -51,7 +51,6 @@ function normalizeSectionSettingsForPublic(rows, requestedLanguage) {
   const language = resolveLanguage(requestedLanguage);
   const adminRows = normalizeSectionSettingsForAdmin(rows);
   return adminRows
-    .filter((row) => row.isEnabled !== false)
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((row) => ({
       sectionKey: row.sectionKey,
@@ -59,6 +58,149 @@ function normalizeSectionSettingsForPublic(rows, requestedLanguage) {
       isEnabled: row.isEnabled,
       title: language === "en" ? row.titleEn : row.titleUk
     }));
+}
+
+async function upsertAdminSettings(queryable, payload) {
+  const existing = await queryable.query(ADMIN_SETTINGS_SELECT);
+  if (!existing.rows[0]) {
+    await queryable.query(
+      `INSERT INTO settings (
+        title,
+        about,
+        mission,
+        email,
+        instagram_url,
+        youtube_url,
+        soundcloud_url,
+        radio_url,
+        contact_captcha_enabled,
+        contact_captcha_active_provider,
+        contact_captcha_hcaptcha_site_key,
+        contact_captcha_hcaptcha_secret_key,
+        contact_captcha_recaptcha_site_key,
+        contact_captcha_recaptcha_secret_key,
+        contact_captcha_error_message,
+        contact_captcha_missing_token_message,
+        contact_captcha_invalid_domain_message,
+        contact_captcha_allowed_domain
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8,
+        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+      ) RETURNING *`,
+      [
+        payload.title,
+        payload.about,
+        payload.mission,
+        payload.email,
+        payload.instagramUrl,
+        payload.youtubeUrl,
+        payload.soundcloudUrl,
+        payload.radioUrl,
+        payload.contactCaptchaEnabled,
+        payload.contactCaptchaActiveProvider,
+        payload.contactCaptchaHcaptchaSiteKey,
+        payload.contactCaptchaHcaptchaSecretKey,
+        payload.contactCaptchaRecaptchaSiteKey,
+        payload.contactCaptchaRecaptchaSecretKey,
+        payload.contactCaptchaErrorMessage,
+        payload.contactCaptchaMissingTokenMessage,
+        payload.contactCaptchaInvalidDomainMessage,
+        payload.contactCaptchaAllowedDomain
+      ]
+    );
+    return;
+  }
+
+  await queryable.query(
+    `UPDATE settings SET
+      title = $1,
+      about = $2,
+      mission = $3,
+      email = $4,
+      instagram_url = $5,
+      youtube_url = $6,
+      soundcloud_url = $7,
+      radio_url = $8,
+      contact_captcha_enabled = $9,
+      contact_captcha_active_provider = $10,
+      contact_captcha_hcaptcha_site_key = $11,
+      contact_captcha_hcaptcha_secret_key = $12,
+      contact_captcha_recaptcha_site_key = $13,
+      contact_captcha_recaptcha_secret_key = $14,
+      contact_captcha_error_message = $15,
+      contact_captcha_missing_token_message = $16,
+      contact_captcha_invalid_domain_message = $17,
+      contact_captcha_allowed_domain = $18,
+      updated_at = NOW()
+    WHERE id = (SELECT id FROM settings ORDER BY id ASC LIMIT 1)
+    RETURNING id`,
+    [
+      payload.title,
+      payload.about,
+      payload.mission,
+      payload.email,
+      payload.instagramUrl,
+      payload.youtubeUrl,
+      payload.soundcloudUrl,
+      payload.radioUrl,
+      payload.contactCaptchaEnabled,
+      payload.contactCaptchaActiveProvider,
+      payload.contactCaptchaHcaptchaSiteKey,
+      payload.contactCaptchaHcaptchaSecretKey,
+      payload.contactCaptchaRecaptchaSiteKey,
+      payload.contactCaptchaRecaptchaSecretKey,
+      payload.contactCaptchaErrorMessage,
+      payload.contactCaptchaMissingTokenMessage,
+      payload.contactCaptchaInvalidDomainMessage,
+      payload.contactCaptchaAllowedDomain
+    ]
+  );
+}
+
+async function upsertSectionSettings(queryable, sectionsPayload) {
+  const normalizedSections = normalizeSectionSettingsForAdmin(sectionsPayload);
+  const defaultsMap = getSectionDefaultsMap();
+
+  for (const section of normalizedSections) {
+    const fallback = defaultsMap[section.sectionKey] || section;
+
+    const upsertResult = await queryable.query(
+      `INSERT INTO section_settings (section_key, sort_order, is_enabled, default_title)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (section_key)
+       DO UPDATE SET
+         sort_order = EXCLUDED.sort_order,
+         is_enabled = EXCLUDED.is_enabled,
+         default_title = EXCLUDED.default_title,
+         updated_at = NOW()
+       RETURNING id`,
+      [
+        section.sectionKey,
+        section.sortOrder,
+        section.isEnabled,
+        section.titleUk || fallback.titleUk
+      ]
+    );
+
+    const sectionId = upsertResult.rows[0] && upsertResult.rows[0].id;
+    if (!sectionId) continue;
+
+    await queryable.query(
+      `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
+       VALUES ($1, 'uk', $2)
+       ON CONFLICT (section_settings_id, language_code)
+       DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
+      [sectionId, section.titleUk || fallback.titleUk]
+    );
+
+    await queryable.query(
+      `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
+       VALUES ($1, 'en', $2)
+       ON CONFLICT (section_settings_id, language_code)
+       DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
+      [sectionId, section.titleEn || fallback.titleEn]
+    );
+  }
 }
 
 const tableConfig = {
@@ -426,58 +568,40 @@ export async function getPublicSectionSettings(requestedLanguage = config.defaul
 }
 
 export async function saveSectionSettings(sectionsPayload) {
-  const normalizedSections = normalizeSectionSettingsForAdmin(sectionsPayload);
+  const client = await pool.connect();
 
-  await pool.query("BEGIN");
+  await client.query("BEGIN");
   try {
-    const defaultsMap = getSectionDefaultsMap();
+    await upsertSectionSettings(client, sectionsPayload);
 
-    for (const section of normalizedSections) {
-      const fallback = defaultsMap[section.sectionKey] || section;
-
-      const upsertResult = await pool.query(
-        `INSERT INTO section_settings (section_key, sort_order, is_enabled, default_title)
-         VALUES ($1, $2, $3, $4)
-         ON CONFLICT (section_key)
-         DO UPDATE SET
-           sort_order = EXCLUDED.sort_order,
-           is_enabled = EXCLUDED.is_enabled,
-           default_title = EXCLUDED.default_title,
-           updated_at = NOW()
-         RETURNING id`,
-        [
-          section.sectionKey,
-          section.sortOrder,
-          section.isEnabled,
-          section.titleUk || fallback.titleUk
-        ]
-      );
-
-      const sectionId = upsertResult.rows[0] && upsertResult.rows[0].id;
-      if (!sectionId) continue;
-
-      await pool.query(
-        `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
-         VALUES ($1, 'uk', $2)
-         ON CONFLICT (section_settings_id, language_code)
-         DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
-        [sectionId, section.titleUk || fallback.titleUk]
-      );
-
-      await pool.query(
-        `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
-         VALUES ($1, 'en', $2)
-         ON CONFLICT (section_settings_id, language_code)
-         DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
-        [sectionId, section.titleEn || fallback.titleEn]
-      );
-    }
-
-    await pool.query("COMMIT");
+    await client.query("COMMIT");
     return await getAdminSectionSettings();
   } catch (error) {
-    await pool.query("ROLLBACK");
+    await client.query("ROLLBACK");
     throw error;
+  } finally {
+    client.release();
+  }
+}
+
+export async function saveSettingsBundle(payload) {
+  const client = await pool.connect();
+
+  await client.query("BEGIN");
+  try {
+    await upsertAdminSettings(client, payload.settings);
+    await upsertSectionSettings(client, payload.sections);
+    await client.query("COMMIT");
+
+    return {
+      settings: await getAdminSettings(),
+      sections: await getAdminSectionSettings()
+    };
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
   }
 }
 
@@ -487,102 +611,7 @@ export async function getAdminSettings() {
 }
 
 export async function saveSettings(payload) {
-  const existing = await getAdminSettings();
-  if (!existing) {
-    const insert = await pool.query(
-      `INSERT INTO settings (
-        title,
-        about,
-        mission,
-        email,
-        instagram_url,
-        youtube_url,
-        soundcloud_url,
-        radio_url,
-        contact_captcha_enabled,
-        contact_captcha_active_provider,
-        contact_captcha_hcaptcha_site_key,
-        contact_captcha_hcaptcha_secret_key,
-        contact_captcha_recaptcha_site_key,
-        contact_captcha_recaptcha_secret_key,
-        contact_captcha_error_message,
-        contact_captcha_missing_token_message,
-        contact_captcha_invalid_domain_message,
-        contact_captcha_allowed_domain
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
-      ) RETURNING *`,
-      [
-        payload.title,
-        payload.about,
-        payload.mission,
-        payload.email,
-        payload.instagramUrl,
-        payload.youtubeUrl,
-        payload.soundcloudUrl,
-        payload.radioUrl,
-        payload.contactCaptchaEnabled,
-        payload.contactCaptchaActiveProvider,
-        payload.contactCaptchaHcaptchaSiteKey,
-        payload.contactCaptchaHcaptchaSecretKey,
-        payload.contactCaptchaRecaptchaSiteKey,
-        payload.contactCaptchaRecaptchaSecretKey,
-        payload.contactCaptchaErrorMessage,
-        payload.contactCaptchaMissingTokenMessage,
-        payload.contactCaptchaInvalidDomainMessage,
-        payload.contactCaptchaAllowedDomain
-      ]
-    );
-    return await getAdminSettings();
-  }
-
-  const updated = await pool.query(
-    `UPDATE settings SET
-      title = $1,
-      about = $2,
-      mission = $3,
-      email = $4,
-      instagram_url = $5,
-      youtube_url = $6,
-      soundcloud_url = $7,
-      radio_url = $8,
-      contact_captcha_enabled = $9,
-      contact_captcha_active_provider = $10,
-      contact_captcha_hcaptcha_site_key = $11,
-      contact_captcha_hcaptcha_secret_key = $12,
-      contact_captcha_recaptcha_site_key = $13,
-      contact_captcha_recaptcha_secret_key = $14,
-      contact_captcha_error_message = $15,
-      contact_captcha_missing_token_message = $16,
-      contact_captcha_invalid_domain_message = $17,
-      contact_captcha_allowed_domain = $18,
-      updated_at = NOW()
-    WHERE id = (SELECT id FROM settings ORDER BY id ASC LIMIT 1)
-    RETURNING id`,
-    [
-      payload.title,
-      payload.about,
-      payload.mission,
-      payload.email,
-      payload.instagramUrl,
-      payload.youtubeUrl,
-      payload.soundcloudUrl,
-      payload.radioUrl,
-      payload.contactCaptchaEnabled,
-      payload.contactCaptchaActiveProvider,
-      payload.contactCaptchaHcaptchaSiteKey,
-      payload.contactCaptchaHcaptchaSecretKey,
-      payload.contactCaptchaRecaptchaSiteKey,
-      payload.contactCaptchaRecaptchaSecretKey,
-      payload.contactCaptchaErrorMessage,
-      payload.contactCaptchaMissingTokenMessage,
-      payload.contactCaptchaInvalidDomainMessage,
-      payload.contactCaptchaAllowedDomain
-    ]
-  );
-  const updatedId = updated.rows[0] && updated.rows[0].id;
-  if (!updatedId) return null;
+  await upsertAdminSettings(pool, payload);
   return await getAdminSettings();
 }
 

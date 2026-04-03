@@ -384,6 +384,9 @@
                     ...deepClone(DEFAULT_DATA.settings),
                     ...(parsed.settings || {})
                 },
+                sectionSettings: Array.isArray(parsed.sectionSettings)
+                    ? parsed.sectionSettings
+                    : deepClone(DEFAULT_DATA.sectionSettings),
                 contactRequests: parsed.contactRequests || []
             };
         } catch (error) {
@@ -570,6 +573,25 @@
             data.sectionSettings = sections;
             saveLocalData(data);
             return sections;
+        },
+
+        async saveSettingsBundle(payload) {
+            const settings = payload && payload.settings && typeof payload.settings === "object" ? payload.settings : {};
+            const sections = payload && Array.isArray(payload.sections) ? payload.sections : [];
+
+            if (await shouldUseApi()) {
+                const response = await apiRequest("/settings/bundle", {
+                    method: "PUT",
+                    body: { data: { settings, sections } }
+                });
+                return response.data || { settings, sections };
+            }
+
+            const data = getLocalData();
+            data.settings = settings;
+            data.sectionSettings = sections;
+            saveLocalData(data);
+            return { settings, sections };
         },
 
         async saveCollection(type, payload) {

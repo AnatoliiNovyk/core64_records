@@ -708,7 +708,6 @@ function normalizePublicSectionSettings(sectionSettings) {
                 title
             };
         })
-        .filter((entry) => entry.isEnabled)
         .sort((left, right) => {
             if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
             return left.sectionKey.localeCompare(right.sectionKey);
@@ -724,6 +723,22 @@ function applyPublicSectionSettings(sectionSettings) {
         titleEl.textContent = section.title;
     });
 
+    ["public-desktop-nav-links", "public-mobile-nav-links"].forEach((containerId) => {
+        const containerEl = document.getElementById(containerId);
+        if (!containerEl) return;
+
+        const aboutLinkEl = containerEl.querySelector('a[href="#about"]');
+        normalized.forEach((section) => {
+            const linkEl = containerEl.querySelector(`a[href="#${section.sectionKey}"]`);
+            if (!linkEl) return;
+            if (aboutLinkEl && aboutLinkEl.parentElement === containerEl) {
+                containerEl.insertBefore(linkEl, aboutLinkEl);
+            } else {
+                containerEl.appendChild(linkEl);
+            }
+        });
+    });
+
     const releasesSectionEl = document.getElementById("releases");
     const sectionsParentEl = releasesSectionEl ? releasesSectionEl.parentElement : null;
     if (!sectionsParentEl) return;
@@ -731,6 +746,17 @@ function applyPublicSectionSettings(sectionSettings) {
     normalized.forEach((section) => {
         const sectionEl = document.getElementById(section.sectionKey);
         if (!sectionEl || sectionEl.parentElement !== sectionsParentEl) return;
+        sectionEl.hidden = section.isEnabled === false;
+        sectionEl.setAttribute("aria-hidden", section.isEnabled === false ? "true" : "false");
+        document.querySelectorAll(`a[href="#${section.sectionKey}"]`).forEach((linkEl) => {
+            linkEl.hidden = section.isEnabled === false;
+            linkEl.setAttribute("aria-hidden", section.isEnabled === false ? "true" : "false");
+            if (section.isEnabled === false) {
+                linkEl.setAttribute("tabindex", "-1");
+            } else {
+                linkEl.removeAttribute("tabindex");
+            }
+        });
         sectionsParentEl.appendChild(sectionEl);
     });
 }
