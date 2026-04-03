@@ -148,6 +148,36 @@
             contactCaptchaInvalidDomainMessage: "Відправка з цього домену заборонена.",
             contactCaptchaAllowedDomain: ""
         },
+        sectionSettings: [
+            {
+                sectionKey: "releases",
+                sortOrder: 1,
+                isEnabled: true,
+                titleUk: "ОСТАННІ РЕЛІЗИ",
+                titleEn: "LATEST RELEASES"
+            },
+            {
+                sectionKey: "artists",
+                sortOrder: 2,
+                isEnabled: true,
+                titleUk: "АРТИСТИ ЛЕЙБЛУ",
+                titleEn: "LABEL ARTISTS"
+            },
+            {
+                sectionKey: "events",
+                sortOrder: 3,
+                isEnabled: true,
+                titleUk: "АФІША ПОДІЙ",
+                titleEn: "EVENT SCHEDULE"
+            },
+            {
+                sectionKey: "sponsors",
+                sortOrder: 4,
+                isEnabled: true,
+                titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
+                titleEn: "SPONSORS, PARTNERS AND FRIENDS"
+            }
+        ],
         contactRequests: []
     };
 
@@ -312,6 +342,29 @@
         return `${normalized}-${normalized.toUpperCase()}`;
     }
 
+    function localizeSectionSettings(sectionSettings, language) {
+        const normalizedLanguage = resolvePreferredLanguage(language);
+        const source = Array.isArray(sectionSettings) ? sectionSettings : [];
+        return source
+            .map((entry, index) => {
+                const sectionKey = String(entry.sectionKey || "").trim();
+                if (!sectionKey) return null;
+                const sortOrder = Number.isFinite(Number(entry.sortOrder))
+                    ? Number(entry.sortOrder)
+                    : (index + 1);
+                const titleUk = String(entry.titleUk || "").trim();
+                const titleEn = String(entry.titleEn || "").trim();
+                return {
+                    sectionKey,
+                    sortOrder,
+                    isEnabled: entry.isEnabled !== false,
+                    title: normalizedLanguage === "en" ? (titleEn || titleUk || sectionKey) : (titleUk || titleEn || sectionKey)
+                };
+            })
+            .filter(Boolean)
+            .sort((left, right) => left.sortOrder - right.sortOrder);
+    }
+
     function getLocalData() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
@@ -469,7 +522,11 @@
                 const response = await apiRequest(buildPathWithLang("/public", language));
                 return response.data;
             }
-            return getLocalData();
+            const localData = getLocalData();
+            return {
+                ...localData,
+                sectionSettings: localizeSectionSettings(localData.sectionSettings, language)
+            };
         },
 
         async getCollection(type) {
@@ -486,6 +543,33 @@
 
             const data = getLocalData();
             return data[collection];
+        },
+
+        async getSectionSettings() {
+            if (await shouldUseApi()) {
+                const response = await apiRequest("/settings/sections");
+                return response.data && response.data.sections ? response.data.sections : [];
+            }
+
+            const data = getLocalData();
+            return Array.isArray(data.sectionSettings) ? data.sectionSettings : [];
+        },
+
+        async saveSectionSettings(payload) {
+            const sections = payload && Array.isArray(payload.sections) ? payload.sections : [];
+
+            if (await shouldUseApi()) {
+                const response = await apiRequest("/settings/sections", {
+                    method: "PUT",
+                    body: { data: { sections } }
+                });
+                return response.data && response.data.sections ? response.data.sections : [];
+            }
+
+            const data = getLocalData();
+            data.sectionSettings = sections;
+            saveLocalData(data);
+            return sections;
         },
 
         async saveCollection(type, payload) {

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../middleware/auth.js";
-import { settingsSchema } from "../middleware/validate.js";
-import { getAdminSettings, saveSettings } from "../db/repository.js";
+import { settingsSchema, sectionSettingsSchema } from "../middleware/validate.js";
+import { getAdminSettings, saveSettings, getAdminSectionSettings, saveSectionSettings } from "../db/repository.js";
 
 const router = Router();
 
@@ -20,6 +20,26 @@ router.put("/settings", requireAuth, async (req, res, next) => {
     const validated = settingsSchema.parse(payload);
     const data = await saveSettings(validated);
     res.json({ data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/settings/sections", requireAuth, async (_req, res, next) => {
+  try {
+    const sections = await getAdminSectionSettings();
+    res.json({ data: { sections } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put("/settings/sections", requireAuth, async (req, res, next) => {
+  try {
+    const payload = req.body.data || req.body;
+    const validated = sectionSettingsSchema.parse(payload);
+    const sections = await saveSectionSettings(validated.sections);
+    res.json({ data: { sections } });
   } catch (error) {
     next(error);
   }

@@ -2,6 +2,65 @@ import { pool } from "./pool.js";
 import { config } from "../config.js";
 import { resolveLanguage } from "../i18n/language.js";
 
+const SECTION_SETTINGS_DEFAULTS = [
+  { sectionKey: "releases", sortOrder: 1, isEnabled: true, titleUk: "ОСТАННІ РЕЛІЗИ", titleEn: "LATEST RELEASES" },
+  { sectionKey: "artists", sortOrder: 2, isEnabled: true, titleUk: "АРТИСТИ ЛЕЙБЛУ", titleEn: "LABEL ARTISTS" },
+  { sectionKey: "events", sortOrder: 3, isEnabled: true, titleUk: "АФІША ПОДІЙ", titleEn: "EVENT SCHEDULE" },
+  { sectionKey: "sponsors", sortOrder: 4, isEnabled: true, titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ", titleEn: "SPONSORS, PARTNERS AND FRIENDS" }
+];
+
+function getSectionDefaultsMap() {
+  return SECTION_SETTINGS_DEFAULTS.reduce((acc, entry) => {
+    acc[entry.sectionKey] = entry;
+    return acc;
+  }, {});
+}
+
+function normalizeSectionSettingsForAdmin(rows) {
+  const defaultsMap = getSectionDefaultsMap();
+  const normalized = Array.isArray(rows)
+    ? rows.map((row) => {
+      const sectionKey = String(row.sectionKey || row.section_key || "").trim();
+      const fallback = defaultsMap[sectionKey] || null;
+      if (!sectionKey || !fallback) return null;
+      return {
+        sectionKey,
+        sortOrder: Number.isFinite(Number(row.sortOrder ?? row.sort_order))
+          ? Number(row.sortOrder ?? row.sort_order)
+          : fallback.sortOrder,
+        isEnabled: typeof row.isEnabled === "boolean"
+          ? row.isEnabled
+          : (typeof row.is_enabled === "boolean" ? row.is_enabled : fallback.isEnabled),
+        titleUk: String(row.titleUk || row.title_uk || row.defaultTitle || fallback.titleUk).trim() || fallback.titleUk,
+        titleEn: String(row.titleEn || row.title_en || row.defaultTitle || fallback.titleEn).trim() || fallback.titleEn
+      };
+    }).filter(Boolean)
+    : [];
+
+  const missing = SECTION_SETTINGS_DEFAULTS
+    .filter((entry) => !normalized.some((item) => item.sectionKey === entry.sectionKey))
+    .map((entry) => ({ ...entry }));
+
+  return [...normalized, ...missing].sort((left, right) => {
+    if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+    return left.sectionKey.localeCompare(right.sectionKey);
+  });
+}
+
+function normalizeSectionSettingsForPublic(rows, requestedLanguage) {
+  const language = resolveLanguage(requestedLanguage);
+  const adminRows = normalizeSectionSettingsForAdmin(rows);
+  return adminRows
+    .filter((row) => row.isEnabled !== false)
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((row) => ({
+      sectionKey: row.sectionKey,
+      sortOrder: row.sortOrder,
+      isEnabled: row.isEnabled,
+      title: language === "en" ? row.titleEn : row.titleUk
+    }));
+}
+
 const tableConfig = {
   releases: {
     table: "releases",
@@ -333,6 +392,93 @@ export async function getPublicSettings(requestedLanguage = config.defaultLangua
   const defaultLanguage = resolveLanguage(config.defaultLanguage);
   const result = await pool.query(PUBLIC_SETTINGS_SELECT, [language, defaultLanguage]);
   return result.rows[0] || null;
+}
+
+export async function getAdminSectionSettings() {
+  try {
+    const result = await pool.query(
+      `SELECT
+        base.section_key AS "sectionKey",
+        base.sort_order AS "sortOrder",
+        base.is_enabled AS "isEnabled",
+        base.default_title AS "defaultTitle",
+        i18n_uk.title AS "titleUk",
+        i18n_en.title AS "titleEn"
+      FROM section_settings AS base
+      LEFT JOIN section_settings_i18n AS i18n_uk
+        ON i18n_uk.section_settings_id = base.id
+       AND i18n_uk.language_code = 'uk'
+      LEFT JOIN section_settings_i18n AS i18n_en
+        ON i18n_en.section_settings_id = base.id
+       AND i18n_en.language_code = 'en'
+      ORDER BY base.sort_order ASC, base.id ASC`
+    );
+
+    return normalizeSectionSettingsForAdmin(result.rows);
+  } catch (_error) {
+    return normalizeSectionSettingsForAdmin([]);
+  }
+}
+
+export async function getPublicSectionSettings(requestedLanguage = config.defaultLanguage) {
+  const adminSettings = await getAdminSectionSettings();
+  return normalizeSectionSettingsForPublic(adminSettings, requestedLanguage);
+}
+
+export async function saveSectionSettings(sectionsPayload) {
+  const normalizedSections = normalizeSectionSettingsForAdmin(sectionsPayload);
+
+  await pool.query("BEGIN");
+  try {
+    const defaultsMap = getSectionDefaultsMap();
+
+    for (const section of normalizedSections) {
+      const fallback = defaultsMap[section.sectionKey] || section;
+
+      const upsertResult = await pool.query(
+        `INSERT INTO section_settings (section_key, sort_order, is_enabled, default_title)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (section_key)
+         DO UPDATE SET
+           sort_order = EXCLUDED.sort_order,
+           is_enabled = EXCLUDED.is_enabled,
+           default_title = EXCLUDED.default_title,
+           updated_at = NOW()
+         RETURNING id`,
+        [
+          section.sectionKey,
+          section.sortOrder,
+          section.isEnabled,
+          section.titleUk || fallback.titleUk
+        ]
+      );
+
+      const sectionId = upsertResult.rows[0] && upsertResult.rows[0].id;
+      if (!sectionId) continue;
+
+      await pool.query(
+        `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
+         VALUES ($1, 'uk', $2)
+         ON CONFLICT (section_settings_id, language_code)
+         DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
+        [sectionId, section.titleUk || fallback.titleUk]
+      );
+
+      await pool.query(
+        `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
+         VALUES ($1, 'en', $2)
+         ON CONFLICT (section_settings_id, language_code)
+         DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
+        [sectionId, section.titleEn || fallback.titleEn]
+      );
+    }
+
+    await pool.query("COMMIT");
+    return await getAdminSectionSettings();
+  } catch (error) {
+    await pool.query("ROLLBACK");
+    throw error;
+  }
 }
 
 export async function getAdminSettings() {

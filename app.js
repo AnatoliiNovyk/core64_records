@@ -6,6 +6,12 @@ let sponsorCarouselVisibilityListenerBound = false;
 let contactRuntimeSettings = {};
 let releaseInteractionsBound = false;
 const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
+const PUBLIC_SECTION_DEFAULTS = [
+    { sectionKey: "releases", sortOrder: 1, i18nKey: "sectionLatestReleases" },
+    { sectionKey: "artists", sortOrder: 2, i18nKey: "sectionLabelArtists" },
+    { sectionKey: "events", sortOrder: 3, i18nKey: "sectionEvents" },
+    { sectionKey: "sponsors", sortOrder: 4, i18nKey: "sectionSponsors" }
+];
 const PUBLIC_I18N = {
     uk: {
         navReleases: "Релізи",
@@ -678,6 +684,57 @@ function bindReleaseInteractions() {
     releaseInteractionsBound = true;
 }
 
+function normalizePublicSectionSettings(sectionSettings) {
+    const source = Array.isArray(sectionSettings) ? sectionSettings : [];
+    const byKey = source.reduce((acc, entry) => {
+        const sectionKey = String(entry && entry.sectionKey ? entry.sectionKey : "").trim();
+        if (!sectionKey) return acc;
+        acc[sectionKey] = entry;
+        return acc;
+    }, {});
+
+    return PUBLIC_SECTION_DEFAULTS
+        .map((defaults) => {
+            const candidate = byKey[defaults.sectionKey] || {};
+            const sortOrder = Number.isFinite(Number(candidate.sortOrder))
+                ? Number(candidate.sortOrder)
+                : defaults.sortOrder;
+            const title = String(candidate.title || "").trim() || tPublic(defaults.i18nKey);
+            const isEnabled = candidate.isEnabled !== false;
+            return {
+                sectionKey: defaults.sectionKey,
+                sortOrder,
+                isEnabled,
+                title
+            };
+        })
+        .filter((entry) => entry.isEnabled)
+        .sort((left, right) => {
+            if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+            return left.sectionKey.localeCompare(right.sectionKey);
+        });
+}
+
+function applyPublicSectionSettings(sectionSettings) {
+    const normalized = normalizePublicSectionSettings(sectionSettings);
+
+    normalized.forEach((section) => {
+        const titleEl = document.getElementById(`public-section-title-${section.sectionKey}`);
+        if (!titleEl) return;
+        titleEl.textContent = section.title;
+    });
+
+    const releasesSectionEl = document.getElementById("releases");
+    const sectionsParentEl = releasesSectionEl ? releasesSectionEl.parentElement : null;
+    if (!sectionsParentEl) return;
+
+    normalized.forEach((section) => {
+        const sectionEl = document.getElementById(section.sectionKey);
+        if (!sectionEl || sectionEl.parentElement !== sectionsParentEl) return;
+        sectionsParentEl.appendChild(sectionEl);
+    });
+}
+
 function renderReleases(data) {
     const grid = document.getElementById("releases-grid");
     if (!grid) return;
@@ -1124,6 +1181,7 @@ async function bootstrap() {
         renderArtists(data);
         renderEvents(data);
         renderSponsors(data);
+        applyPublicSectionSettings(data.sectionSettings || []);
         contactRuntimeSettings = data.settings || {};
         loadAbout(data.settings || {});
         applyHeroSocialLinks(data.settings || {});
@@ -1139,6 +1197,7 @@ async function bootstrap() {
         renderArtists(fallback);
         renderEvents(fallback);
         renderSponsors(fallback);
+        applyPublicSectionSettings(fallback.sectionSettings || []);
         contactRuntimeSettings = fallback.settings || {};
         loadAbout(fallback.settings);
         applyHeroSocialLinks(fallback.settings);

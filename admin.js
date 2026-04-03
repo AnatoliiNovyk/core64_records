@@ -12,6 +12,7 @@ let cache = {
     artists: [],
     events: [],
     sponsors: [],
+    sectionSettings: [],
     settings: {},
     contactRequests: [],
     auditLogs: [],
@@ -155,6 +156,13 @@ const ADMIN_I18N = {
         settingsSaveSuccess: "Налаштування збережено",
         settingsSaveFailed: "Не вдалося зберегти налаштування",
         activitySettingsUpdated: "Оновлено налаштування сайту",
+        activitySectionSettingsUpdated: "Оновлено заголовки та порядок секцій",
+        sectionReleasesLabel: "Релізи",
+        sectionArtistsLabel: "Артисти",
+        sectionEventsLabel: "Події",
+        sectionSponsorsLabel: "Спонсори",
+        sectionMoveUp: "Вгору",
+        sectionMoveDown: "Вниз",
         activityThresholdsReset: "Скинуто пороги latency до дефолтних (без збереження)",
         resetDataConfirm: "УВАГА! Це скине локальні fallback-дані. Продовжити?",
         resetDataUnsupported: "Не вдалося виконати скидання в поточному середовищі.",
@@ -315,6 +323,13 @@ const ADMIN_I18N = {
         settingsSaveSuccess: "Settings saved",
         settingsSaveFailed: "Failed to save settings",
         activitySettingsUpdated: "Site settings updated",
+        activitySectionSettingsUpdated: "Section titles and order updated",
+        sectionReleasesLabel: "Releases",
+        sectionArtistsLabel: "Artists",
+        sectionEventsLabel: "Events",
+        sectionSponsorsLabel: "Sponsors",
+        sectionMoveUp: "Up",
+        sectionMoveDown: "Down",
         activityThresholdsReset: "Latency thresholds reset to defaults (not saved)",
         resetDataConfirm: "WARNING! This will reset local fallback data. Continue?",
         resetDataUnsupported: "Reset is not available in current environment.",
@@ -2667,6 +2682,156 @@ function normalizeSettingsHostname(value) {
     return /^[a-z0-9.-]+$/i.test(normalized) ? normalized : "";
 }
 
+const SECTION_SETTINGS_DEFAULTS = [
+    { sectionKey: "releases", sortOrder: 1, isEnabled: true, titleUk: "ОСТАННІ РЕЛІЗИ", titleEn: "LATEST RELEASES" },
+    { sectionKey: "artists", sortOrder: 2, isEnabled: true, titleUk: "АРТИСТИ ЛЕЙБЛУ", titleEn: "LABEL ARTISTS" },
+    { sectionKey: "events", sortOrder: 3, isEnabled: true, titleUk: "АФІША ПОДІЙ", titleEn: "EVENT SCHEDULE" },
+    { sectionKey: "sponsors", sortOrder: 4, isEnabled: true, titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ", titleEn: "SPONSORS, PARTNERS AND FRIENDS" }
+];
+
+function getSectionLabel(sectionKey) {
+    if (sectionKey === "releases") return tAdmin("sectionReleasesLabel");
+    if (sectionKey === "artists") return tAdmin("sectionArtistsLabel");
+    if (sectionKey === "events") return tAdmin("sectionEventsLabel");
+    if (sectionKey === "sponsors") return tAdmin("sectionSponsorsLabel");
+    return sectionKey;
+}
+
+function normalizeSectionSettings(records) {
+    const defaultsByKey = SECTION_SETTINGS_DEFAULTS.reduce((acc, entry) => {
+        acc[entry.sectionKey] = entry;
+        return acc;
+    }, {});
+
+    const source = Array.isArray(records) ? records : [];
+    const normalized = source.map((entry) => {
+        const sectionKey = String(entry && entry.sectionKey ? entry.sectionKey : "").trim();
+        if (!sectionKey || !defaultsByKey[sectionKey]) return null;
+        const defaults = defaultsByKey[sectionKey];
+        const sortOrder = Number.isFinite(Number(entry.sortOrder)) ? Number(entry.sortOrder) : defaults.sortOrder;
+        return {
+            sectionKey,
+            sortOrder,
+            isEnabled: entry.isEnabled !== false,
+            titleUk: String(entry.titleUk || "").trim() || defaults.titleUk,
+            titleEn: String(entry.titleEn || "").trim() || defaults.titleEn
+        };
+    }).filter(Boolean);
+
+    const missing = SECTION_SETTINGS_DEFAULTS
+        .filter((entry) => !normalized.some((item) => item.sectionKey === entry.sectionKey))
+        .map((entry) => ({ ...entry }));
+
+    return [...normalized, ...missing].sort((left, right) => {
+        if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+        return left.sectionKey.localeCompare(right.sectionKey);
+    });
+}
+
+function renderSectionSettingsEditor() {
+    const listEl = document.getElementById("section-settings-list");
+    if (!listEl || !listEl.isConnected) return;
+
+    const rows = normalizeSectionSettings(cache.sectionSettings);
+    cache.sectionSettings = rows;
+
+    listEl.innerHTML = rows.map((row, index) => {
+        const sectionLabel = sanitizeInput(getSectionLabel(row.sectionKey));
+        const safeSectionKey = sanitizeInput(row.sectionKey);
+        const safeTitleUk = sanitizeInput(row.titleUk || "");
+        const safeTitleEn = sanitizeInput(row.titleEn || "");
+        const canMoveUp = index > 0;
+        const canMoveDown = index < rows.length - 1;
+
+        return `
+            <div class="border border-cyan-500/20 rounded p-3 bg-black/20" data-section-row="${safeSectionKey}">
+                <div class="flex items-center justify-between gap-2 mb-3">
+                    <div class="text-sm font-semibold text-cyan-300 uppercase tracking-wide">${sectionLabel}</div>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="moveSectionSetting('${safeSectionKey}', -1)" class="px-3 py-1 rounded text-xs border border-gray-500/40 text-gray-200 hover:bg-gray-700/40 disabled:opacity-40" ${canMoveUp ? "" : "disabled"}>${sanitizeInput(tAdmin("sectionMoveUp"))}</button>
+                        <button type="button" onclick="moveSectionSetting('${safeSectionKey}', 1)" class="px-3 py-1 rounded text-xs border border-gray-500/40 text-gray-200 hover:bg-gray-700/40 disabled:opacity-40" ${canMoveDown ? "" : "disabled"}>${sanitizeInput(tAdmin("sectionMoveDown"))}</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">Title UK</label>
+                        <input type="text" id="section-title-uk-${safeSectionKey}" class="form-input w-full p-2 rounded" value="${safeTitleUk}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">Title EN</label>
+                        <input type="text" id="section-title-en-${safeSectionKey}" class="form-input w-full p-2 rounded" value="${safeTitleEn}">
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join("");
+}
+
+function moveSectionSetting(sectionKey, direction) {
+    const normalizedKey = String(sectionKey || "").trim();
+    const directionValue = Number(direction);
+    if (!normalizedKey || !Number.isFinite(directionValue) || directionValue === 0) return;
+
+    const rows = normalizeSectionSettings(cache.sectionSettings);
+    const index = rows.findIndex((row) => row.sectionKey === normalizedKey);
+    if (index < 0) return;
+
+    const targetIndex = index + (directionValue < 0 ? -1 : 1);
+    if (targetIndex < 0 || targetIndex >= rows.length) return;
+
+    [rows[index], rows[targetIndex]] = [rows[targetIndex], rows[index]];
+    cache.sectionSettings = rows.map((row, rowIndex) => ({
+        ...row,
+        sortOrder: rowIndex + 1
+    }));
+    renderSectionSettingsEditor();
+}
+
+window.moveSectionSetting = moveSectionSetting;
+
+function getSectionSettingsDraftFromForm() {
+    const defaultsByKey = SECTION_SETTINGS_DEFAULTS.reduce((acc, entry) => {
+        acc[entry.sectionKey] = entry;
+        return acc;
+    }, {});
+
+    const rows = normalizeSectionSettings(cache.sectionSettings);
+    return rows.map((row, index) => {
+        const defaults = defaultsByKey[row.sectionKey] || row;
+        const titleUkEl = document.getElementById(`section-title-uk-${row.sectionKey}`);
+        const titleEnEl = document.getElementById(`section-title-en-${row.sectionKey}`);
+        const titleUk = normalizeSettingsPlainText(titleUkEl ? titleUkEl.value : row.titleUk, defaults.titleUk);
+        const titleEn = normalizeSettingsPlainText(titleEnEl ? titleEnEl.value : row.titleEn, defaults.titleEn);
+        return {
+            sectionKey: row.sectionKey,
+            sortOrder: index + 1,
+            isEnabled: row.isEnabled !== false,
+            titleUk,
+            titleEn
+        };
+    });
+}
+
+async function loadSectionSettings() {
+    const getSectionSettingsMethod = getAdapterMethod("getSectionSettings");
+    if (!getSectionSettingsMethod) {
+        cache.sectionSettings = normalizeSectionSettings(cache.sectionSettings);
+        renderSectionSettingsEditor();
+        return;
+    }
+
+    try {
+        const data = await getSectionSettingsMethod.call(adapter);
+        const rows = data && Array.isArray(data.sections) ? data.sections : data;
+        cache.sectionSettings = normalizeSectionSettings(rows);
+    } catch (error) {
+        console.error("Failed to load section settings", error);
+        cache.sectionSettings = normalizeSectionSettings(cache.sectionSettings);
+    }
+
+    renderSectionSettingsEditor();
+}
+
 async function refreshCache() {
     const sectionAtRefresh = currentSection;
     const navigationSeqAtRefresh = sectionNavigationSeq;
@@ -3083,6 +3248,7 @@ async function loadSettings() {
         auditLatencyWarnMaxMs: persisted.warn
     });
     setAuditLatencyThresholdsDirtyState(false);
+    await loadSectionSettings();
 }
 
 async function loadContacts() {
@@ -5126,6 +5292,18 @@ async function saveSettings(options = {}) {
 
     try {
         await saveCollectionMethod.call(adapter, "settings", settings);
+        const saveSectionSettingsMethod = getAdapterMethod("saveSectionSettings");
+        const sectionSettingsDraft = getSectionSettingsDraftFromForm();
+        if (saveSectionSettingsMethod) {
+            const savedSectionSettings = await saveSectionSettingsMethod.call(adapter, { sections: sectionSettingsDraft });
+            const rows = savedSectionSettings && Array.isArray(savedSectionSettings.sections)
+                ? savedSectionSettings.sections
+                : savedSectionSettings;
+            cache.sectionSettings = normalizeSectionSettings(rows);
+        } else {
+            cache.sectionSettings = normalizeSectionSettings(sectionSettingsDraft);
+        }
+        renderSectionSettingsEditor();
         if (sectionNavigationSeq !== navigationSeqAtSave) return false;
         cache.settings = settings;
         applyAuditLatencyThresholds(settings);
@@ -5141,6 +5319,7 @@ async function saveSettings(options = {}) {
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return true;
         addActivity(tAdmin("activitySettingsUpdated"));
+        addActivity(tAdmin("activitySectionSettingsUpdated"));
         if (notifySuccess) {
             alert(tAdmin("settingsSaveSuccess"));
         }

@@ -155,6 +155,43 @@ export const settingsSchema = z.object({
   }
 });
 
+const sectionKeySchema = z.enum(["releases", "artists", "events", "sponsors"]);
+
+export const sectionSettingSchema = z.object({
+  sectionKey: sectionKeySchema,
+  sortOrder: z.number().int().min(1).max(999),
+  isEnabled: z.boolean().optional().default(true),
+  titleUk: z.string().trim().min(1).max(120),
+  titleEn: z.string().trim().min(1).max(120)
+});
+
+export const sectionSettingsSchema = z.object({
+  sections: z.array(sectionSettingSchema).min(1).max(20)
+}).superRefine((payload, ctx) => {
+  const sectionKeySet = new Set();
+  const sortOrderSet = new Set();
+
+  payload.sections.forEach((section, index) => {
+    if (sectionKeySet.has(section.sectionKey)) {
+      ctx.addIssue({
+        path: ["sections", index, "sectionKey"],
+        code: z.ZodIssueCode.custom,
+        message: "Duplicate sectionKey is not allowed"
+      });
+    }
+    sectionKeySet.add(section.sectionKey);
+
+    if (sortOrderSet.has(section.sortOrder)) {
+      ctx.addIssue({
+        path: ["sections", index, "sortOrder"],
+        code: z.ZodIssueCode.custom,
+        message: "Duplicate sortOrder is not allowed"
+      });
+    }
+    sortOrderSet.add(section.sortOrder);
+  });
+});
+
 export const contactRequestSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
