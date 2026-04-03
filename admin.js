@@ -5331,12 +5331,16 @@ async function saveSettings(options = {}) {
         }
         renderSectionSettingsEditor();
         if (sectionNavigationSeq !== navigationSeqAtSave) return false;
-        applyAuditLatencyThresholds(settings);
+        const persistedThresholds = getNormalizedLatencyThresholds(cache.settings || settings);
+        applyAuditLatencyThresholds({
+            auditLatencyGoodMaxMs: persistedThresholds.good,
+            auditLatencyWarnMaxMs: persistedThresholds.warn
+        });
         if (goodInputEl.isConnected) {
-            goodInputEl.value = String(goodMax);
+            goodInputEl.value = String(persistedThresholds.good);
         }
         if (warnInputEl.isConnected) {
-            warnInputEl.value = String(warnMax);
+            warnInputEl.value = String(persistedThresholds.warn);
         }
         setAuditLatencyThresholdsDirtyState(false);
         if (currentSection !== sectionAtSave) return true;
