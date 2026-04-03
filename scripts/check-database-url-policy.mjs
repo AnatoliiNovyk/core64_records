@@ -30,6 +30,14 @@ function printPoolerSslmodeRemediation(payload) {
 export function evaluateDatabaseUrlPolicy(raw) {
   const original = String(raw ?? "");
 
+  const buildSnapshot = (url, sslmodeValue) => ({
+    protocol: url.protocol.replace(":", "") || null,
+    host: url.hostname || null,
+    port: url.port || null,
+    database: (url.pathname || "").replace(/^\//, "") || null,
+    sslmode: sslmodeValue || null
+  });
+
   if (!original) {
     return {
       valid: false,
@@ -81,6 +89,26 @@ export function evaluateDatabaseUrlPolicy(raw) {
   const host = (url.hostname || "").toLowerCase();
   const sslmode = (url.searchParams.get("sslmode") || "").toLowerCase();
   const hasSslmodeParam = url.searchParams.has("sslmode");
+
+  if (!host) {
+    return {
+      valid: false,
+      reason: "missing_database_host",
+      hint: "DATABASE_URL must include a database host.",
+      snapshot: buildSnapshot(url, sslmode)
+    };
+  }
+
+  const database = (url.pathname || "").replace(/^\//, "").trim();
+  if (!database) {
+    return {
+      valid: false,
+      reason: "missing_database_name",
+      hint: "DATABASE_URL must include a database name path (for example /postgres).",
+      snapshot: buildSnapshot(url, sslmode)
+    };
+  }
+
   const isPooler = host.includes(".pooler.") || host.endsWith(".pooler.supabase.com");
   const acceptedPoolerSslModes = new Set(["require", "verify-ca", "verify-full"]);
 
@@ -99,13 +127,7 @@ export function evaluateDatabaseUrlPolicy(raw) {
         append,
         allowedSslModes: Array.from(acceptedPoolerSslModes)
       },
-      snapshot: {
-        protocol: url.protocol.replace(":", "") || null,
-        host: url.hostname || null,
-        port: url.port || null,
-        database: (url.pathname || "").replace(/^\//, "") || null,
-        sslmode: sslmode || null
-      }
+      snapshot: buildSnapshot(url, sslmode)
     };
   }
 
@@ -113,13 +135,7 @@ export function evaluateDatabaseUrlPolicy(raw) {
     valid: true,
     reason: "ok",
     hint: "DATABASE_URL policy check passed.",
-    snapshot: {
-      protocol: url.protocol.replace(":", "") || null,
-      host: url.hostname || null,
-      port: url.port || null,
-      database: (url.pathname || "").replace(/^\//, "") || null,
-      sslmode: sslmode || null
-    }
+    snapshot: buildSnapshot(url, sslmode)
   };
 }
 

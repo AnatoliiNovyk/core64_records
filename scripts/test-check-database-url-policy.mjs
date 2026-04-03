@@ -65,6 +65,21 @@ function main() {
   const invalidProtocolJson = parseJson(invalidProtocolCase.stdout, "invalid-protocol");
   expect(invalidProtocolJson.reason === "invalid_protocol", "invalid-protocol: reason mismatch");
 
+  const missingHostCase = runCase("missing-host", "postgresql:///core64", { strict: true });
+  expect(missingHostCase.code === 1, `missing-host: expected exit 1, got ${missingHostCase.code}`);
+  const missingHostJson = parseJson(missingHostCase.stdout, "missing-host");
+  expect(missingHostJson.reason === "missing_database_host", "missing-host: reason mismatch");
+
+  const missingDatabaseNameCase = runCase("missing-database-name", "postgresql://user:pass@db.example.com:5432", {
+    strict: true
+  });
+  expect(
+    missingDatabaseNameCase.code === 1,
+    `missing-database-name: expected exit 1, got ${missingDatabaseNameCase.code}`
+  );
+  const missingDatabaseNameJson = parseJson(missingDatabaseNameCase.stdout, "missing-database-name");
+  expect(missingDatabaseNameJson.reason === "missing_database_name", "missing-database-name: reason mismatch");
+
   const poolerNoSslCase = runCase(
     "pooler-missing-sslmode",
     "postgresql://user:pass@aws-1-eu-west-1.pooler.supabase.com:6543/postgres",
