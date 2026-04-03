@@ -582,11 +582,32 @@
             const sections = payload && Array.isArray(payload.sections) ? payload.sections : [];
 
             if (await shouldUseApi()) {
-                const response = await apiRequest("/settings/bundle", {
-                    method: "PUT",
-                    body: { data: { settings, sections } }
-                });
-                return response.data || { settings, sections };
+                try {
+                    const response = await apiRequest("/settings/bundle", {
+                        method: "PUT",
+                        body: { data: { settings, sections } }
+                    });
+                    return response.data || { settings, sections };
+                } catch (error) {
+                    const status = Number(error && error.status);
+                    if (status !== 404 && status !== 405) throw error;
+
+                    const settingsResponse = await apiRequest("/settings", {
+                        method: "PUT",
+                        body: { data: settings }
+                    });
+                    const sectionsResponse = await apiRequest("/settings/sections", {
+                        method: "PUT",
+                        body: { data: { sections } }
+                    });
+
+                    return {
+                        settings: settingsResponse && settingsResponse.data ? settingsResponse.data : settings,
+                        sections: sectionsResponse && sectionsResponse.data && Array.isArray(sectionsResponse.data.sections)
+                            ? sectionsResponse.data.sections
+                            : sections
+                    };
+                }
             }
 
             const data = getLocalData();

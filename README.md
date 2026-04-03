@@ -121,7 +121,8 @@ The script checks:
 - `/api/health`
 - `/api/health/db` (database connectivity)
 - `/api/public` payload quality (missing media, `static.photos`, bad release links)
-- admin auth flow (`/api/auth/login`, `/api/auth/me`, `/api/settings`)
+- admin auth flow (`/api/auth/login`, `/api/auth/me`, `/api/settings`, `/api/settings/sections`)
+- idempotent admin settings round-trip via `/api/settings/bundle`
 
 Optional environment overrides:
 

@@ -94,6 +94,7 @@ const ADMIN_I18N = {
         loadEventsMissingAdapter: "Не вдалося завантажити події: відсутній метод adapter.",
         loadSponsorsMissingAdapter: "Не вдалося завантажити партнерів: відсутній метод adapter.",
         loadSettingsMissingAdapter: "Не вдалося завантажити налаштування: відсутній метод adapter.",
+        loadSettingsFailed: "Не вдалося завантажити налаштування.",
         loadContactsMissingAdapter: "Не вдалося завантажити звернення: відсутній метод adapter.",
         exportAuditMissingAdapter: "Не вдалося експортувати аудит: відсутній метод adapter.",
         exportAuditEmpty: "Немає записів аудиту для експорту.",
@@ -262,6 +263,7 @@ const ADMIN_I18N = {
         loadEventsMissingAdapter: "Failed to load events: adapter method is missing.",
         loadSponsorsMissingAdapter: "Failed to load sponsors: adapter method is missing.",
         loadSettingsMissingAdapter: "Failed to load settings: adapter method is missing.",
+        loadSettingsFailed: "Failed to load settings.",
         loadContactsMissingAdapter: "Failed to load requests: adapter method is missing.",
         exportAuditMissingAdapter: "Failed to export audit: adapter method is missing.",
         exportAuditEmpty: "There are no audit entries to export.",
@@ -2847,20 +2849,20 @@ async function refreshCache() {
     if (sectionAtRefresh !== "dashboard") return;
     if (!dashboardSectionEl || !dashboardSectionEl.isConnected) return;
     const getCollectionMethod = getAdapterMethod("getCollection");
-    if (!getCollectionMethod) {
-        console.warn("Adapter getCollection method is unavailable during refreshCache");
+    let nextSettings;
+    try {
+        nextSettings = await getCollectionMethod.call(adapter, "settings");
+    } catch (error) {
+        console.error("Failed to load settings", error);
+        if (sectionNavigationSeq !== navigationSeqAtUpload) return;
+        if (currentSection !== sectionAtUpload) return;
+        if (currentSection !== "settings") return;
+        const settingsSectionEl = document.getElementById("section-settings");
+        if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("loadSettingsFailed"));
+        await loadSectionSettings();
         return;
     }
-
-    const releases = await getCollectionMethod.call(adapter, "releases");
-    if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
-    if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
-    if (!dashboardSectionEl.isConnected) return;
-    const artists = await getCollectionMethod.call(adapter, "artists");
-    if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
-    if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
-    if (!dashboardSectionEl.isConnected) return;
-    const events = await getCollectionMethod.call(adapter, "events");
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
@@ -3163,7 +3165,22 @@ async function loadSettings() {
         alert(tAdmin("loadSettingsMissingAdapter"));
         return;
     }
-    const nextSettings = await getCollectionMethod.call(adapter, "settings");
+
+    let nextSettings;
+    try {
+        nextSettings = await getCollectionMethod.call(adapter, "settings");
+    } catch (error) {
+        console.error("Failed to load settings", error);
+        if (sectionNavigationSeq !== navigationSeqAtLoad) return;
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "settings") return;
+        const settingsSectionEl = document.getElementById("section-settings");
+        if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("loadSettingsFailed"));
+        await loadSectionSettings();
+        return;
+    }
+
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "settings") return;
@@ -4628,7 +4645,7 @@ function handleFileUpload(input) {
     const sectionEl = document.getElementById(`section-${sectionAtUpload}`);
     if (!sectionEl || !sectionEl.isConnected) return;
     const files = input.files;
-    if (!files || files.length === 0) return;
+
     const file = files[0];
     if (!file) return;
     if (typeof file.size !== "number" || !Number.isFinite(file.size) || file.size < 0) {

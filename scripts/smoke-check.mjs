@@ -115,6 +115,23 @@ function countBadReleaseLinks(releases) {
     }).length;
 }
 
+function hasRequiredSectionKeys(sections) {
+    const keys = new Set(
+        (Array.isArray(sections) ? sections : [])
+            .map((entry) => String(entry?.sectionKey ?? "").trim())
+            .filter(Boolean)
+    );
+
+    return ["releases", "artists", "events", "sponsors"].every((key) => keys.has(key));
+}
+
+function hasValidAuditLatencyThresholds(settings) {
+    if (!settings || typeof settings !== "object") return false;
+    const good = Number(settings.auditLatencyGoodMaxMs);
+    const warn = Number(settings.auditLatencyWarnMaxMs);
+    return Number.isFinite(good) && Number.isFinite(warn) && good >= 50 && warn > good;
+}
+
 function deriveHealthDbHint(kind, dbCode, durationMs, connectionTimeoutMs, probe) {
     const normalizedKind = String(kind || "").trim().toLowerCase();
     const normalizedCode = String(dbCode || "").trim().toUpperCase();
@@ -262,7 +279,17 @@ async function run() {
         passwordSource: adminPasswordSource,
         hint: null,
         meStatus: null,
-        settingsStatus: null
+        settingsStatus: null,
+        settingsPayloadOk: null,
+        settingsHasAuditLatencyThresholds: null,
+        settingsSectionsStatus: null,
+        settingsSectionsCount: null,
+        settingsSectionsRequiredKeysPresent: null,
+        settingsSectionsUniqueKeys: null,
+        settingsBundleStatus: null,
+        settingsBundleSettingsReturned: null,
+        settingsBundleSectionsReturned: null,
+        settingsBundleRoundTripOk: null
     };
 
     if (!login.response.ok || !token) {
@@ -276,9 +303,65 @@ async function run() {
         const authHeaders = { authorization: `Bearer ${token}` };
         const me = await requestJson("/auth/me", { headers: authHeaders });
         const settings = await requestJson("/settings", { headers: authHeaders });
+        const settingsSections = await requestJson("/settings/sections", { headers: authHeaders });
         adminChecks.meStatus = me.response.status;
         adminChecks.settingsStatus = settings.response.status;
-        if (!me.response.ok || !settings.response.ok) report.passed = false;
+
+        const settingsPayload = settings.json?.data && typeof settings.json.data === "object"
+            ? settings.json.data
+            : null;
+        const sectionsPayload = Array.isArray(settingsSections.json?.data?.sections)
+            ? settingsSections.json.data.sections
+            : [];
+        const uniqueSectionKeys = new Set(
+            sectionsPayload.map((entry) => String(entry?.sectionKey ?? "").trim()).filter(Boolean)
+        );
+
+        adminChecks.settingsPayloadOk = Boolean(settingsPayload);
+        adminChecks.settingsHasAuditLatencyThresholds = hasValidAuditLatencyThresholds(settingsPayload);
+        adminChecks.settingsSectionsStatus = settingsSections.response.status;
+        adminChecks.settingsSectionsCount = sectionsPayload.length;
+        adminChecks.settingsSectionsRequiredKeysPresent = hasRequiredSectionKeys(sectionsPayload);
+        adminChecks.settingsSectionsUniqueKeys = uniqueSectionKeys.size === sectionsPayload.length;
+
+        if (!me.response.ok || !settings.response.ok || !settingsSections.response.ok) report.passed = false;
+        if (!adminChecks.settingsPayloadOk || !adminChecks.settingsHasAuditLatencyThresholds) report.passed = false;
+        if (!adminChecks.settingsSectionsRequiredKeysPresent || !adminChecks.settingsSectionsUniqueKeys) report.passed = false;
+
+        if (settings.response.ok && settingsSections.response.ok && settingsPayload) {
+            const bundle = await requestJson("/settings/bundle", {
+                method: "PUT",
+                headers: {
+                    authorization: `Bearer ${token}`,
+                    "content-type": "application/json"
+                },
+                body: JSON.stringify({
+                    data: {
+                        settings: settingsPayload,
+                        sections: sectionsPayload
+                    }
+                })
+            });
+
+            const bundleSettings = bundle.json?.data?.settings && typeof bundle.json.data.settings === "object"
+                ? bundle.json.data.settings
+                : null;
+            const bundleSections = Array.isArray(bundle.json?.data?.sections)
+                ? bundle.json.data.sections
+                : [];
+
+            adminChecks.settingsBundleStatus = bundle.response.status;
+            adminChecks.settingsBundleSettingsReturned = Boolean(bundleSettings);
+            adminChecks.settingsBundleSectionsReturned = bundleSections.length;
+            adminChecks.settingsBundleRoundTripOk = Boolean(bundleSettings)
+                && hasValidAuditLatencyThresholds(bundleSettings)
+                && bundleSections.length === sectionsPayload.length
+                && hasRequiredSectionKeys(bundleSections);
+
+            if (!bundle.response.ok || !adminChecks.settingsBundleRoundTripOk) {
+                report.passed = false;
+            }
+        }
     }
 
     report.checks.admin = adminChecks;
