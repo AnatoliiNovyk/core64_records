@@ -268,10 +268,24 @@ jobs:
           attempt=1
           until [ "$attempt" -gt "$RETRIES" ]; do
             echo "Running post-rollback smoke-check against $CORE64_API_BASE (attempt $attempt/$RETRIES)"
-            if node scripts/smoke-check.mjs; then
+            SMOKE_OUTPUT_FILE=$(mktemp)
+            if node scripts/smoke-check.mjs | tee "$SMOKE_OUTPUT_FILE"; then
+              rm -f "$SMOKE_OUTPUT_FILE"
               echo "Post-rollback smoke-check passed on attempt $attempt."
               exit 0
             fi
+
+            HEALTH_DB_KIND=$(node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(String(d?.checks?.healthDb?.kind||'').toLowerCase());}catch{process.stdout.write('');}" "$SMOKE_OUTPUT_FILE")
+            HEALTH_DB_CODE=$(node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(String(d?.checks?.healthDb?.dbCode||'').toUpperCase());}catch{process.stdout.write('');}" "$SMOKE_OUTPUT_FILE")
+
+            if [ "$HEALTH_DB_KIND" = "auth" ] || [ "$HEALTH_DB_KIND" = "config" ] || [ "$HEALTH_DB_CODE" = "28P01" ]; then
+              rm -f "$SMOKE_OUTPUT_FILE"
+              echo "Smoke-check failed with non-transient DB error (kind=$HEALTH_DB_KIND, dbCode=$HEALTH_DB_CODE)."
+              echo "Fail-fast: retry is skipped. Verify DATABASE_URL credentials/encoding and secret value in Secret Manager."
+              exit 1
+            fi
+
+            rm -f "$SMOKE_OUTPUT_FILE"
 
             if [ "$attempt" -lt "$RETRIES" ]; then
               echo "Smoke-check failed on attempt $attempt; waiting 15s before retry."
