@@ -283,18 +283,22 @@ GitHub Actions workflow is available at:
 It runs both checks in one run and returns a single release verdict:
 
 - `smoke-check` (`scripts/smoke-check.mjs`)
+- `ui-smoke` (`scripts/ui-smoke.mjs`) in headless Playwright mode for admin/public section-settings verification
 - branch protection policy verification (`scripts/verify-branch-protection.ps1`)
 - DB snapshot helper self-test (`scripts/test-print-db-target-snapshot.mjs`)
 - DATABASE_URL policy helper self-test (`scripts/test-check-database-url-policy.mjs`)
 - DATABASE_URL pooler sslmode helper self-test (`scripts/test-set-database-url-pooler-sslmode.mjs`)
 - Cloud Run network hint helper self-test (`scripts/test-print-cloud-run-network-hint.mjs`)
 - Cloud Run DB route verdict helper self-test (`scripts/test-print-cloud-run-db-route-verdict.mjs`)
+- root npm dependency install plus Playwright Chromium install before UI smoke
 
 Pre-release gate input validation:
 
 - `core64_api_base` must start with `http://` or `https://`
 - `core64_smoke_timeout_ms` must be integer `>= 1000`
 - `core64_smoke_contact` must be `true` or `false`
+
+The shared input `core64_smoke_timeout_ms` is reused by both `smoke-check` and `ui-smoke` in the unified gate.
 
 For contact endpoint coverage, enable smoke contact check:
 
