@@ -98,6 +98,40 @@ gcloud run deploy $env:GCP_SERVICE_NAME `
   --max-instances 4
 ```
 
+To enable VPC connector routing for private database endpoints, add `--vpc-connector` and `--vpc-egress`:
+
+```powershell
+$env:VPC_CONNECTOR = "projects/<project-id>/locations/<region>/connectors/<connector-name>"
+
+gcloud run deploy $env:GCP_SERVICE_NAME `
+  --project $env:GCP_PROJECT_ID `
+  --region $env:GCP_REGION `
+  --image $env:IMAGE_URI `
+  --platform managed `
+  --allow-unauthenticated `
+  --no-use-http2 `
+  --service-account $env:RUNTIME_SERVICE_ACCOUNT `
+  --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,CORS_ORIGIN=$env:CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$env:CONTACT_CAPTCHA_PROVIDER" `
+  --set-secrets "DATABASE_URL=DATABASE_URL:latest,JWT_SECRET=JWT_SECRET:latest,ADMIN_PASSWORD=ADMIN_PASSWORD:latest" `
+  --port 3000 `
+  --cpu 1 `
+  --memory 512Mi `
+  --concurrency 80 `
+  --min-instances 0 `
+  --max-instances 4 `
+  --vpc-connector $env:VPC_CONNECTOR `
+  --vpc-egress private-ranges-only
+```
+
+To update VPC egress on an existing service without redeploying:
+
+```powershell
+gcloud run services update core64-api `
+  --project core64records `
+  --region europe-west1 `
+  --vpc-egress private-ranges-only
+```
+
 Note:
 
 - Secret names in `--set-secrets` must exist in Secret Manager.
@@ -107,6 +141,7 @@ Note:
 - Supabase pooled endpoints may require `DB_SSL_ALLOW_SELF_SIGNED=true` on CI/Cloud Run when full CA chain verification is unavailable in runner/container trust store.
 - If captcha is disabled, keep `CONTACT_CAPTCHA_PROVIDER=none`; do not bind `CONTACT_CAPTCHA_SECRET` in deploy command.
 - Backend container source is `backend/Dockerfile`.
+- When using a VPC connector with `--vpc-egress private-ranges-only`, only traffic to private IP ranges (RFC 1918) is routed through the connector; public traffic exits directly. Use `all-traffic` to route all outbound traffic through the connector.
 
 ## 4. Database Migration (Supabase)
 

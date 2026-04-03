@@ -115,6 +115,11 @@ on:
         required: false
         default: "false"
         type: string
+      vpc_connector:
+        description: VPC connector resource name for private DB routing (empty -> no VPC connector; when set, egress is private-ranges-only)
+        required: false
+        default: ""
+        type: string
       require_release_owner_assignments:
         description: Require RELEASE_OWNERS_AND_ESCALATION.md to have real names (true/false)
         required: false
@@ -451,6 +456,7 @@ jobs:
           DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
           DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
           DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
+          VPC_CONNECTOR: ${{ github.event.inputs.vpc_connector }}
         run: |
           RUNTIME_SERVICE_ACCOUNT="$RUNTIME_SERVICE_ACCOUNT_INPUT"
           if [ -z "$RUNTIME_SERVICE_ACCOUNT" ]; then
@@ -460,6 +466,11 @@ jobs:
           SECRET_FLAGS="DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest"
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             SECRET_FLAGS="$SECRET_FLAGS,CONTACT_CAPTCHA_SECRET=$CONTACT_CAPTCHA_SECRET_NAME:latest"
+          fi
+
+          VPC_FLAGS=()
+          if [ -n "$VPC_CONNECTOR" ]; then
+            VPC_FLAGS=(--vpc-connector "$VPC_CONNECTOR" --vpc-egress private-ranges-only)
           fi
 
           gcloud run deploy "$SERVICE_NAME" \
@@ -477,7 +488,8 @@ jobs:
             --memory 512Mi \
             --concurrency 80 \
             --min-instances 0 \
-            --max-instances 4
+            --max-instances 4 \
+            "${VPC_FLAGS[@]}"
 
       - name: Snapshot deployed runtime wiring
         env:
