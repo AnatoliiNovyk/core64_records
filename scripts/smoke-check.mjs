@@ -189,11 +189,59 @@ async function run() {
     };
 
     const health = await requestJson("/health");
+    const cspHeader = String(health.response.headers.get("content-security-policy") || "").trim();
+    const cspReportOnlyHeader = String(health.response.headers.get("content-security-policy-report-only") || "").trim();
+    const reportUriRegex = /\breport-uri\s+\S+/i;
+
     report.checks.health = {
         status: health.response.status,
-        ok: health.response.ok
+        ok: health.response.ok,
+        securityHeaders: {
+            xContentTypeOptions: String(health.response.headers.get("x-content-type-options") || "").trim().toLowerCase(),
+            xFrameOptions: String(health.response.headers.get("x-frame-options") || "").trim().toUpperCase(),
+            referrerPolicy: String(health.response.headers.get("referrer-policy") || "").trim().toLowerCase(),
+            csp: cspHeader || null,
+            cspReportOnly: cspReportOnlyHeader || null,
+            cspModeDetected: cspHeader && cspReportOnlyHeader ? "both" : (cspHeader ? "enforce" : (cspReportOnlyHeader ? "report-only" : "none")),
+            cspReportUriPresent: reportUriRegex.test(cspHeader || cspReportOnlyHeader),
+            cspReportEndpointStatus: null,
+            cspReportEndpointOk: null
+        }
     };
     if (!health.response.ok) report.passed = false;
+
+    const securityHeaders = report.checks.health.securityHeaders;
+    const hasAnyCspHeader = Boolean(securityHeaders.csp || securityHeaders.cspReportOnly);
+    if (!hasAnyCspHeader || !securityHeaders.cspReportUriPresent) {
+        report.passed = false;
+    }
+    if (securityHeaders.xContentTypeOptions !== "nosniff") {
+        report.passed = false;
+    }
+    if (securityHeaders.xFrameOptions !== "DENY") {
+        report.passed = false;
+    }
+    if (securityHeaders.referrerPolicy !== "no-referrer") {
+        report.passed = false;
+    }
+
+    const cspReportProbePayload = {
+        "csp-report": {
+            "document-uri": "https://core64.local/smoke",
+            "blocked-uri": "https://blocked.core64.local/script.js",
+            "violated-directive": "script-src"
+        }
+    };
+    const cspReportProbe = await requestJson("/security/csp-report", {
+        method: "POST",
+        headers: { "content-type": "application/csp-report" },
+        body: JSON.stringify(cspReportProbePayload)
+    });
+    securityHeaders.cspReportEndpointStatus = cspReportProbe.response.status;
+    securityHeaders.cspReportEndpointOk = cspReportProbe.response.status === 204;
+    if (!securityHeaders.cspReportEndpointOk) {
+        report.passed = false;
+    }
 
     const healthDb = await requestJson("/health/db");
     report.checks.healthDb = {
