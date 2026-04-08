@@ -236,15 +236,16 @@
 
         if (runtimeApiBaseUrl) return runtimeApiBaseUrl;
 
-        const configBase = normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
-        if (configBase) {
-            runtimeApiBaseUrl = configBase;
-            return runtimeApiBaseUrl;
-        }
-
+        // Persisted manual override should win over static page config.
         const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
         if (storedBase) {
             runtimeApiBaseUrl = storedBase;
+            return runtimeApiBaseUrl;
+        }
+
+        const configBase = normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
+        if (configBase) {
+            runtimeApiBaseUrl = configBase;
             return runtimeApiBaseUrl;
         }
 
