@@ -76,8 +76,8 @@ function normalizeSectionSettingsForAdmin(rows) {
           : (typeof row.is_enabled === "boolean" ? row.is_enabled : fallback.isEnabled),
         titleUk: String(row.titleUk || row.title_uk || row.defaultTitle || fallback.titleUk).trim() || fallback.titleUk,
         titleEn: String(row.titleEn || row.title_en || row.defaultTitle || fallback.titleEn).trim() || fallback.titleEn,
-        menuTitleUk: String(row.menuTitleUk || row.menu_title_uk || row.navTitleUk || row.nav_title_uk || row.titleUk || row.title_uk || fallback.menuTitleUk || fallback.titleUk).trim() || fallback.menuTitleUk || fallback.titleUk,
-        menuTitleEn: String(row.menuTitleEn || row.menu_title_en || row.navTitleEn || row.nav_title_en || row.titleEn || row.title_en || fallback.menuTitleEn || fallback.titleEn).trim() || fallback.menuTitleEn || fallback.titleEn
+        menuTitleUk: String(row.menuTitleUk || row.menu_title_uk || row.titleUk || row.title_uk || fallback.menuTitleUk || fallback.titleUk).trim() || fallback.menuTitleUk || fallback.titleUk,
+        menuTitleEn: String(row.menuTitleEn || row.menu_title_en || row.titleEn || row.title_en || fallback.menuTitleEn || fallback.titleEn).trim() || fallback.menuTitleEn || fallback.titleEn
       };
     }).filter(Boolean)
     : [];

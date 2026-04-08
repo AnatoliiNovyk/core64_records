@@ -1067,6 +1067,12 @@ function showTicketInfo() {
 }
 
 function loadAbout(settings) {
+    const aboutTitleEl = document.getElementById("public-section-title-about");
+    if (aboutTitleEl) {
+        const aboutTitle = String(settings && settings.title ? settings.title : "").trim();
+        aboutTitleEl.textContent = aboutTitle || tPublic("sectionAbout");
+    }
+
     const aboutEl = document.getElementById("about-text");
     if (aboutEl) {
         aboutEl.textContent = String(settings && settings.about ? settings.about : "");

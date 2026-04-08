@@ -130,10 +130,12 @@ async function run() {
     originalSettings = getSettingsPayload(currentSettings.json?.data);
 
     const marker = Date.now();
+    const expectedTitle = `CONTRACT TITLE ${marker}`;
     const expectedAbout = `CONTRACT ABOUT ${marker}`;
     const expectedMission = `CONTRACT MISSION ${marker}`;
     const updatedSettings = {
       ...originalSettings,
+      title: expectedTitle,
       about: expectedAbout,
       mission: expectedMission
     };
@@ -153,18 +155,20 @@ async function run() {
     ensureOk(publicUk, "GET /public?lang=uk");
     ensureOk(publicEn, "GET /public?lang=en");
 
+    const ukTitle = String(publicUk.json?.data?.settings?.title || "");
     const ukAbout = String(publicUk.json?.data?.settings?.about || "");
     const ukMission = String(publicUk.json?.data?.settings?.mission || "");
+    const enTitle = String(publicEn.json?.data?.settings?.title || "");
     const enAbout = String(publicEn.json?.data?.settings?.about || "");
     const enMission = String(publicEn.json?.data?.settings?.mission || "");
 
-    report.checks.expected = { about: expectedAbout, mission: expectedMission };
-    report.checks.publicUk = { about: ukAbout, mission: ukMission };
-    report.checks.publicEn = { about: enAbout, mission: enMission };
+    report.checks.expected = { title: expectedTitle, about: expectedAbout, mission: expectedMission };
+    report.checks.publicUk = { title: ukTitle, about: ukAbout, mission: ukMission };
+    report.checks.publicEn = { title: enTitle, about: enAbout, mission: enMission };
 
-    if (ukAbout !== expectedAbout || ukMission !== expectedMission || enAbout !== expectedAbout || enMission !== expectedMission) {
+    if (ukTitle !== expectedTitle || ukAbout !== expectedAbout || ukMission !== expectedMission || enTitle !== expectedTitle || enAbout !== expectedAbout || enMission !== expectedMission) {
       report.passed = false;
-      throw new Error("Public settings payload did not reflect saved about/mission values");
+      throw new Error("Public settings payload did not reflect saved title/about/mission values");
     }
   } finally {
     if (token && originalSettings) {
