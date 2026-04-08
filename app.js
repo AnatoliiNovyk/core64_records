@@ -767,7 +767,7 @@ function applyPublicSectionSettings(sectionSettings) {
             .map((section) => document.getElementById(section.sectionKey))
             .filter((sectionEl) => sectionEl && sectionEl.parentElement === sectionsParentEl);
 
-        for (let index = nonContactSections.length - 1; index >= 0; index -= 1) {
+        for (let index = 0; index < nonContactSections.length; index += 1) {
             const sectionEl = nonContactSections[index];
             sectionsParentEl.insertBefore(sectionEl, aboutSectionEl);
         }
