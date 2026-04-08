@@ -157,14 +157,19 @@ const ADMIN_I18N = {
         settingsSaveSuccess: "Налаштування збережено",
         settingsSaveFailed: "Не вдалося зберегти налаштування",
         activitySettingsUpdated: "Оновлено налаштування сайту",
-        activitySectionSettingsUpdated: "Оновлено заголовки, порядок і видимість секцій",
+        activitySectionSettingsUpdated: "Оновлено заголовки секцій, назви меню, порядок і видимість",
         sectionReleasesLabel: "Релізи",
         sectionArtistsLabel: "Артисти",
         sectionEventsLabel: "Події",
         sectionSponsorsLabel: "Спонсори",
+        sectionContactLabel: "Контакти",
         sectionVisibilityLabel: "Показувати секцію",
         sectionMoveUp: "Вгору",
         sectionMoveDown: "Вниз",
+        sectionTitleUkLabel: "Заголовок секції UK",
+        sectionTitleEnLabel: "Заголовок секції EN",
+        sectionMenuTitleUkLabel: "Пункт меню UK",
+        sectionMenuTitleEnLabel: "Пункт меню EN",
         activityThresholdsReset: "Скинуто пороги latency до дефолтних (без збереження)",
         resetDataConfirm: "УВАГА! Це скине локальні fallback-дані. Продовжити?",
         resetDataUnsupported: "Не вдалося виконати скидання в поточному середовищі.",
@@ -184,10 +189,16 @@ const ADMIN_I18N = {
         uploadReadError: "Помилка читання файлу",
         modalEditPrefix: "Редагувати",
         modalAddPrefix: "Додати",
+        modalSaveButton: "Зберегти",
+        modalCancelButton: "Скасувати",
+        modalFileButton: "Файл",
         typeRelease: "реліз",
         typeArtist: "артиста",
         typeEvent: "подію",
         typeSponsor: "партнера",
+        releaseTypeSingleLabel: "Сингл",
+        releaseTypeEpLabel: "EP",
+        releaseTypeAlbumLabel: "Альбом",
         languageLabelUk: "Укр",
         languageLabelEn: "Eng",
         apiMissingMethod: "API недоступний. Відсутній метод перевірки у adapter.",
@@ -233,6 +244,9 @@ const ADMIN_I18N = {
         settingsCaptchaErrorDefault: "Не вдалося пройти перевірку captcha.",
         settingsCaptchaMissingTokenDefault: "Підтвердіть, що ви не робот.",
         settingsCaptchaInvalidDomainDefault: "Відправка з цього домену заборонена.",
+        settingsHeroSubtitleUkLabel: "Hero підзаголовок (UK)",
+        settingsHeroSubtitleEnLabel: "Hero підзаголовок (EN)",
+        settingsHeroSubtitlePlaceholder: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
         auditUpdatedAt: "Оновлено: {time}",
         auditLastDuration: "Остання тривалість: {latency} ms",
         auditAverageDuration: "Середня (останні {count}): {avg} ms",
@@ -326,14 +340,19 @@ const ADMIN_I18N = {
         settingsSaveSuccess: "Settings saved",
         settingsSaveFailed: "Failed to save settings",
         activitySettingsUpdated: "Site settings updated",
-        activitySectionSettingsUpdated: "Section titles, order, and visibility updated",
+        activitySectionSettingsUpdated: "Section titles, menu labels, order, and visibility updated",
         sectionReleasesLabel: "Releases",
         sectionArtistsLabel: "Artists",
         sectionEventsLabel: "Events",
         sectionSponsorsLabel: "Sponsors",
+        sectionContactLabel: "Contact",
         sectionVisibilityLabel: "Show section",
         sectionMoveUp: "Up",
         sectionMoveDown: "Down",
+        sectionTitleUkLabel: "Section title UK",
+        sectionTitleEnLabel: "Section title EN",
+        sectionMenuTitleUkLabel: "Menu label UK",
+        sectionMenuTitleEnLabel: "Menu label EN",
         activityThresholdsReset: "Latency thresholds reset to defaults (not saved)",
         resetDataConfirm: "WARNING! This will reset local fallback data. Continue?",
         resetDataUnsupported: "Reset is not available in current environment.",
@@ -353,10 +372,16 @@ const ADMIN_I18N = {
         uploadReadError: "File read error",
         modalEditPrefix: "Edit",
         modalAddPrefix: "Add",
+        modalSaveButton: "Save",
+        modalCancelButton: "Cancel",
+        modalFileButton: "File",
         typeRelease: "release",
         typeArtist: "artist",
         typeEvent: "event",
         typeSponsor: "sponsor",
+        releaseTypeSingleLabel: "Single",
+        releaseTypeEpLabel: "EP",
+        releaseTypeAlbumLabel: "Album",
         languageLabelUk: "Ukr",
         languageLabelEn: "Eng",
         apiMissingMethod: "API unavailable. Missing health-check method in adapter.",
@@ -402,6 +427,9 @@ const ADMIN_I18N = {
         settingsCaptchaErrorDefault: "Captcha verification failed.",
         settingsCaptchaMissingTokenDefault: "Please confirm you are not a robot.",
         settingsCaptchaInvalidDomainDefault: "Submissions from this domain are not allowed.",
+        settingsHeroSubtitleUkLabel: "Hero subtitle (UK)",
+        settingsHeroSubtitleEnLabel: "Hero subtitle (EN)",
+        settingsHeroSubtitlePlaceholder: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
         auditUpdatedAt: "Updated: {time}",
         auditLastDuration: "Last duration: {latency} ms",
         auditAverageDuration: "Average (last {count}): {avg} ms",
@@ -2687,10 +2715,51 @@ function normalizeSettingsHostname(value) {
 }
 
 const SECTION_SETTINGS_DEFAULTS = [
-    { sectionKey: "releases", sortOrder: 1, isEnabled: true, titleUk: "ОСТАННІ РЕЛІЗИ", titleEn: "LATEST RELEASES" },
-    { sectionKey: "artists", sortOrder: 2, isEnabled: true, titleUk: "АРТИСТИ ЛЕЙБЛУ", titleEn: "LABEL ARTISTS" },
-    { sectionKey: "events", sortOrder: 3, isEnabled: true, titleUk: "АФІША ПОДІЙ", titleEn: "EVENT SCHEDULE" },
-    { sectionKey: "sponsors", sortOrder: 4, isEnabled: true, titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ", titleEn: "SPONSORS, PARTNERS AND FRIENDS" }
+    {
+        sectionKey: "releases",
+        sortOrder: 1,
+        isEnabled: true,
+        titleUk: "ОСТАННІ РЕЛІЗИ",
+        titleEn: "LATEST RELEASES",
+        menuTitleUk: "РЕЛІЗИ",
+        menuTitleEn: "RELEASES"
+    },
+    {
+        sectionKey: "artists",
+        sortOrder: 2,
+        isEnabled: true,
+        titleUk: "АРТИСТИ ЛЕЙБЛУ",
+        titleEn: "LABEL ARTISTS",
+        menuTitleUk: "АРТИСТИ",
+        menuTitleEn: "ARTISTS"
+    },
+    {
+        sectionKey: "events",
+        sortOrder: 3,
+        isEnabled: true,
+        titleUk: "АФІША ПОДІЙ",
+        titleEn: "EVENT SCHEDULE",
+        menuTitleUk: "ПОДІЇ",
+        menuTitleEn: "EVENTS"
+    },
+    {
+        sectionKey: "sponsors",
+        sortOrder: 4,
+        isEnabled: true,
+        titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
+        titleEn: "SPONSORS, PARTNERS AND FRIENDS",
+        menuTitleUk: "СПОНСОРИ",
+        menuTitleEn: "SPONSORS"
+    },
+    {
+        sectionKey: "contact",
+        sortOrder: 5,
+        isEnabled: true,
+        titleUk: "ЗВ'ЯЗАТИСЯ З НАМИ",
+        titleEn: "CONTACT US",
+        menuTitleUk: "КОНТАКТИ",
+        menuTitleEn: "CONTACT"
+    }
 ];
 
 function getSectionLabel(sectionKey) {
@@ -2698,6 +2767,7 @@ function getSectionLabel(sectionKey) {
     if (sectionKey === "artists") return tAdmin("sectionArtistsLabel");
     if (sectionKey === "events") return tAdmin("sectionEventsLabel");
     if (sectionKey === "sponsors") return tAdmin("sectionSponsorsLabel");
+    if (sectionKey === "contact") return tAdmin("sectionContactLabel");
     return sectionKey;
 }
 
@@ -2718,7 +2788,9 @@ function normalizeSectionSettings(records) {
             sortOrder,
             isEnabled: entry.isEnabled !== false,
             titleUk: String(entry.titleUk || "").trim() || defaults.titleUk,
-            titleEn: String(entry.titleEn || "").trim() || defaults.titleEn
+            titleEn: String(entry.titleEn || "").trim() || defaults.titleEn,
+            menuTitleUk: String(entry.menuTitleUk || "").trim() || defaults.menuTitleUk,
+            menuTitleEn: String(entry.menuTitleEn || "").trim() || defaults.menuTitleEn
         };
     }).filter(Boolean);
 
@@ -2744,6 +2816,8 @@ function renderSectionSettingsEditor() {
         const safeSectionKey = sanitizeInput(row.sectionKey);
         const safeTitleUk = sanitizeInput(row.titleUk || "");
         const safeTitleEn = sanitizeInput(row.titleEn || "");
+        const safeMenuTitleUk = sanitizeInput(row.menuTitleUk || "");
+        const safeMenuTitleEn = sanitizeInput(row.menuTitleEn || "");
         const enabledChecked = row.isEnabled !== false ? "checked" : "";
         const canMoveUp = index > 0;
         const canMoveDown = index < rows.length - 1;
@@ -2763,12 +2837,20 @@ function renderSectionSettingsEditor() {
                 </label>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
-                        <label class="block text-gray-400 mb-1 uppercase text-xs">Title UK</label>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">${sanitizeInput(tAdmin("sectionTitleUkLabel"))}</label>
                         <input type="text" id="section-title-uk-${safeSectionKey}" class="form-input w-full p-2 rounded" value="${safeTitleUk}">
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-1 uppercase text-xs">Title EN</label>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">${sanitizeInput(tAdmin("sectionTitleEnLabel"))}</label>
                         <input type="text" id="section-title-en-${safeSectionKey}" class="form-input w-full p-2 rounded" value="${safeTitleEn}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">${sanitizeInput(tAdmin("sectionMenuTitleUkLabel"))}</label>
+                        <input type="text" id="section-menu-title-uk-${safeSectionKey}" class="form-input w-full p-2 rounded" value="${safeMenuTitleUk}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">${sanitizeInput(tAdmin("sectionMenuTitleEnLabel"))}</label>
+                        <input type="text" id="section-menu-title-en-${safeSectionKey}" class="form-input w-full p-2 rounded" value="${safeMenuTitleEn}">
                     </div>
                 </div>
             </div>
@@ -2809,15 +2891,27 @@ function getSectionSettingsDraftFromForm() {
         const defaults = defaultsByKey[row.sectionKey] || row;
         const titleUkEl = document.getElementById(`section-title-uk-${row.sectionKey}`);
         const titleEnEl = document.getElementById(`section-title-en-${row.sectionKey}`);
+        const menuTitleUkEl = document.getElementById(`section-menu-title-uk-${row.sectionKey}`);
+        const menuTitleEnEl = document.getElementById(`section-menu-title-en-${row.sectionKey}`);
         const enabledEl = document.getElementById(`section-enabled-${row.sectionKey}`);
         const titleUk = normalizeSettingsPlainText(titleUkEl ? titleUkEl.value : row.titleUk, defaults.titleUk);
         const titleEn = normalizeSettingsPlainText(titleEnEl ? titleEnEl.value : row.titleEn, defaults.titleEn);
+        const menuTitleUk = normalizeSettingsPlainText(
+            menuTitleUkEl ? menuTitleUkEl.value : row.menuTitleUk,
+            defaults.menuTitleUk || defaults.titleUk
+        );
+        const menuTitleEn = normalizeSettingsPlainText(
+            menuTitleEnEl ? menuTitleEnEl.value : row.menuTitleEn,
+            defaults.menuTitleEn || defaults.titleEn
+        );
         return {
             sectionKey: row.sectionKey,
             sortOrder: index + 1,
             isEnabled: enabledEl ? enabledEl.checked : row.isEnabled !== false,
             titleUk,
-            titleEn
+            titleEn,
+            menuTitleUk,
+            menuTitleEn
         };
     });
 }
@@ -3175,6 +3269,8 @@ async function loadSettings() {
     const titleInputEl = document.getElementById("setting-title");
     const aboutInputEl = document.getElementById("setting-about");
     const missionInputEl = document.getElementById("setting-mission");
+    const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
+    const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
     const instagramInputEl = document.getElementById("setting-social-instagram");
     const youtubeInputEl = document.getElementById("setting-social-youtube");
@@ -3198,6 +3294,12 @@ async function loadSettings() {
     }
     if (missionInputEl && missionInputEl.isConnected) {
         missionInputEl.value = cache.settings.mission || "";
+    }
+    if (heroSubtitleUkInputEl && heroSubtitleUkInputEl.isConnected) {
+        heroSubtitleUkInputEl.value = decodeHtmlEntities(cache.settings.heroSubtitleUk || "");
+    }
+    if (heroSubtitleEnInputEl && heroSubtitleEnInputEl.isConnected) {
+        heroSubtitleEnInputEl.value = decodeHtmlEntities(cache.settings.heroSubtitleEn || "");
     }
     if (emailInputEl && emailInputEl.isConnected) {
         emailInputEl.value = cache.settings.email || "";
@@ -4704,6 +4806,77 @@ function handleFileUpload(input) {
 function generateFields(type, item) {
     const sourceItem = item && typeof item === "object" ? item : {};
     const normalizeFieldValue = (value, fallback = "") => sanitizeInput(value ?? fallback);
+    const modalFileButtonLabel = sanitizeInput(tAdmin("modalFileButton"));
+    const releaseTypeSingleLabel = sanitizeInput(tAdmin("releaseTypeSingleLabel"));
+    const releaseTypeEpLabel = sanitizeInput(tAdmin("releaseTypeEpLabel"));
+    const releaseTypeAlbumLabel = sanitizeInput(tAdmin("releaseTypeAlbumLabel"));
+    const modalLocale = getActiveLanguage() === "en"
+        ? {
+            releaseTitleLabel: "Release title",
+            artistLabel: "Artist",
+            genreLabel: "Genre",
+            releaseFormatLabel: "Release format",
+            releaseDateLabel: "Release date",
+            linkLabel: "Link",
+            imageLabel: "Image",
+            uploadPlaceholder: "URL or upload a file",
+            uploadHintRelease: "Max size: 500KB. Formats: JPG, PNG, GIF",
+            artistNameLabel: "Artist name",
+            instagramLabel: "Instagram",
+            soundcloudLabel: "SoundCloud",
+            bioLabel: "Biography",
+            photoLabel: "Photo",
+            uploadHintArtist: "Max size: 500KB. Recommended: square image",
+            eventTitleLabel: "Event title",
+            dateLabel: "Date",
+            timeLabel: "Time",
+            venueLabel: "Venue",
+            venuePlaceholder: "City, Club",
+            descriptionLabel: "Description",
+            ticketLinkLabel: "Tickets link",
+            uploadHintEvent: "Max size: 500KB. Recommended: 640x360 or 16:9",
+            sponsorNameLabel: "Name",
+            sponsorShortDescriptionLabel: "Short description (3-5 words)",
+            sponsorShortDescriptionPlaceholder: "Underground music support",
+            sponsorLogoUrlLabel: "Logo URL",
+            sponsorOrderLabel: "Carousel order",
+            optionalLinkLabel: "Link (optional)",
+            sponsorPreviewLabel: "Logo preview",
+            logoPreviewAlt: "logo preview"
+        }
+        : {
+            releaseTitleLabel: "Назва релізу",
+            artistLabel: "Артист",
+            genreLabel: "Жанр",
+            releaseFormatLabel: "Формат релізу",
+            releaseDateLabel: "Дата релізу",
+            linkLabel: "Посилання",
+            imageLabel: "Зображення",
+            uploadPlaceholder: "URL або завантажте файл",
+            uploadHintRelease: "Макс. розмір: 500KB. Формати: JPG, PNG, GIF",
+            artistNameLabel: "Ім'я артиста",
+            instagramLabel: "Instagram",
+            soundcloudLabel: "SoundCloud",
+            bioLabel: "Біографія",
+            photoLabel: "Фото",
+            uploadHintArtist: "Макс. розмір: 500KB. Рекомендовано: квадратне фото",
+            eventTitleLabel: "Назва події",
+            dateLabel: "Дата",
+            timeLabel: "Час",
+            venueLabel: "Місце проведення",
+            venuePlaceholder: "Місто, Клуб",
+            descriptionLabel: "Опис",
+            ticketLinkLabel: "Посилання на квитки",
+            uploadHintEvent: "Макс. розмір: 500KB. Рекомендовано: 640x360 або 16:9",
+            sponsorNameLabel: "Назва",
+            sponsorShortDescriptionLabel: "Короткий опис (3-5 слів)",
+            sponsorShortDescriptionPlaceholder: "Підтримка андерграунд музики",
+            sponsorLogoUrlLabel: "URL логотипа",
+            sponsorOrderLabel: "Порядок у каруселі",
+            optionalLinkLabel: "Посилання (опціонально)",
+            sponsorPreviewLabel: "Превʼю логотипа",
+            logoPreviewAlt: "logo preview"
+        };
     const rawGenre = typeof sourceItem.genre === "string" ? sourceItem.genre : "";
     const rawReleaseType = normalizeReleaseTypeValue(sourceItem.releaseType || sourceItem.release_type);
     const rawReleaseDate = normalizeReleaseDateValue(
@@ -4739,16 +4912,16 @@ function generateFields(type, item) {
     const fields = {
         release: `
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Назва релізу</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.releaseTitleLabel)}</label>
                 <input type="text" name="title" value="${fieldValues.title}" class="form-input w-full p-3 rounded" required>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Артист</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.artistLabel)}</label>
                     <input type="text" name="artist" value="${fieldValues.artist}" class="form-input w-full p-3 rounded" required>
                 </div>
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Жанр</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.genreLabel)}</label>
                     <select name="genre" class="form-input w-full p-3 rounded">
                         <option value="Neurofunk" ${rawGenre === 'Neurofunk' ? 'selected' : ''}>Neurofunk</option>
                         <option value="Techstep" ${rawGenre === 'Techstep' ? 'selected' : ''}>Techstep</option>
@@ -4759,149 +4932,149 @@ function generateFields(type, item) {
                 </div>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Формат релізу</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.releaseFormatLabel)}</label>
                 <select name="releaseType" class="form-input w-full p-3 rounded" required>
-                    <option value="single" ${fieldValues.releaseType === 'single' ? 'selected' : ''}>Сингл</option>
-                    <option value="ep" ${fieldValues.releaseType === 'ep' ? 'selected' : ''}>EP</option>
-                    <option value="album" ${fieldValues.releaseType === 'album' ? 'selected' : ''}>Альбом</option>
+                    <option value="single" ${fieldValues.releaseType === 'single' ? 'selected' : ''}>${releaseTypeSingleLabel}</option>
+                    <option value="ep" ${fieldValues.releaseType === 'ep' ? 'selected' : ''}>${releaseTypeEpLabel}</option>
+                    <option value="album" ${fieldValues.releaseType === 'album' ? 'selected' : ''}>${releaseTypeAlbumLabel}</option>
                 </select>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Дата релізу</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.releaseDateLabel)}</label>
                     <input type="date" name="releaseDate" value="${fieldValues.releaseDate}" class="form-input w-full p-3 rounded" required>
                 </div>
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Посилання</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.linkLabel)}</label>
                     <input type="text" name="link" value="${fieldValues.link}" class="form-input w-full p-3 rounded">
                 </div>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Зображення</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.imageLabel)}</label>
                 <div class="flex gap-2 mb-2">
-                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
+                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="${sanitizeInput(modalLocale.uploadPlaceholder)}">
                     <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                         <i data-lucide="upload" class="w-4 h-4"></i>
-                        <span>Файл</span>
+                        <span>${modalFileButtonLabel}</span>
                         <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(this)">
                     </label>
                 </div>
                 ${imagePreview}
-                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Формати: JPG, PNG, GIF</p>
+                <p class="text-xs text-gray-500 mt-1">${sanitizeInput(modalLocale.uploadHintRelease)}</p>
             </div>
         `,
         artist: `
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Ім'я артиста</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.artistNameLabel)}</label>
                 <input type="text" name="name" value="${fieldValues.name}" class="form-input w-full p-3 rounded" required>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Жанр</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.genreLabel)}</label>
                     <input type="text" name="genre" value="${fieldValues.genre}" class="form-input w-full p-3 rounded">
                 </div>
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Instagram</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.instagramLabel)}</label>
                     <input type="text" name="instagram" value="${fieldValues.instagram}" class="form-input w-full p-3 rounded" placeholder="@username">
                 </div>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">SoundCloud</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.soundcloudLabel)}</label>
                 <input type="text" name="soundcloud" value="${fieldValues.soundcloud}" class="form-input w-full p-3 rounded" placeholder="URL">
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Біографія</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.bioLabel)}</label>
                 <textarea name="bio" rows="3" class="form-input w-full p-3 rounded">${fieldValues.bio}</textarea>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Фото</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.photoLabel)}</label>
                 <div class="flex gap-2 mb-2">
-                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
+                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="${sanitizeInput(modalLocale.uploadPlaceholder)}">
                     <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                         <i data-lucide="upload" class="w-4 h-4"></i>
-                        <span>Файл</span>
+                        <span>${modalFileButtonLabel}</span>
                         <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(this)">
                     </label>
                 </div>
                 <img src="${fieldValues.image}" class="image-preview preview-img mt-2 rounded w-24 h-24 object-cover ${fieldValues.image ? '' : 'hidden'}">
-                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Рекомендовано: квадратне фото</p>
+                <p class="text-xs text-gray-500 mt-1">${sanitizeInput(modalLocale.uploadHintArtist)}</p>
             </div>
         `,
         event: `
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Назва події</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.eventTitleLabel)}</label>
                 <input type="text" name="title" value="${fieldValues.title}" class="form-input w-full p-3 rounded" required>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Дата</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.dateLabel)}</label>
                     <input type="date" name="date" value="${fieldValues.date}" class="form-input w-full p-3 rounded" required>
                 </div>
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Час</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.timeLabel)}</label>
                     <input type="time" name="time" value="${fieldValues.time}" class="form-input w-full p-3 rounded">
                 </div>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Місце проведення</label>
-                <input type="text" name="venue" value="${fieldValues.venue}" class="form-input w-full p-3 rounded" placeholder="Місто, Клуб">
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.venueLabel)}</label>
+                <input type="text" name="venue" value="${fieldValues.venue}" class="form-input w-full p-3 rounded" placeholder="${sanitizeInput(modalLocale.venuePlaceholder)}">
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Опис</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.descriptionLabel)}</label>
                 <textarea name="description" rows="3" class="form-input w-full p-3 rounded">${fieldValues.description}</textarea>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Посилання на квитки</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.ticketLinkLabel)}</label>
                 <input type="url" name="ticketLink" value="${fieldValues.ticketLink}" class="form-input w-full p-3 rounded" placeholder="https://...">
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Зображення</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.imageLabel)}</label>
                 <div class="flex gap-2 mb-2">
-                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл">
+                    <input type="text" name="image" value="${fieldValues.image}" class="form-input flex-1 p-3 rounded text-sm" placeholder="${sanitizeInput(modalLocale.uploadPlaceholder)}">
                     <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                         <i data-lucide="upload" class="w-4 h-4"></i>
-                        <span>Файл</span>
+                        <span>${modalFileButtonLabel}</span>
                         <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(this)">
                     </label>
                 </div>
                 <img src="${fieldValues.image}" class="image-preview preview-img mt-2 rounded h-32 w-full object-cover ${fieldValues.image ? '' : 'hidden'}">
-                <p class="text-xs text-gray-500 mt-1">Макс. розмір: 500KB. Рекомендовано: 640x360 або 16:9</p>
+                <p class="text-xs text-gray-500 mt-1">${sanitizeInput(modalLocale.uploadHintEvent)}</p>
             </div>
         `,
         sponsor: `
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Назва</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.sponsorNameLabel)}</label>
                 <input type="text" name="name" value="${fieldValues.name}" class="form-input w-full p-3 rounded" required>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Короткий опис (3-5 слів)</label>
-                <input type="text" name="shortDescription" value="${fieldValues.shortDescription}" class="form-input w-full p-3 rounded" placeholder="Підтримка андерграунд музики" required>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.sponsorShortDescriptionLabel)}</label>
+                <input type="text" name="shortDescription" value="${fieldValues.shortDescription}" class="form-input w-full p-3 rounded" placeholder="${sanitizeInput(modalLocale.sponsorShortDescriptionPlaceholder)}" required>
             </div>
             <div class="grid grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">URL логотипа</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.sponsorLogoUrlLabel)}</label>
                     <div class="flex gap-2 mb-2">
-                        <input type="text" name="logo" value="${fieldValues.logo}" class="form-input flex-1 p-3 rounded text-sm" placeholder="URL або завантажте файл" required>
+                        <input type="text" name="logo" value="${fieldValues.logo}" class="form-input flex-1 p-3 rounded text-sm" placeholder="${sanitizeInput(modalLocale.uploadPlaceholder)}" required>
                         <label class="btn-cyan px-4 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
                             <i data-lucide="upload" class="w-4 h-4"></i>
-                            <span>Файл</span>
+                            <span>${modalFileButtonLabel}</span>
                             <input type="file" accept="image/*" class="hidden" onchange="handleFileUpload(this)">
                         </label>
                     </div>
                 </div>
                 <div>
-                    <label class="block text-gray-400 mb-2 text-sm uppercase">Порядок у каруселі</label>
+                    <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.sponsorOrderLabel)}</label>
                     <input type="number" min="0" max="9999" step="1" name="sortOrder" value="${fieldValues.sortOrder}" class="form-input w-full p-3 rounded" required>
                 </div>
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Посилання (опціонально)</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.optionalLinkLabel)}</label>
                 <input type="url" name="link" value="${fieldValues.link}" class="form-input w-full p-3 rounded" placeholder="https://...">
             </div>
             <div>
-                <label class="block text-gray-400 mb-2 text-sm uppercase">Превʼю логотипа</label>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.sponsorPreviewLabel)}</label>
                 <div class="h-28 rounded border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
-                    <img src="${fieldValues.logo}" class="image-preview w-full h-full object-contain ${fieldValues.logo ? '' : 'hidden'}" alt="logo preview">
+                    <img src="${fieldValues.logo}" class="image-preview w-full h-full object-contain ${fieldValues.logo ? '' : 'hidden'}" alt="${sanitizeInput(modalLocale.logoPreviewAlt)}">
                 </div>
             </div>
         `
@@ -4921,9 +5094,9 @@ function getTypeName(type) {
 }
 
 const RELEASE_TYPE_OPTIONS = [
-    { value: "single", label: "Сингл" },
+    { value: "single", labelKey: "releaseTypeSingleLabel" },
     { value: "ep", label: "EP" },
-    { value: "album", label: "Альбом" }
+    { value: "album", labelKey: "releaseTypeAlbumLabel" }
 ];
 
 function normalizeReleaseTypeValue(value) {
@@ -4935,7 +5108,9 @@ function normalizeReleaseTypeValue(value) {
 function getReleaseTypeLabel(value) {
     const normalizedValue = normalizeReleaseTypeValue(value);
     const option = RELEASE_TYPE_OPTIONS.find((entry) => entry.value === normalizedValue);
-    return option ? option.label : "Сингл";
+    if (!option) return tAdmin("releaseTypeSingleLabel");
+    if (option.labelKey) return tAdmin(option.labelKey);
+    return option.label;
 }
 
 const SUPPORTED_ENTITY_TYPES = ["release", "artist", "event", "sponsor"];
@@ -5198,6 +5373,8 @@ async function saveSettings(options = {}) {
     const titleInputEl = document.getElementById("setting-title");
     const aboutInputEl = document.getElementById("setting-about");
     const missionInputEl = document.getElementById("setting-mission");
+    const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
+    const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
     const instagramInputEl = document.getElementById("setting-social-instagram");
     const youtubeInputEl = document.getElementById("setting-social-youtube");
@@ -5213,7 +5390,7 @@ async function saveSettings(options = {}) {
     const captchaErrorMessageEl = document.getElementById("setting-captcha-error-message");
     const captchaMissingTokenMessageEl = document.getElementById("setting-captcha-missing-token-message");
     const captchaInvalidDomainMessageEl = document.getElementById("setting-captcha-invalid-domain-message");
-    if (!titleInputEl || !aboutInputEl || !missionInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !captchaEnabledEl || !captchaProviderEl || !captchaDomainEl || !hcaptchaSiteKeyEl || !hcaptchaSecretKeyEl || !recaptchaSiteKeyEl || !recaptchaSecretKeyEl || !captchaErrorMessageEl || !captchaMissingTokenMessageEl || !captchaInvalidDomainMessageEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected || !captchaEnabledEl.isConnected || !captchaProviderEl.isConnected || !captchaDomainEl.isConnected || !hcaptchaSiteKeyEl.isConnected || !hcaptchaSecretKeyEl.isConnected || !recaptchaSiteKeyEl.isConnected || !recaptchaSecretKeyEl.isConnected || !captchaErrorMessageEl.isConnected || !captchaMissingTokenMessageEl.isConnected || !captchaInvalidDomainMessageEl.isConnected) {
+    if (!titleInputEl || !aboutInputEl || !missionInputEl || !heroSubtitleUkInputEl || !heroSubtitleEnInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !captchaEnabledEl || !captchaProviderEl || !captchaDomainEl || !hcaptchaSiteKeyEl || !hcaptchaSecretKeyEl || !recaptchaSiteKeyEl || !recaptchaSecretKeyEl || !captchaErrorMessageEl || !captchaMissingTokenMessageEl || !captchaInvalidDomainMessageEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !heroSubtitleUkInputEl.isConnected || !heroSubtitleEnInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected || !captchaEnabledEl.isConnected || !captchaProviderEl.isConnected || !captchaDomainEl.isConnected || !hcaptchaSiteKeyEl.isConnected || !hcaptchaSecretKeyEl.isConnected || !recaptchaSiteKeyEl.isConnected || !recaptchaSecretKeyEl.isConnected || !captchaErrorMessageEl.isConnected || !captchaMissingTokenMessageEl.isConnected || !captchaInvalidDomainMessageEl.isConnected) {
         console.warn("Core settings inputs are unavailable during settings save");
         return false;
     }
@@ -5270,6 +5447,8 @@ async function saveSettings(options = {}) {
         title: sanitizeInput(titleInputEl.value),
         about: sanitizeInput(aboutInputEl.value),
         mission: sanitizeInput(missionInputEl.value),
+        heroSubtitleUk: normalizeSettingsPlainText(heroSubtitleUkInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
+        heroSubtitleEn: normalizeSettingsPlainText(heroSubtitleEnInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         email: sanitizeInput(emailInputEl.value),
         instagramUrl: normalizeSettingsUrlInput(instagramInputEl.value, { platform: "instagram" }),
         youtubeUrl: normalizeSettingsUrlInput(youtubeInputEl.value, { platform: "youtube" }),

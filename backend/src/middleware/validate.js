@@ -83,6 +83,8 @@ export const settingsSchema = z.object({
   title: z.string().min(1),
   about: z.string().optional().default(""),
   mission: z.string().optional().default(""),
+  heroSubtitleUk: z.string().trim().min(1).max(160).optional().default("Neurofunk • Drum & Bass • Breakbeat • Techstep"),
+  heroSubtitleEn: z.string().trim().min(1).max(160).optional().default("Neurofunk • Drum & Bass • Breakbeat • Techstep"),
   email: z.string().email(),
   instagramUrl: z.string().optional().default("#"),
   youtubeUrl: z.string().optional().default("#"),
@@ -165,14 +167,16 @@ export const settingsSchema = z.object({
   }
 });
 
-const sectionKeySchema = z.enum(["releases", "artists", "events", "sponsors"]);
+const sectionKeySchema = z.enum(["releases", "artists", "events", "sponsors", "contact"]);
 
 export const sectionSettingSchema = z.object({
   sectionKey: sectionKeySchema,
   sortOrder: z.number().int().min(1).max(999),
   isEnabled: z.boolean().optional().default(true),
   titleUk: z.string().trim().min(1).max(120),
-  titleEn: z.string().trim().min(1).max(120)
+  titleEn: z.string().trim().min(1).max(120),
+  menuTitleUk: z.string().trim().min(1).max(80),
+  menuTitleEn: z.string().trim().min(1).max(80)
 });
 
 export const sectionSettingsSchema = z.object({

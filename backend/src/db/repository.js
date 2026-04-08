@@ -3,11 +3,54 @@ import { config } from "../config.js";
 import { resolveLanguage } from "../i18n/language.js";
 
 const SECTION_SETTINGS_DEFAULTS = [
-  { sectionKey: "releases", sortOrder: 1, isEnabled: true, titleUk: "ОСТАННІ РЕЛІЗИ", titleEn: "LATEST RELEASES" },
-  { sectionKey: "artists", sortOrder: 2, isEnabled: true, titleUk: "АРТИСТИ ЛЕЙБЛУ", titleEn: "LABEL ARTISTS" },
-  { sectionKey: "events", sortOrder: 3, isEnabled: true, titleUk: "АФІША ПОДІЙ", titleEn: "EVENT SCHEDULE" },
-  { sectionKey: "sponsors", sortOrder: 4, isEnabled: true, titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ", titleEn: "SPONSORS, PARTNERS AND FRIENDS" }
+  {
+    sectionKey: "releases",
+    sortOrder: 1,
+    isEnabled: true,
+    titleUk: "ОСТАННІ РЕЛІЗИ",
+    titleEn: "LATEST RELEASES",
+    menuTitleUk: "РЕЛІЗИ",
+    menuTitleEn: "RELEASES"
+  },
+  {
+    sectionKey: "artists",
+    sortOrder: 2,
+    isEnabled: true,
+    titleUk: "АРТИСТИ ЛЕЙБЛУ",
+    titleEn: "LABEL ARTISTS",
+    menuTitleUk: "АРТИСТИ",
+    menuTitleEn: "ARTISTS"
+  },
+  {
+    sectionKey: "events",
+    sortOrder: 3,
+    isEnabled: true,
+    titleUk: "АФІША ПОДІЙ",
+    titleEn: "EVENT SCHEDULE",
+    menuTitleUk: "ПОДІЇ",
+    menuTitleEn: "EVENTS"
+  },
+  {
+    sectionKey: "sponsors",
+    sortOrder: 4,
+    isEnabled: true,
+    titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
+    titleEn: "SPONSORS, PARTNERS AND FRIENDS",
+    menuTitleUk: "СПОНСОРИ",
+    menuTitleEn: "SPONSORS"
+  },
+  {
+    sectionKey: "contact",
+    sortOrder: 5,
+    isEnabled: true,
+    titleUk: "ЗВ'ЯЗАТИСЯ З НАМИ",
+    titleEn: "CONTACT US",
+    menuTitleUk: "КОНТАКТИ",
+    menuTitleEn: "CONTACT"
+  }
 ];
+
+const HERO_SUBTITLE_DEFAULT = "Neurofunk • Drum & Bass • Breakbeat • Techstep";
 
 function getSectionDefaultsMap() {
   return SECTION_SETTINGS_DEFAULTS.reduce((acc, entry) => {
@@ -32,7 +75,9 @@ function normalizeSectionSettingsForAdmin(rows) {
           ? row.isEnabled
           : (typeof row.is_enabled === "boolean" ? row.is_enabled : fallback.isEnabled),
         titleUk: String(row.titleUk || row.title_uk || row.defaultTitle || fallback.titleUk).trim() || fallback.titleUk,
-        titleEn: String(row.titleEn || row.title_en || row.defaultTitle || fallback.titleEn).trim() || fallback.titleEn
+        titleEn: String(row.titleEn || row.title_en || row.defaultTitle || fallback.titleEn).trim() || fallback.titleEn,
+        menuTitleUk: String(row.menuTitleUk || row.menu_title_uk || row.navTitleUk || row.nav_title_uk || row.titleUk || row.title_uk || fallback.menuTitleUk || fallback.titleUk).trim() || fallback.menuTitleUk || fallback.titleUk,
+        menuTitleEn: String(row.menuTitleEn || row.menu_title_en || row.navTitleEn || row.nav_title_en || row.titleEn || row.title_en || fallback.menuTitleEn || fallback.titleEn).trim() || fallback.menuTitleEn || fallback.titleEn
       };
     }).filter(Boolean)
     : [];
@@ -56,8 +101,120 @@ function normalizeSectionSettingsForPublic(rows, requestedLanguage) {
       sectionKey: row.sectionKey,
       sortOrder: row.sortOrder,
       isEnabled: row.isEnabled,
-      title: language === "en" ? row.titleEn : row.titleUk
+      title: language === "en" ? row.titleEn : row.titleUk,
+      menuTitle: language === "en" ? row.menuTitleEn : row.menuTitleUk
     }));
+}
+
+async function upsertSettingsHeroSubtitles(queryable, payload) {
+  const settingsIdResult = await queryable.query("SELECT id FROM settings ORDER BY id ASC LIMIT 1");
+  const settingsId = settingsIdResult.rows[0] && settingsIdResult.rows[0].id;
+  if (!settingsId) return;
+
+  const heroSubtitleUk = String(payload.heroSubtitleUk || HERO_SUBTITLE_DEFAULT).trim() || HERO_SUBTITLE_DEFAULT;
+  const heroSubtitleEn = String(payload.heroSubtitleEn || HERO_SUBTITLE_DEFAULT).trim() || HERO_SUBTITLE_DEFAULT;
+
+  const upsertByLanguage = async (languageCode, heroSubtitle) => {
+    await queryable.query(
+      `INSERT INTO settings_i18n (
+        settings_id,
+        language_code,
+        title,
+        about,
+        mission,
+        contact_captcha_error_message,
+        contact_captcha_missing_token_message,
+        contact_captcha_invalid_domain_message,
+        hero_subtitle
+      )
+      SELECT
+        s.id,
+        $2,
+        COALESCE(i18n_existing.title, s.title),
+        COALESCE(i18n_existing.about, s.about),
+        COALESCE(i18n_existing.mission, s.mission),
+        COALESCE(i18n_existing.contact_captcha_error_message, s.contact_captcha_error_message),
+        COALESCE(i18n_existing.contact_captcha_missing_token_message, s.contact_captcha_missing_token_message),
+        COALESCE(i18n_existing.contact_captcha_invalid_domain_message, s.contact_captcha_invalid_domain_message),
+        $3
+      FROM settings AS s
+      LEFT JOIN settings_i18n AS i18n_existing
+        ON i18n_existing.settings_id = s.id
+       AND i18n_existing.language_code = $2
+      WHERE s.id = $1
+      ON CONFLICT (settings_id, language_code)
+      DO UPDATE SET
+        hero_subtitle = EXCLUDED.hero_subtitle,
+        updated_at = NOW()`,
+      [settingsId, languageCode, heroSubtitle]
+    );
+  };
+
+  try {
+    await upsertByLanguage("uk", heroSubtitleUk);
+    await upsertByLanguage("en", heroSubtitleEn);
+  } catch (error) {
+    if (error && error.code === "42703") {
+      // hero_subtitle column is unavailable before migration.
+      return;
+    }
+    throw error;
+  }
+}
+
+async function getSettingsHeroSubtitles(queryable) {
+  try {
+    const result = await queryable.query(
+      `SELECT language_code, hero_subtitle
+      FROM settings_i18n
+      WHERE settings_id = (SELECT id FROM settings ORDER BY id ASC LIMIT 1)
+        AND language_code IN ('uk', 'en')`
+    );
+
+    const byLanguage = (result.rows || []).reduce((acc, row) => {
+      const languageCode = String(row.language_code || "").trim().toLowerCase();
+      if (!languageCode) return acc;
+      acc[languageCode] = String(row.hero_subtitle || "").trim();
+      return acc;
+    }, {});
+
+    return {
+      heroSubtitleUk: byLanguage.uk || HERO_SUBTITLE_DEFAULT,
+      heroSubtitleEn: byLanguage.en || HERO_SUBTITLE_DEFAULT
+    };
+  } catch (error) {
+    if (error && error.code === "42703") {
+      return {
+        heroSubtitleUk: HERO_SUBTITLE_DEFAULT,
+        heroSubtitleEn: HERO_SUBTITLE_DEFAULT
+      };
+    }
+    throw error;
+  }
+}
+
+async function getPublicHeroSubtitle(queryable, language, defaultLanguage) {
+  try {
+    const result = await queryable.query(
+      `SELECT
+        COALESCE(i18n_lang.hero_subtitle, i18n_default.hero_subtitle, $3) AS "heroSubtitle"
+      FROM settings AS s
+      LEFT JOIN settings_i18n AS i18n_lang
+        ON i18n_lang.settings_id = s.id
+       AND i18n_lang.language_code = $1
+      LEFT JOIN settings_i18n AS i18n_default
+        ON i18n_default.settings_id = s.id
+       AND i18n_default.language_code = $2
+      ORDER BY s.id ASC
+      LIMIT 1`,
+      [language, defaultLanguage, HERO_SUBTITLE_DEFAULT]
+    );
+    const row = result.rows[0] || null;
+    return String(row && row.heroSubtitle ? row.heroSubtitle : "").trim() || HERO_SUBTITLE_DEFAULT;
+  } catch (error) {
+    if (error && error.code === "42703") return HERO_SUBTITLE_DEFAULT;
+    throw error;
+  }
 }
 
 const DEFAULT_AUDIT_LATENCY_SETTINGS = {
@@ -188,6 +345,7 @@ async function upsertAdminSettings(queryable, payload) {
         ]
       );
     }
+    await upsertSettingsHeroSubtitles(queryable, payload);
     return;
   }
 
@@ -287,6 +445,8 @@ async function upsertAdminSettings(queryable, payload) {
       ]
     );
   }
+
+  await upsertSettingsHeroSubtitles(queryable, payload);
 }
 
 async function upsertSectionSettings(queryable, sectionsPayload) {
@@ -318,19 +478,27 @@ async function upsertSectionSettings(queryable, sectionsPayload) {
     if (!sectionId) continue;
 
     await queryable.query(
-      `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
-       VALUES ($1, 'uk', $2)
+      `INSERT INTO section_settings_i18n (section_settings_id, language_code, title, nav_title)
+       VALUES ($1, 'uk', $2, $3)
        ON CONFLICT (section_settings_id, language_code)
-       DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
-      [sectionId, section.titleUk || fallback.titleUk]
+       DO UPDATE SET title = EXCLUDED.title, nav_title = EXCLUDED.nav_title, updated_at = NOW()`,
+      [
+        sectionId,
+        section.titleUk || fallback.titleUk,
+        section.menuTitleUk || section.titleUk || fallback.menuTitleUk || fallback.titleUk
+      ]
     );
 
     await queryable.query(
-      `INSERT INTO section_settings_i18n (section_settings_id, language_code, title)
-       VALUES ($1, 'en', $2)
+      `INSERT INTO section_settings_i18n (section_settings_id, language_code, title, nav_title)
+       VALUES ($1, 'en', $2, $3)
        ON CONFLICT (section_settings_id, language_code)
-       DO UPDATE SET title = EXCLUDED.title, updated_at = NOW()`,
-      [sectionId, section.titleEn || fallback.titleEn]
+       DO UPDATE SET title = EXCLUDED.title, nav_title = EXCLUDED.nav_title, updated_at = NOW()`,
+      [
+        sectionId,
+        section.titleEn || fallback.titleEn,
+        section.menuTitleEn || section.titleEn || fallback.menuTitleEn || fallback.titleEn
+      ]
     );
   }
 }
@@ -703,7 +871,14 @@ export async function getPublicSettings(requestedLanguage = config.defaultLangua
   const language = resolveLanguage(requestedLanguage);
   const defaultLanguage = resolveLanguage(config.defaultLanguage);
   const result = await pool.query(PUBLIC_SETTINGS_SELECT, [language, defaultLanguage]);
-  return result.rows[0] || null;
+  const baseSettings = result.rows[0] || null;
+  if (!baseSettings) return null;
+
+  const heroSubtitle = await getPublicHeroSubtitle(pool, language, defaultLanguage);
+  return {
+    ...baseSettings,
+    heroSubtitle
+  };
 }
 
 export async function getAdminSectionSettings() {
@@ -715,7 +890,9 @@ export async function getAdminSectionSettings() {
         base.is_enabled AS "isEnabled",
         base.default_title AS "defaultTitle",
         i18n_uk.title AS "titleUk",
-        i18n_en.title AS "titleEn"
+        i18n_en.title AS "titleEn",
+        i18n_uk.nav_title AS "menuTitleUk",
+        i18n_en.nav_title AS "menuTitleEn"
       FROM section_settings AS base
       LEFT JOIN section_settings_i18n AS i18n_uk
         ON i18n_uk.section_settings_id = base.id
@@ -776,7 +953,13 @@ export async function saveSettingsBundle(payload) {
 }
 
 export async function getAdminSettings() {
-  return await queryAdminSettings(pool);
+  const baseSettings = await queryAdminSettings(pool);
+  if (!baseSettings) return null;
+  const heroSubtitles = await getSettingsHeroSubtitles(pool);
+  return {
+    ...baseSettings,
+    ...heroSubtitles
+  };
 }
 
 export async function saveSettings(payload) {

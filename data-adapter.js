@@ -132,6 +132,8 @@
             title: "CORE64 Records",
             about: "CORE64 Records — незалежний музичний лейбл, заснований у 2024 році. Ми спеціалізуємося на найважчих жанрах електронної музики: Neurofunk, Techstep, Darkstep та Breakbeat.",
             mission: "Наша місія — підтримувати андерграунд сцену та виводити Drum & Bass на новий рівень. Кожен реліз — це унікальна історія, закодована в звуках синтезаторів та ритмах барабанів.",
+            heroSubtitleUk: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
+            heroSubtitleEn: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
             email: "demo@core64.records",
             instagramUrl: "#",
             youtubeUrl: "#",
@@ -156,28 +158,45 @@
                 sortOrder: 1,
                 isEnabled: true,
                 titleUk: "ОСТАННІ РЕЛІЗИ",
-                titleEn: "LATEST RELEASES"
+                titleEn: "LATEST RELEASES",
+                menuTitleUk: "РЕЛІЗИ",
+                menuTitleEn: "RELEASES"
             },
             {
                 sectionKey: "artists",
                 sortOrder: 2,
                 isEnabled: true,
                 titleUk: "АРТИСТИ ЛЕЙБЛУ",
-                titleEn: "LABEL ARTISTS"
+                titleEn: "LABEL ARTISTS",
+                menuTitleUk: "АРТИСТИ",
+                menuTitleEn: "ARTISTS"
             },
             {
                 sectionKey: "events",
                 sortOrder: 3,
                 isEnabled: true,
                 titleUk: "АФІША ПОДІЙ",
-                titleEn: "EVENT SCHEDULE"
+                titleEn: "EVENT SCHEDULE",
+                menuTitleUk: "ПОДІЇ",
+                menuTitleEn: "EVENTS"
             },
             {
                 sectionKey: "sponsors",
                 sortOrder: 4,
                 isEnabled: true,
                 titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
-                titleEn: "SPONSORS, PARTNERS AND FRIENDS"
+                titleEn: "SPONSORS, PARTNERS AND FRIENDS",
+                menuTitleUk: "СПОНСОРИ",
+                menuTitleEn: "SPONSORS"
+            },
+            {
+                sectionKey: "contact",
+                sortOrder: 5,
+                isEnabled: true,
+                titleUk: "ЗВ'ЯЗАТИСЯ З НАМИ",
+                titleEn: "CONTACT US",
+                menuTitleUk: "КОНТАКТИ",
+                menuTitleEn: "CONTACT"
             }
         ],
         contactRequests: []
@@ -348,20 +367,31 @@
     function localizeSectionSettings(sectionSettings, language) {
         const normalizedLanguage = resolvePreferredLanguage(language);
         const source = Array.isArray(sectionSettings) ? sectionSettings : [];
-        return source
-            .map((entry, index) => {
-                const sectionKey = String(entry.sectionKey || "").trim();
-                if (!sectionKey) return null;
-                const sortOrder = Number.isFinite(Number(entry.sortOrder))
-                    ? Number(entry.sortOrder)
-                    : (index + 1);
-                const titleUk = String(entry.titleUk || "").trim();
-                const titleEn = String(entry.titleEn || "").trim();
+        const byKey = source.reduce((acc, entry) => {
+            const sectionKey = String(entry && entry.sectionKey ? entry.sectionKey : "").trim();
+            if (!sectionKey) return acc;
+            acc[sectionKey] = entry;
+            return acc;
+        }, {});
+
+        return DEFAULT_DATA.sectionSettings
+            .map((defaults, index) => {
+                const candidate = byKey[defaults.sectionKey] || {};
+                const sortOrder = Number.isFinite(Number(candidate.sortOrder))
+                    ? Number(candidate.sortOrder)
+                    : defaults.sortOrder || (index + 1);
+                const titleUk = String(candidate.titleUk || defaults.titleUk || "").trim();
+                const titleEn = String(candidate.titleEn || defaults.titleEn || "").trim();
+                const menuTitleUk = String(candidate.menuTitleUk || defaults.menuTitleUk || "").trim();
+                const menuTitleEn = String(candidate.menuTitleEn || defaults.menuTitleEn || "").trim();
                 return {
-                    sectionKey,
+                    sectionKey: defaults.sectionKey,
                     sortOrder,
-                    isEnabled: entry.isEnabled !== false,
-                    title: normalizedLanguage === "en" ? (titleEn || titleUk || sectionKey) : (titleUk || titleEn || sectionKey)
+                    isEnabled: candidate.isEnabled !== false,
+                    title: normalizedLanguage === "en" ? (titleEn || titleUk || defaults.sectionKey) : (titleUk || titleEn || defaults.sectionKey),
+                    menuTitle: normalizedLanguage === "en"
+                        ? (menuTitleEn || menuTitleUk || titleEn || titleUk || defaults.sectionKey)
+                        : (menuTitleUk || menuTitleEn || titleUk || titleEn || defaults.sectionKey)
                 };
             })
             .filter(Boolean)

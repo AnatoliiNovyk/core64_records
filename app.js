@@ -7,10 +7,11 @@ let contactRuntimeSettings = {};
 let releaseInteractionsBound = false;
 const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
 const PUBLIC_SECTION_DEFAULTS = [
-    { sectionKey: "releases", sortOrder: 1, i18nKey: "sectionLatestReleases" },
-    { sectionKey: "artists", sortOrder: 2, i18nKey: "sectionLabelArtists" },
-    { sectionKey: "events", sortOrder: 3, i18nKey: "sectionEvents" },
-    { sectionKey: "sponsors", sortOrder: 4, i18nKey: "sectionSponsors" }
+    { sectionKey: "releases", sortOrder: 1, i18nKey: "sectionLatestReleases", navI18nKey: "navReleases" },
+    { sectionKey: "artists", sortOrder: 2, i18nKey: "sectionLabelArtists", navI18nKey: "navArtists" },
+    { sectionKey: "events", sortOrder: 3, i18nKey: "sectionEvents", navI18nKey: "navEvents" },
+    { sectionKey: "sponsors", sortOrder: 4, i18nKey: "sectionSponsors", navI18nKey: "navSponsors" },
+    { sectionKey: "contact", sortOrder: 5, i18nKey: "sectionContact", navI18nKey: "navContact" }
 ];
 const PUBLIC_I18N = {
     uk: {
@@ -30,6 +31,7 @@ const PUBLIC_I18N = {
         sponsorPrev: "Попередній спонсор",
         sponsorNext: "Наступний спонсор",
         sponsorCarousel: "Карусель спонсорів",
+        sponsorsUpdating: "Партнерська секція оновлюється",
         sectionAbout: "ПРО CORE64 RECORDS",
         statReleases: "Релізів",
         statArtists: "Артистів",
@@ -57,6 +59,9 @@ const PUBLIC_I18N = {
         contactCaptchaLabel: "Перевірка",
         contactSubmit: "Відправити",
         contactStatusDefault: "Ми відповідаємо протягом 24 годин.",
+        ticketsLabel: "Квитки",
+        ticketsSoonMessage: "Квитки скоро будуть доступні. Напишіть нам через форму внизу сторінки.",
+        heroSubtitleFallback: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
         footerRights: "© 2024 CORE64 Records. Усі права захищені.",
         goToAdminPanel: "Перейти в адмін-панель",
         apiTemporarilyUnavailable: "Сервіс тимчасово недоступний. Не вдалося отримати дані з API.",
@@ -92,6 +97,7 @@ const PUBLIC_I18N = {
         sponsorPrev: "Previous sponsor",
         sponsorNext: "Next sponsor",
         sponsorCarousel: "Sponsors carousel",
+        sponsorsUpdating: "Partners section is being updated",
         sectionAbout: "ABOUT CORE64 RECORDS",
         statReleases: "Releases",
         statArtists: "Artists",
@@ -119,6 +125,9 @@ const PUBLIC_I18N = {
         contactCaptchaLabel: "Verification",
         contactSubmit: "Send",
         contactStatusDefault: "We reply within 24 hours.",
+        ticketsLabel: "Tickets",
+        ticketsSoonMessage: "Tickets will be available soon. Contact us through the form below.",
+        heroSubtitleFallback: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
         footerRights: "© 2024 CORE64 Records. All rights reserved.",
         goToAdminPanel: "Open admin panel",
         apiTemporarilyUnavailable: "Service is temporarily unavailable. Failed to fetch data from API.",
@@ -700,12 +709,14 @@ function normalizePublicSectionSettings(sectionSettings) {
                 ? Number(candidate.sortOrder)
                 : defaults.sortOrder;
             const title = String(candidate.title || "").trim() || tPublic(defaults.i18nKey);
+            const menuTitle = String(candidate.menuTitle || "").trim() || tPublic(defaults.navI18nKey);
             const isEnabled = candidate.isEnabled !== false;
             return {
                 sectionKey: defaults.sectionKey,
                 sortOrder,
                 isEnabled,
-                title
+                title,
+                menuTitle
             };
         })
         .sort((left, right) => {
@@ -732,12 +743,13 @@ function applyPublicSectionSettings(sectionSettings) {
         if (!containerEl) return;
 
         const aboutLinkEl = containerEl.querySelector('a[href="#about"]');
+        const aboutParentEl = aboutLinkEl && aboutLinkEl.parentElement === containerEl ? aboutLinkEl : null;
         normalized.forEach((section) => {
             const linkEl = containerEl.querySelector(`a[href="#${section.sectionKey}"]`);
             if (!linkEl) return;
-            linkEl.textContent = section.title;
-            if (aboutLinkEl && aboutLinkEl.parentElement === containerEl) {
-                containerEl.insertBefore(linkEl, aboutLinkEl);
+            linkEl.textContent = section.menuTitle;
+            if (aboutParentEl) {
+                containerEl.insertBefore(linkEl, aboutParentEl);
             } else {
                 containerEl.appendChild(linkEl);
             }
@@ -748,15 +760,32 @@ function applyPublicSectionSettings(sectionSettings) {
     const sectionsParentEl = releasesSectionEl ? releasesSectionEl.parentElement : null;
     if (!sectionsParentEl) return;
 
+    const aboutSectionEl = document.getElementById("about");
+    if (aboutSectionEl && aboutSectionEl.parentElement === sectionsParentEl) {
+        const nonContactSections = normalized
+            .filter((section) => section.sectionKey !== "contact")
+            .map((section) => document.getElementById(section.sectionKey))
+            .filter((sectionEl) => sectionEl && sectionEl.parentElement === sectionsParentEl);
+
+        for (let index = nonContactSections.length - 1; index >= 0; index -= 1) {
+            const sectionEl = nonContactSections[index];
+            sectionsParentEl.insertBefore(sectionEl, aboutSectionEl);
+        }
+
+        const contactSectionEl = document.getElementById("contact");
+        if (contactSectionEl && contactSectionEl.parentElement === sectionsParentEl) {
+            sectionsParentEl.insertBefore(contactSectionEl, aboutSectionEl.nextSibling);
+        }
+    }
+
     normalized.forEach((section) => {
         const sectionEl = document.getElementById(section.sectionKey);
         if (!sectionEl || sectionEl.parentElement !== sectionsParentEl) return;
         sectionEl.hidden = section.isEnabled === false;
         sectionEl.setAttribute("aria-hidden", section.isEnabled === false ? "true" : "false");
-        sectionsParentEl.appendChild(sectionEl);
     });
 
-    ["releases", "artists", "events", "sponsors"].forEach((sectionKey) => {
+    ["releases", "artists", "events", "sponsors", "contact"].forEach((sectionKey) => {
         const section = bySectionKey[sectionKey];
         const isHidden = !section || section.isEnabled === false;
         document.querySelectorAll(`a[href="#${sectionKey}"]`).forEach((linkEl) => {
@@ -888,8 +917,8 @@ function renderEvents(data) {
                 </div>
                 <div class="flex-shrink-0 flex items-center">
                     ${hasTicketLink
-                        ? `<a href="${resolvedTicketLink}" target="_blank" rel="noopener noreferrer" class="px-6 py-3 border border-green-400 text-green-400 hover:bg-green-400 hover:text-black transition-all uppercase tracking-wider text-sm font-bold">Квитки</a>`
-                        : `<button onclick="showTicketInfo()" class="px-6 py-3 border border-green-400 text-green-400 hover:bg-green-400 hover:text-black transition-all uppercase tracking-wider text-sm font-bold">Квитки</button>`}
+                        ? `<a href="${resolvedTicketLink}" target="_blank" rel="noopener noreferrer" class="px-6 py-3 border border-green-400 text-green-400 hover:bg-green-400 hover:text-black transition-all uppercase tracking-wider text-sm font-bold">${escapeHtmlAttribute(tPublic("ticketsLabel"))}</a>`
+                        : `<button onclick="showTicketInfo()" class="px-6 py-3 border border-green-400 text-green-400 hover:bg-green-400 hover:text-black transition-all uppercase tracking-wider text-sm font-bold">${escapeHtmlAttribute(tPublic("ticketsLabel"))}</button>`}
                 </div>
             </div>
         `;
@@ -980,7 +1009,7 @@ function renderSponsors(data) {
     if (!sponsors.length) {
         track.innerHTML = `
             <div class="w-full min-h-[180px] border border-yellow-500/25 rounded-xl bg-black/30 grid place-items-center text-center text-gray-400 p-6">
-                Партнерська секція оновлюється
+                ${escapeHtmlAttribute(tPublic("sponsorsUpdating"))}
             </div>
         `;
         stopSponsorsAutoplay();
@@ -1034,7 +1063,7 @@ window.sponsorCarouselPrev = sponsorCarouselPrev;
 window.sponsorCarouselNext = sponsorCarouselNext;
 
 function showTicketInfo() {
-    alert("Квитки скоро будуть доступні. Напишіть нам через форму внизу сторінки.");
+    alert(tPublic("ticketsSoonMessage"));
 }
 
 function loadAbout(settings) {
@@ -1047,6 +1076,16 @@ function loadAbout(settings) {
     if (missionEl && settings.mission) {
         missionEl.textContent = settings.mission;
     }
+
+    const heroSubtitleEl = document.getElementById("public-hero-subtitle");
+    if (!heroSubtitleEl || !heroSubtitleEl.isConnected) return;
+
+    const language = getActiveLanguage();
+    const heroSubtitle = language === "en"
+        ? String(settings.heroSubtitleEn || settings.heroSubtitle || "").trim()
+        : String(settings.heroSubtitleUk || settings.heroSubtitle || "").trim();
+
+    heroSubtitleEl.textContent = heroSubtitle || tPublic("heroSubtitleFallback");
 }
 
 function decodeHtmlEntities(text) {
