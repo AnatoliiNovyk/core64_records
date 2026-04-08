@@ -111,7 +111,7 @@
                 <button id="admin-lang-en" type="button" class="text-xs tracking-widest px-2 py-1 rounded hover:bg-cyan-400/20">EN</button>
             </div>
         </div>
-        
+
         <nav class="flex-1 py-6 space-y-1">
             <button onclick="showSection('dashboard')" class="nav-item active w-full text-left px-6 py-3 flex items-center gap-3 text-gray-400 hover:text-cyan-400">
                 <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
@@ -146,7 +146,7 @@
                 <span data-i18n="navAudit">Аудит</span>
             </button>
         </nav>
-        
+
         <div class="p-6 border-t border-cyan-500/20">
             <button onclick="logout()" class="flex items-center gap-2 text-red-400 hover:text-red-300 transition-colors">
                 <i data-lucide="log-out" class="w-5 h-5"></i>
@@ -463,28 +463,28 @@
             <!-- Audit Log -->
             <div id="section-audit" class="section-content hidden">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-bold text-cyan-400">Журнал аудиту</h2>
+                    <h2 class="text-3xl font-bold text-cyan-400" data-i18n="auditSectionTitle">Журнал аудиту</h2>
                     <div class="flex items-center gap-3">
-                        <button onclick="clearAuditFilters()" class="px-4 py-2 rounded text-sm border border-gray-500/40 text-gray-300 hover:bg-gray-500/10">Очистити фільтри</button>
-                        <button onclick="exportAuditCsv()" class="px-4 py-2 rounded text-sm border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10">Експорт CSV</button>
+                        <button onclick="clearAuditFilters()" class="px-4 py-2 rounded text-sm border border-gray-500/40 text-gray-300 hover:bg-gray-500/10" data-i18n="auditClearFiltersButton">Очистити фільтри</button>
+                        <button onclick="exportAuditCsv()" class="px-4 py-2 rounded text-sm border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10" data-i18n="auditExportCsvButton">Експорт CSV</button>
                         <button id="audit-refresh-now-btn" onclick="refreshAuditNow()" class="btn-cyan px-4 py-2 rounded text-sm disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]">
-                            <span id="audit-refresh-now-label">Оновити зараз</span>
+                            <span id="audit-refresh-now-label" data-i18n="auditRefreshNow">Оновити зараз</span>
                             <span id="audit-refresh-now-spinner" class="hidden ml-2 inline-block h-3 w-3 rounded-full border border-white/80 border-t-transparent align-middle animate-spin" aria-hidden="true"></span>
                         </button>
                         <button id="audit-force-refresh-btn" onclick="forceRefreshAuditNow()" class="px-4 py-2 rounded text-sm border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-60 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]">
-                            <span id="audit-force-refresh-label">Форс-оновлення</span>
+                            <span id="audit-force-refresh-label" data-i18n="auditForceRefresh">Форс-оновлення</span>
                             <span id="audit-force-refresh-spinner" class="hidden ml-2 inline-block h-3 w-3 rounded-full border border-emerald-300 border-t-transparent align-middle animate-spin" aria-hidden="true"></span>
                         </button>
                     </div>
                 </div>
                 <div class="card p-4 rounded mb-4 grid md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Пошук (актор, дія, сутність)</label>
-                        <input id="audit-search" type="text" class="form-input w-full p-3 rounded" oninput="handleAuditSearchInput()" title="Пошук по аудиту" placeholder="admin, status_updated, contact_request">
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditSearchLabel">Пошук (актор, дія, сутність)</label>
+                        <input id="audit-search" type="text" class="form-input w-full p-3 rounded" oninput="handleAuditSearchInput()" data-i18n-title="auditSearchTitle" data-i18n-placeholder="auditSearchPlaceholder" title="Пошук по аудиту" placeholder="admin, status_updated, contact_request">
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Ліміт записів</label>
-                        <select id="audit-limit" class="form-input w-full p-3 rounded" onchange="changeAuditLimit()" title="Кількість записів аудиту">
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditLimitLabel">Ліміт записів</label>
+                        <select id="audit-limit" class="form-input w-full p-3 rounded" onchange="changeAuditLimit()" data-i18n-title="auditLimitTitle" title="Кількість записів аудиту">
                             <option value="25">25</option>
                             <option value="50" selected>50</option>
                             <option value="100">100</option>
@@ -492,59 +492,59 @@
                         </select>
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за дією</label>
-                        <select id="audit-filter-action" class="form-input w-full p-3 rounded" onchange="handleAuditFilterChange()" title="Фільтр аудиту за дією">
-                            <option value="all" selected>Усі дії</option>
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditActionFilterLabel">Фільтр за дією</label>
+                        <select id="audit-filter-action" class="form-input w-full p-3 rounded" onchange="handleAuditFilterChange()" data-i18n-title="auditActionFilterTitle" title="Фільтр аудиту за дією">
+                            <option value="all" selected data-i18n="auditAllActions">Усі дії</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за сутністю</label>
-                        <select id="audit-filter-entity" class="form-input w-full p-3 rounded" onchange="handleAuditFilterChange()" title="Фільтр аудиту за сутністю">
-                            <option value="all" selected>Усі сутності</option>
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditEntityFilterLabel">Фільтр за сутністю</label>
+                        <select id="audit-filter-entity" class="form-input w-full p-3 rounded" onchange="handleAuditFilterChange()" data-i18n-title="auditEntityFilterTitle" title="Фільтр аудиту за сутністю">
+                            <option value="all" selected data-i18n="auditAllEntities">Усі сутності</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Період (пресет)</label>
-                        <select id="audit-date-preset" class="form-input w-full p-3 rounded" onchange="applyAuditDatePreset()" title="Швидкий вибір періоду для аудиту">
-                            <option value="all" selected>Увесь час</option>
-                            <option value="today">Сьогодні</option>
-                            <option value="24h">Останні 24 години</option>
-                            <option value="7d">Останні 7 днів</option>
-                            <option value="custom">Кастомний</option>
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditDatePresetLabel">Період (пресет)</label>
+                        <select id="audit-date-preset" class="form-input w-full p-3 rounded" onchange="applyAuditDatePreset()" data-i18n-title="auditDatePresetTitle" title="Швидкий вибір періоду для аудиту">
+                            <option value="all" selected data-i18n="auditDatePresetAll">Увесь час</option>
+                            <option value="today" data-i18n="auditDatePresetToday">Сьогодні</option>
+                            <option value="24h" data-i18n="auditDatePreset24h">Останні 24 години</option>
+                            <option value="7d" data-i18n="auditDatePreset7d">Останні 7 днів</option>
+                            <option value="custom" data-i18n="auditDatePresetCustom">Кастомний</option>
                         </select>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-gray-400 mb-2 uppercase text-xs">Від дати</label>
-                            <input id="audit-date-from" type="date" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" title="Початкова дата фільтра аудиту">
+                            <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditDateFromLabel">Від дати</label>
+                            <input id="audit-date-from" type="date" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" data-i18n-title="auditDateFromTitle" title="Початкова дата фільтра аудиту">
                         </div>
                         <div>
-                            <label class="block text-gray-400 mb-2 uppercase text-xs">До дати</label>
-                            <input id="audit-date-to" type="date" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" title="Кінцева дата фільтра аудиту">
+                            <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditDateToLabel">До дати</label>
+                            <input id="audit-date-to" type="date" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" data-i18n-title="auditDateToTitle" title="Кінцева дата фільтра аудиту">
                         </div>
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Автооновлення</label>
-                        <select id="audit-refresh-interval" class="form-input w-full p-3 rounded" onchange="changeAuditRefreshInterval()" title="Інтервал автооновлення журналу аудиту">
-                            <option value="0" selected>Вимкнено</option>
-                            <option value="10">Кожні 10 секунд</option>
-                            <option value="20">Кожні 20 секунд</option>
-                            <option value="30">Кожні 30 секунд</option>
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditAutoRefreshLabel">Автооновлення</label>
+                        <select id="audit-refresh-interval" class="form-input w-full p-3 rounded" onchange="changeAuditRefreshInterval()" data-i18n-title="auditAutoRefreshTitle" title="Інтервал автооновлення журналу аудиту">
+                            <option value="0" selected data-i18n="auditRefreshIntervalDisabledOption">Вимкнено</option>
+                            <option value="10" data-i18n="auditRefreshInterval10Option">Кожні 10 секунд</option>
+                            <option value="20" data-i18n="auditRefreshInterval20Option">Кожні 20 секунд</option>
+                            <option value="30" data-i18n="auditRefreshInterval30Option">Кожні 30 секунд</option>
                         </select>
                     </div>
                     <div class="flex items-end">
-                        <label class="inline-flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none" title="В економному режимі автооновлення не виконується, дані оновлюються вручну або при зміні фільтрів">
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-300 cursor-pointer select-none" data-i18n-title="auditEcoModeTitle" title="В економному режимі автооновлення не виконується, дані оновлюються вручну або при зміні фільтрів">
                             <input id="audit-eco-mode" type="checkbox" class="h-4 w-4" onchange="toggleAuditEcoMode()">
-                            <span>Економний режим</span>
+                            <span data-i18n="auditEcoModeLabel">Економний режим</span>
                         </label>
                     </div>
                     <div class="flex flex-col justify-end text-sm text-gray-400 gap-1">
-                        <div id="audit-refresh-status">Автооновлення: вимкнено</div>
-                        <div id="audit-last-updated">Оновлено: -</div>
-                        <div id="audit-last-latency">Остання тривалість: -</div>
+                        <div id="audit-refresh-status" data-i18n="auditRefreshDisabled">Автооновлення: вимкнено</div>
+                        <div id="audit-last-updated" data-i18n="auditUpdatedAtInitial">Оновлено: -</div>
+                        <div id="audit-last-latency" data-i18n="auditLastDurationInitial">Остання тривалість: -</div>
                         <div id="audit-avg-latency" class="inline-flex items-center gap-2" title="Пороги: до 300ms - добре, 301-800ms - помірно, понад 800ms - повільно">
                             <span id="audit-latency-dot" class="inline-block h-2.5 w-2.5 rounded-full bg-gray-500/70"></span>
-                            <span>Середня (останні 5): -</span>
+                            <span data-i18n="auditAverageDurationInitial">Середня (останні 5): -</span>
                         </div>
                         <div id="audit-latency-legend" class="inline-flex flex-wrap items-center gap-3 text-xs text-gray-500" aria-label="Легенда порогів затримки аудиту">
                             <span class="inline-flex items-center gap-1">
@@ -560,11 +560,11 @@
                                 <span id="audit-latency-legend-slow">повільно: > 800ms</span>
                             </span>
                         </div>
-                        <div id="audit-total-count">Знайдено: 0</div>
-                        <div id="audit-shortcut-hint" class="text-xs text-gray-500">Підказка: Ctrl+R для швидкого оновлення</div>
+                        <div id="audit-total-count" data-i18n="auditTotalCountInitial">Знайдено: 0</div>
+                        <div id="audit-shortcut-hint" class="text-xs text-gray-500" data-i18n="auditShortcutHintDefault">Підказка: Ctrl+R для швидкого оновлення</div>
                     </div>
                 </div>
-                <div id="audit-loading" class="hidden mb-4 p-3 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-200 text-sm">Завантаження журналу аудиту...</div>
+                <div id="audit-loading" class="hidden mb-4 p-3 rounded border border-cyan-500/30 bg-cyan-500/10 text-cyan-200 text-sm" data-i18n="auditLoadingMessage">Завантаження журналу аудиту...</div>
                 <div id="audit-error" class="hidden mb-4 p-3 rounded border border-red-500/40 bg-red-900/20 text-red-200 text-sm"></div>
                 <div id="audit-list" class="space-y-3"></div>
                 <div id="audit-pagination" class="mt-4 flex items-center justify-between gap-3"></div>
@@ -598,7 +598,7 @@
         </div>
     </div>
 
-    <div id="audit-shortcut-toast" class="hidden fixed bottom-4 right-4 z-50 px-4 py-2 rounded border border-emerald-500/40 bg-emerald-900/30 text-emerald-200 text-sm shadow-lg" role="status" aria-live="polite" aria-atomic="true">
+    <div id="audit-shortcut-toast" class="hidden fixed bottom-4 right-4 z-50 px-4 py-2 rounded border border-emerald-500/40 bg-emerald-900/30 text-emerald-200 text-sm shadow-lg" role="status" aria-live="polite" aria-atomic="true" data-i18n="auditShortcutToastDefault">
         Оновлено через Ctrl/Cmd+R
     </div>
 
