@@ -287,20 +287,20 @@
 
             <!-- Settings -->
             <div id="section-settings" class="section-content hidden">
-                <h2 class="text-3xl font-bold mb-8 text-yellow-400">Налаштування сайту</h2>
+                <h2 class="text-3xl font-bold mb-8 text-yellow-400" data-i18n="settingsSectionTitle">Налаштування сайту</h2>
                 
                 <div class="card p-6 rounded max-w-2xl space-y-6">
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-sm">Назва лейблу</label>
-                        <input type="text" id="setting-title" class="form-input w-full p-3 rounded" title="Назва лейблу" placeholder="CORE64 Records">
+                        <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelTitle">Назва лейблу</label>
+                        <input type="text" id="setting-title" class="form-input w-full p-3 rounded" data-i18n-title="settingsLabelTitle" data-i18n-placeholder="settingsTitlePlaceholder" title="Назва лейблу" placeholder="CORE64 Records">
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-sm">Опис лейблу (перший абзац)</label>
-                        <textarea id="setting-about" rows="4" class="form-input w-full p-3 rounded" placeholder="CORE64 Records — незалежний музичний лейбл..."></textarea>
+                        <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelAbout">Опис лейблу (перший абзац)</label>
+                        <textarea id="setting-about" rows="4" class="form-input w-full p-3 rounded" data-i18n-placeholder="settingsAboutPlaceholder" placeholder="CORE64 Records — незалежний музичний лейбл..."></textarea>
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-sm">Місія / Другий абзац</label>
-                        <textarea id="setting-mission" rows="4" class="form-input w-full p-3 rounded" placeholder="Наша місія — підтримувати андерграунд сцену..."></textarea>
+                        <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelMission">Місія / Другий абзац</label>
+                        <textarea id="setting-mission" rows="4" class="form-input w-full p-3 rounded" data-i18n-placeholder="settingsMissionPlaceholder" placeholder="Наша місія — підтримувати андерграунд сцену..."></textarea>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -313,11 +313,11 @@
                         </div>
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-sm">Контактний Email</label>
-                        <input type="email" id="setting-email" class="form-input w-full p-3 rounded" title="Контактний Email" placeholder="hello@core64.records">
+                        <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelEmail">Контактний Email</label>
+                        <input type="email" id="setting-email" class="form-input w-full p-3 rounded" data-i18n-title="settingsLabelEmail" data-i18n-placeholder="settingsEmailPlaceholder" title="Контактний Email" placeholder="hello@core64.records">
                     </div>
                     <div class="pt-2 border-t border-cyan-500/20">
-                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3">Соцпосилання Hero-блоку</h3>
+                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3" data-i18n="settingsHeroLinksTitle">Соцпосилання Hero-блоку</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-gray-400 mb-2 uppercase text-xs">Instagram URL</label>
@@ -336,47 +336,47 @@
                                 <input type="url" id="setting-social-radio" class="form-input w-full p-3 rounded" title="Radio URL" placeholder="https://...">
                             </div>
                         </div>
-                        <p class="mt-2 text-xs text-gray-500">Якщо поле порожнє, буде використано символ <code>#</code>.</p>
+                        <p class="mt-2 text-xs text-gray-500" data-i18n="settingsHeroLinksHint">Якщо поле порожнє, буде використано символ #.</p>
                     </div>
                     <div class="pt-2 border-t border-cyan-500/20">
-                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3">Пороги latency для аудиту</h3>
+                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3" data-i18n="settingsAuditThresholdsTitle">Пороги latency для аудиту</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Добре до (ms)</label>
-                                <input type="number" min="50" max="5000" step="10" id="setting-audit-latency-good-max" class="form-input w-full p-3 rounded" title="Верхній поріг для зеленого статусу" placeholder="300" oninput="handleAuditLatencyThresholdInputsChanged()">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsAuditGoodMaxLabel">Добре до (ms)</label>
+                                <input type="number" min="50" max="5000" step="10" id="setting-audit-latency-good-max" class="form-input w-full p-3 rounded" data-i18n-title="settingsAuditGoodMaxTitle" title="Верхній поріг для зеленого статусу" placeholder="300" oninput="handleAuditLatencyThresholdInputsChanged()">
                             </div>
                             <div>
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Помірно до (ms)</label>
-                                <input type="number" min="100" max="10000" step="10" id="setting-audit-latency-warn-max" class="form-input w-full p-3 rounded" title="Верхній поріг для жовтого статусу" placeholder="800" oninput="handleAuditLatencyThresholdInputsChanged()">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsAuditWarnMaxLabel">Помірно до (ms)</label>
+                                <input type="number" min="100" max="10000" step="10" id="setting-audit-latency-warn-max" class="form-input w-full p-3 rounded" data-i18n-title="settingsAuditWarnMaxTitle" title="Верхній поріг для жовтого статусу" placeholder="800" oninput="handleAuditLatencyThresholdInputsChanged()">
                             </div>
                         </div>
-                        <p class="mt-2 text-xs text-gray-500">Якщо середня затримка більша за «Помірно до», індикатор переходить у статус «повільно».</p>
+                        <p class="mt-2 text-xs text-gray-500" data-i18n="settingsAuditThresholdsHint">Якщо середня затримка більша за «Помірно до», індикатор переходить у статус «повільно».</p>
                         <div class="mt-3">
-                            <button type="button" onclick="resetAuditLatencyThresholdsForm()" class="px-4 py-2 rounded text-sm border border-gray-500/40 text-gray-300 hover:bg-gray-500/10">Скинути пороги до дефолтних</button>
-                            <span id="setting-audit-latency-dirty" class="hidden ml-3 px-2 py-1 rounded text-xs border border-amber-500/40 text-amber-300 bg-amber-500/10" role="status" aria-live="polite">Незбережені зміни порогів</span>
+                            <button type="button" onclick="resetAuditLatencyThresholdsForm()" class="px-4 py-2 rounded text-sm border border-gray-500/40 text-gray-300 hover:bg-gray-500/10" data-i18n="settingsAuditResetButton">Скинути пороги до дефолтних</button>
+                            <span id="setting-audit-latency-dirty" class="hidden ml-3 px-2 py-1 rounded text-xs border border-amber-500/40 text-amber-300 bg-amber-500/10" role="status" aria-live="polite" data-i18n="settingsAuditDirtyBadge">Незбережені зміни порогів</span>
                         </div>
                     </div>
                     <div class="pt-2 border-t border-cyan-500/20">
-                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3">Captcha для форми зв'язку</h3>
+                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3" data-i18n="settingsCaptchaTitle">Captcha для форми зв'язку</h3>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Captcha увімкнено</label>
-                                <select id="setting-captcha-enabled" class="form-input w-full p-3 rounded" title="Увімкнення captcha">
-                                    <option value="0">Вимкнено</option>
-                                    <option value="1">Увімкнено</option>
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsCaptchaEnabledLabel">Captcha увімкнено</label>
+                                <select id="setting-captcha-enabled" class="form-input w-full p-3 rounded" data-i18n-title="settingsCaptchaEnabledTitle" title="Увімкнення captcha">
+                                    <option value="0" data-i18n="settingsCaptchaDisabledOption">Вимкнено</option>
+                                    <option value="1" data-i18n="settingsCaptchaEnabledOption">Увімкнено</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Активний провайдер</label>
-                                <select id="setting-captcha-provider" class="form-input w-full p-3 rounded" title="Активний captcha-провайдер">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsCaptchaProviderLabel">Активний провайдер</label>
+                                <select id="setting-captcha-provider" class="form-input w-full p-3 rounded" data-i18n-title="settingsCaptchaProviderTitle" title="Активний captcha-провайдер">
                                     <option value="none">None</option>
                                     <option value="hcaptcha">hCaptcha</option>
                                     <option value="recaptcha_v2">reCAPTCHA v2</option>
                                 </select>
                             </div>
                             <div class="md:col-span-2">
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Дозволений домен (опціонально)</label>
-                                <input type="text" id="setting-captcha-domain" class="form-input w-full p-3 rounded" title="Дозволений домен captcha" placeholder="core64.online">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsCaptchaDomainLabel">Дозволений домен (опціонально)</label>
+                                <input type="text" id="setting-captcha-domain" class="form-input w-full p-3 rounded" data-i18n-title="settingsCaptchaDomainTitle" data-i18n-placeholder="settingsCaptchaDomainPlaceholder" title="Дозволений домен captcha" placeholder="core64.online">
                             </div>
                         </div>
 
@@ -401,28 +401,28 @@
 
                         <div class="grid grid-cols-1 gap-4 mt-4">
                             <div>
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Текст: загальна помилка captcha</label>
-                                <input type="text" id="setting-captcha-error-message" class="form-input w-full p-3 rounded" title="Повідомлення загальної помилки captcha" placeholder="Не вдалося пройти перевірку captcha.">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsCaptchaErrorTextLabel">Текст: загальна помилка captcha</label>
+                                <input type="text" id="setting-captcha-error-message" class="form-input w-full p-3 rounded" data-i18n-title="settingsCaptchaErrorTextTitle" data-i18n-placeholder="settingsCaptchaErrorDefault" title="Повідомлення загальної помилки captcha" placeholder="Не вдалося пройти перевірку captcha.">
                             </div>
                             <div>
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Текст: токен відсутній</label>
-                                <input type="text" id="setting-captcha-missing-token-message" class="form-input w-full p-3 rounded" title="Повідомлення коли токен captcha відсутній" placeholder="Підтвердіть, що ви не робот.">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsCaptchaMissingTokenTextLabel">Текст: токен відсутній</label>
+                                <input type="text" id="setting-captcha-missing-token-message" class="form-input w-full p-3 rounded" data-i18n-title="settingsCaptchaMissingTokenTextTitle" data-i18n-placeholder="settingsCaptchaMissingTokenDefault" title="Повідомлення коли токен captcha відсутній" placeholder="Підтвердіть, що ви не робот.">
                             </div>
                             <div>
-                                <label class="block text-gray-400 mb-2 uppercase text-xs">Текст: домен не дозволений</label>
-                                <input type="text" id="setting-captcha-invalid-domain-message" class="form-input w-full p-3 rounded" title="Повідомлення коли домен не дозволений" placeholder="Відправка з цього домену заборонена.">
+                                <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsCaptchaInvalidDomainTextLabel">Текст: домен не дозволений</label>
+                                <input type="text" id="setting-captcha-invalid-domain-message" class="form-input w-full p-3 rounded" data-i18n-title="settingsCaptchaInvalidDomainTextTitle" data-i18n-placeholder="settingsCaptchaInvalidDomainDefault" title="Повідомлення коли домен не дозволений" placeholder="Відправка з цього домену заборонена.">
                             </div>
                         </div>
-                        <p class="mt-2 text-xs text-gray-500">Secret keys доступні лише в адмінці. На публічний сайт передаються тільки безпечні поля.</p>
+                        <p class="mt-2 text-xs text-gray-500" data-i18n="settingsCaptchaSecretHint">Secret keys доступні лише в адмінці. На публічний сайт передаються тільки безпечні поля.</p>
                     </div>
                     <div class="pt-2 border-t border-cyan-500/20">
-                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3">Заголовки, порядок і видимість секцій</h3>
-                        <p class="mt-1 mb-3 text-xs text-gray-500">Редагуйте заголовки секцій для UK/EN, керуйте їх видимістю та змінюйте порядок відображення на публічній сторінці.</p>
+                        <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3" data-i18n="settingsSectionsManageTitle">Заголовки, порядок і видимість секцій</h3>
+                        <p class="mt-1 mb-3 text-xs text-gray-500" data-i18n="settingsSectionsManageHint">Редагуйте заголовки секцій для UK/EN, керуйте їх видимістю та змінюйте порядок відображення на публічній сторінці.</p>
                         <div id="section-settings-list" class="space-y-3"></div>
                     </div>
                     <div class="flex gap-4">
-                        <button onclick="saveSettings()" class="btn-cyan px-6 py-3 rounded">Зберегти</button>
-                        <button onclick="resetData()" class="btn-danger px-6 py-3 rounded">Скинути всі дані</button>
+                        <button onclick="saveSettings()" class="btn-cyan px-6 py-3 rounded" data-i18n="settingsSaveButton">Зберегти</button>
+                        <button onclick="resetData()" class="btn-danger px-6 py-3 rounded" data-i18n="settingsResetAllButton">Скинути всі дані</button>
                     </div>
                 </div>
             </div>
