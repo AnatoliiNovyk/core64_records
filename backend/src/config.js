@@ -40,6 +40,10 @@ export const config = {
   dbConnectionTimeoutMs: toNumber(process.env.DB_CONNECTION_TIMEOUT_MS, 15000),
   dbQueryTimeoutMs: toNumber(process.env.DB_QUERY_TIMEOUT_MS, 10000),
   dbStatementTimeoutMs: toNumber(process.env.DB_STATEMENT_TIMEOUT_MS, 10000),
+  authRateLimitWindowMs: toNumber(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 60000),
+  authRateLimitMax: toNumber(process.env.AUTH_RATE_LIMIT_MAX, 10),
+  contactRateLimitWindowMs: toNumber(process.env.CONTACT_RATE_LIMIT_WINDOW_MS, 60000),
+  contactRateLimitMax: toNumber(process.env.CONTACT_RATE_LIMIT_MAX, 20),
   dbSsl: toBoolean(process.env.DB_SSL, true),
   dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
   dbSslAllowSelfSigned: toBoolean(process.env.DB_SSL_ALLOW_SELF_SIGNED, false),
@@ -121,6 +125,22 @@ export const validateConfig = () => {
 
   if (!Number.isInteger(config.dbStatementTimeoutMs) || config.dbStatementTimeoutMs < 1000) {
     errors.push("DB_STATEMENT_TIMEOUT_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.authRateLimitWindowMs) || config.authRateLimitWindowMs < 1000) {
+    errors.push("AUTH_RATE_LIMIT_WINDOW_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.authRateLimitMax) || config.authRateLimitMax < 1) {
+    errors.push("AUTH_RATE_LIMIT_MAX must be an integer >= 1.");
+  }
+
+  if (!Number.isInteger(config.contactRateLimitWindowMs) || config.contactRateLimitWindowMs < 1000) {
+    errors.push("CONTACT_RATE_LIMIT_WINDOW_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.contactRateLimitMax) || config.contactRateLimitMax < 1) {
+    errors.push("CONTACT_RATE_LIMIT_MAX must be an integer >= 1.");
   }
 
   if (isProduction) {

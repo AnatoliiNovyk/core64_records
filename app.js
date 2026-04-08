@@ -1068,13 +1068,13 @@ function showTicketInfo() {
 
 function loadAbout(settings) {
     const aboutEl = document.getElementById("about-text");
-    if (aboutEl && settings.about) {
-        aboutEl.textContent = settings.about;
+    if (aboutEl) {
+        aboutEl.textContent = String(settings && settings.about ? settings.about : "");
     }
 
     const missionEl = document.getElementById("about-mission");
-    if (missionEl && settings.mission) {
-        missionEl.textContent = settings.mission;
+    if (missionEl) {
+        missionEl.textContent = String(settings && settings.mission ? settings.mission : "");
     }
 
     const heroSubtitleEl = document.getElementById("public-hero-subtitle");

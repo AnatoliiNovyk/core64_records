@@ -1,0 +1,73 @@
+import { config } from "../config.js";
+
+function resolveClientIp(req) {
+  const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  if (forwardedFor) return forwardedFor;
+  if (req.ip) return String(req.ip);
+  if (req.socket && req.socket.remoteAddress) return String(req.socket.remoteAddress);
+  return "unknown";
+}
+
+export function applySecurityHeaders(req, res, next) {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+
+  if (config.nodeEnv === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
+
+  return next();
+}
+
+export function createRateLimiter(options = {}) {
+  const {
+    windowMs = 60_000,
+    max = 10,
+    errorCode = "RATE_LIMITED",
+    errorMessage = "Too many requests. Please try again later."
+  } = options;
+
+  const normalizedWindowMs = Math.max(1000, Number(windowMs) || 60_000);
+  const normalizedMax = Math.max(1, Number(max) || 10);
+  const hits = new Map();
+
+  const cleanupExpired = (now) => {
+    if (hits.size < 5000) return;
+    for (const [key, entry] of hits.entries()) {
+      if (!entry || entry.resetAt <= now) {
+        hits.delete(key);
+      }
+      if (hits.size < 4000) break;
+    }
+  };
+
+  return function rateLimiter(req, res, next) {
+    const now = Date.now();
+    cleanupExpired(now);
+
+    const key = `${resolveClientIp(req)}:${req.path}`;
+    const current = hits.get(key);
+
+    if (!current || current.resetAt <= now) {
+      hits.set(key, { count: 1, resetAt: now + normalizedWindowMs });
+      return next();
+    }
+
+    if (current.count >= normalizedMax) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfterSeconds));
+      return res.status(429).json({
+        code: errorCode,
+        error: errorMessage
+      });
+    }
+
+    current.count += 1;
+    hits.set(key, current);
+    return next();
+  };
+}

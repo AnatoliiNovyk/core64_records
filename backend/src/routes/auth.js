@@ -3,10 +3,18 @@ import bcrypt from "bcryptjs";
 import { pool } from "../db/pool.js";
 import { config } from "../config.js";
 import { createToken, requireAuth } from "../middleware/auth.js";
+import { createRateLimiter } from "../middleware/security.js";
 
 const router = Router();
 
-router.post("/auth/login", async (req, res) => {
+const authLoginRateLimiter = createRateLimiter({
+  windowMs: config.authRateLimitWindowMs,
+  max: config.authRateLimitMax,
+  errorCode: "AUTH_RATE_LIMITED",
+  errorMessage: "Too many login attempts. Please try again later."
+});
+
+router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
   try {
     const password = String(req.body.password || "");
 

@@ -385,6 +385,12 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
         throw new Error("Mutated events section is missing");
     }
 
+    const managedKeys = new Set(["releases", "artists", "events", "sponsors"]);
+    const expectedVisibleManagedSections = mutatedSections
+        .filter((section) => managedKeys.has(String(section.sectionKey || "")))
+        .filter((section) => section.isEnabled !== false)
+        .map((section) => String(section.sectionKey));
+
     await page.goto(publicUrl, { waitUntil: "domcontentloaded" });
 
     await waitForFunction(
@@ -429,17 +435,17 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
         };
     });
 
-    const expectedNavPrefix = ["#events", "#releases", "#artists"];
-    if (verification.visibleManagedSections.join(",") !== "events,releases,artists") {
+    const expectedNavPrefix = expectedVisibleManagedSections.map((sectionKey) => `#${sectionKey}`);
+    if (verification.visibleManagedSections.join(",") !== expectedVisibleManagedSections.join(",")) {
         throw new Error(`Unexpected visible section order: ${verification.visibleManagedSections.join(",")}`);
     }
     if (!verification.sponsorsHidden || verification.sponsorsAriaHidden !== "true") {
         throw new Error("Sponsors section was not hidden on public page");
     }
-    if (verification.desktopVisible.slice(0, 3).join(",") !== expectedNavPrefix.join(",")) {
+    if (verification.desktopVisible.slice(0, expectedNavPrefix.length).join(",") !== expectedNavPrefix.join(",")) {
         throw new Error(`Unexpected desktop nav order: ${verification.desktopVisible.join(",")}`);
     }
-    if (verification.mobileVisible.slice(0, 3).join(",") !== expectedNavPrefix.join(",")) {
+    if (verification.mobileVisible.slice(0, expectedNavPrefix.length).join(",") !== expectedNavPrefix.join(",")) {
         throw new Error(`Unexpected mobile nav order: ${verification.mobileVisible.join(",")}`);
     }
     if (!verification.desktopSponsorsHidden || verification.desktopSponsorsTabIndex !== "-1") {

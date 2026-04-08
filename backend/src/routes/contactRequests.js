@@ -3,8 +3,17 @@ import { contactRequestSchema, contactRequestStatusSchema } from "../middleware/
 import { createContactRequest, listContactRequests, updateContactRequestStatus, writeAuditLog } from "../db/repository.js";
 import { requireAuth } from "../middleware/auth.js";
 import { verifyContactCaptcha } from "../services/captcha.js";
+import { config } from "../config.js";
+import { createRateLimiter } from "../middleware/security.js";
 
 const router = Router();
+
+const contactCreateRateLimiter = createRateLimiter({
+  windowMs: config.contactRateLimitWindowMs,
+  max: config.contactRateLimitMax,
+  errorCode: "CONTACT_RATE_LIMITED",
+  errorMessage: "Too many contact requests. Please try again later."
+});
 
 router.get("/contact-requests", requireAuth, async (_req, res, next) => {
   try {
@@ -15,7 +24,7 @@ router.get("/contact-requests", requireAuth, async (_req, res, next) => {
   }
 });
 
-router.post("/contact-requests", async (req, res, next) => {
+router.post("/contact-requests", contactCreateRateLimiter, async (req, res, next) => {
   try {
     const validated = contactRequestSchema.parse(req.body);
     const captchaCheck = await verifyContactCaptcha(validated.captchaToken, {

@@ -113,6 +113,12 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
 
   const heroSubtitleUk = String(payload.heroSubtitleUk || HERO_SUBTITLE_DEFAULT).trim() || HERO_SUBTITLE_DEFAULT;
   const heroSubtitleEn = String(payload.heroSubtitleEn || HERO_SUBTITLE_DEFAULT).trim() || HERO_SUBTITLE_DEFAULT;
+  const title = String(payload.title || "").trim();
+  const about = String(payload.about || "").trim();
+  const mission = String(payload.mission || "").trim();
+  const captchaErrorMessage = String(payload.contactCaptchaErrorMessage || "").trim();
+  const captchaMissingTokenMessage = String(payload.contactCaptchaMissingTokenMessage || "").trim();
+  const captchaInvalidDomainMessage = String(payload.contactCaptchaInvalidDomainMessage || "").trim();
 
   const upsertByLanguage = async (languageCode, heroSubtitle) => {
     await queryable.query(
@@ -127,26 +133,28 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
         contact_captcha_invalid_domain_message,
         hero_subtitle
       )
-      SELECT
-        s.id,
-        $2,
-        COALESCE(i18n_existing.title, s.title),
-        COALESCE(i18n_existing.about, s.about),
-        COALESCE(i18n_existing.mission, s.mission),
-        COALESCE(i18n_existing.contact_captcha_error_message, s.contact_captcha_error_message),
-        COALESCE(i18n_existing.contact_captcha_missing_token_message, s.contact_captcha_missing_token_message),
-        COALESCE(i18n_existing.contact_captcha_invalid_domain_message, s.contact_captcha_invalid_domain_message),
-        $3
-      FROM settings AS s
-      LEFT JOIN settings_i18n AS i18n_existing
-        ON i18n_existing.settings_id = s.id
-       AND i18n_existing.language_code = $2
-      WHERE s.id = $1
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       ON CONFLICT (settings_id, language_code)
       DO UPDATE SET
+        title = EXCLUDED.title,
+        about = EXCLUDED.about,
+        mission = EXCLUDED.mission,
+        contact_captcha_error_message = EXCLUDED.contact_captcha_error_message,
+        contact_captcha_missing_token_message = EXCLUDED.contact_captcha_missing_token_message,
+        contact_captcha_invalid_domain_message = EXCLUDED.contact_captcha_invalid_domain_message,
         hero_subtitle = EXCLUDED.hero_subtitle,
         updated_at = NOW()`,
-      [settingsId, languageCode, heroSubtitle]
+      [
+        settingsId,
+        languageCode,
+        title,
+        about,
+        mission,
+        captchaErrorMessage,
+        captchaMissingTokenMessage,
+        captchaInvalidDomainMessage,
+        heroSubtitle
+      ]
     );
   };
 
