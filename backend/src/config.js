@@ -44,6 +44,8 @@ export const config = {
   authRateLimitMax: toNumber(process.env.AUTH_RATE_LIMIT_MAX, 10),
   contactRateLimitWindowMs: toNumber(process.env.CONTACT_RATE_LIMIT_WINDOW_MS, 60000),
   contactRateLimitMax: toNumber(process.env.CONTACT_RATE_LIMIT_MAX, 20),
+  cspMode: readEnvString("CSP_MODE", "enforce").toLowerCase(),
+  cspReportUri: readEnvString("CSP_REPORT_URI", "/api/security/csp-report"),
   dbSsl: toBoolean(process.env.DB_SSL, true),
   dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
   dbSslAllowSelfSigned: toBoolean(process.env.DB_SSL_ALLOW_SELF_SIGNED, false),
@@ -105,6 +107,7 @@ const validateDatabaseUrl = (value) => {
 export const validateConfig = () => {
   const errors = [];
   const isProduction = config.nodeEnv === "production";
+  const allowedCspModes = new Set(["enforce", "report-only", "both"]);
 
   if (!config.supportedLanguages.includes(config.defaultLanguage)) {
     errors.push("DEFAULT_LANGUAGE must be included in SUPPORTED_LANGUAGES.");
@@ -141,6 +144,19 @@ export const validateConfig = () => {
 
   if (!Number.isInteger(config.contactRateLimitMax) || config.contactRateLimitMax < 1) {
     errors.push("CONTACT_RATE_LIMIT_MAX must be an integer >= 1.");
+  }
+
+  if (!allowedCspModes.has(config.cspMode)) {
+    errors.push("CSP_MODE must be one of: enforce, report-only, both.");
+  }
+
+  if (config.cspReportUri) {
+    const reportUri = String(config.cspReportUri).trim();
+    const isRelative = reportUri.startsWith("/");
+    const isAbsolute = reportUri.startsWith("http://") || reportUri.startsWith("https://");
+    if (!isRelative && !isAbsolute) {
+      errors.push("CSP_REPORT_URI must be an absolute URL or a path starting with '/'.");
+    }
   }
 
   if (isProduction) {

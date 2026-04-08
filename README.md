@@ -499,6 +499,23 @@ CONTACT_CAPTCHA_PROVIDER=none
 CONTACT_CAPTCHA_SECRET=
 ```
 
+## CSP Modes And Telemetry
+
+Backend supports configurable CSP header modes:
+
+- enforce: sends `Content-Security-Policy`
+- report-only: sends `Content-Security-Policy-Report-Only`
+- both: sends both headers
+
+Environment variables:
+
+```dotenv
+CSP_MODE=enforce
+CSP_REPORT_URI=/api/security/csp-report
+```
+
+The API endpoint `POST /api/security/csp-report` accepts browser CSP violation reports (legacy `application/csp-report` and Reporting API payloads) and responds with `204`.
+
 ## Auth Flow
 
 - Admin login is performed via `POST /api/auth/login`

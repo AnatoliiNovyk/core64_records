@@ -1,5 +1,28 @@
 import { config } from "../config.js";
 
+// Compatibility-focused CSP baseline for current static frontend stack.
+// Keep this permissive enough for existing inline handlers/CDN scripts until strict CSP refactor.
+const CSP_BASE_DIRECTIVES = [
+  "default-src 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://unpkg.com https://js.hcaptcha.com https://www.google.com https://www.gstatic.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  "img-src 'self' data: https: http:",
+  "connect-src 'self' https: http: https://hcaptcha.com https://*.hcaptcha.com https://www.google.com",
+  "frame-src 'self' https://hcaptcha.com https://*.hcaptcha.com https://www.google.com",
+  "media-src 'self' data: https: http:"
+];
+
+const reportUri = String(config.cspReportUri || "").trim();
+const CONTENT_SECURITY_POLICY = [
+  ...CSP_BASE_DIRECTIVES,
+  ...(reportUri ? [`report-uri ${reportUri}`] : [])
+].join("; ");
+
 function resolveClientIp(req) {
   const forwardedFor = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
   if (forwardedFor) return forwardedFor;
@@ -15,6 +38,12 @@ export function applySecurityHeaders(req, res, next) {
   res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
   res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
   res.setHeader("Cross-Origin-Resource-Policy", "same-origin");
+  if (config.cspMode === "enforce" || config.cspMode === "both") {
+    res.setHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
+  }
+  if (config.cspMode === "report-only" || config.cspMode === "both") {
+    res.setHeader("Content-Security-Policy-Report-Only", CONTENT_SECURITY_POLICY);
+  }
 
   if (config.nodeEnv === "production") {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

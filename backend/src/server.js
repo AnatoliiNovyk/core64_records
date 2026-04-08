@@ -11,6 +11,7 @@ import settingsRoutes from "./routes/settings.js";
 import contactRoutes from "./routes/contactRequests.js";
 import publicRoutes from "./routes/public.js";
 import auditRoutes from "./routes/auditLogs.js";
+import securityRoutes from "./routes/security.js";
 import { isDatabaseConnectivityError } from "./utils/dbError.js";
 import { applySecurityHeaders } from "./middleware/security.js";
 
@@ -26,6 +27,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(applySecurityHeaders);
+app.use("/api", securityRoutes);
 app.use(express.json({ limit: "1mb" }));
 
 app.use(express.static(publicDir));

@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "contract-check:settings-public": "node scripts/settings-public-contract-check.mjs",
     "ui-smoke": "node scripts/ui-smoke.mjs",
     "ui-smoke:install": "playwright install chromium"
   },
