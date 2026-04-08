@@ -430,30 +430,30 @@
             <!-- Contact Requests -->
             <div id="section-contacts" class="section-content hidden">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-bold text-cyan-400">Звернення з форми</h2>
+                    <h2 class="text-3xl font-bold text-cyan-400" data-i18n="contactsSectionTitle">Звернення з форми</h2>
                 </div>
                 <div class="flex flex-wrap gap-3 mb-4">
-                    <button onclick="bulkUpdateContactStatus('new','in_progress')" class="btn-cyan px-4 py-2 rounded text-sm" title="Позначити всі нові звернення як в роботі">Нові -> В роботі</button>
-                    <button onclick="bulkUpdateContactStatus('in_progress','done')" class="btn-cyan px-4 py-2 rounded text-sm" title="Позначити всі звернення в роботі як завершені">В роботі -> Завершені</button>
-                    <button onclick="exportContactsCsv()" class="px-4 py-2 rounded text-sm border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10" title="Експорт відфільтрованих звернень у CSV">Експорт CSV</button>
+                    <button onclick="bulkUpdateContactStatus('new','in_progress')" class="btn-cyan px-4 py-2 rounded text-sm" data-i18n="contactsBulkNewToInProgressButton" data-i18n-title="contactsBulkNewToInProgressTitle" title="Позначити всі нові звернення як в роботі">Нові -> В роботі</button>
+                    <button onclick="bulkUpdateContactStatus('in_progress','done')" class="btn-cyan px-4 py-2 rounded text-sm" data-i18n="contactsBulkInProgressToDoneButton" data-i18n-title="contactsBulkInProgressToDoneTitle" title="Позначити всі звернення в роботі як завершені">В роботі -> Завершені</button>
+                    <button onclick="exportContactsCsv()" class="px-4 py-2 rounded text-sm border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10" data-i18n="contactsExportCsvButton" data-i18n-title="contactsExportCsvTitle" title="Експорт відфільтрованих звернень у CSV">Експорт CSV</button>
                 </div>
                 <div class="card p-4 rounded mb-4 grid md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за статусом</label>
-                        <select id="contacts-filter-status" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" title="Фільтр за статусом звернень">
-                            <option value="all">Усі</option>
-                            <option value="new">Нові</option>
-                            <option value="in_progress">В роботі</option>
-                            <option value="done">Завершені</option>
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="contactsFilterStatusLabel">Фільтр за статусом</label>
+                        <select id="contacts-filter-status" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" data-i18n-title="contactsFilterStatusTitle" title="Фільтр за статусом звернень">
+                            <option value="all" data-i18n="contactsFilterAllOption">Усі</option>
+                            <option value="new" data-i18n="statusNew">Нові</option>
+                            <option value="in_progress" data-i18n="statusInProgress">В роботі</option>
+                            <option value="done" data-i18n="statusDone">Завершені</option>
                         </select>
                     </div>
                     <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Фільтр за датою</label>
-                        <input id="contacts-filter-date" type="date" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" title="Фільтр за датою звернення" placeholder="Оберіть дату">
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="contactsFilterDateLabel">Фільтр за датою</label>
+                        <input id="contacts-filter-date" type="date" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" data-i18n-title="contactsFilterDateTitle" data-i18n-placeholder="contactsFilterDatePlaceholder" title="Фільтр за датою звернення" placeholder="Оберіть дату">
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-gray-400 mb-2 uppercase text-xs">Пошук (тема, email, ім'я)</label>
-                        <input id="contacts-search" type="text" class="form-input w-full p-3 rounded" oninput="handleContactsSearchInput()" title="Пошук по зверненнях" placeholder="Введіть тему, email або ім'я">
+                        <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="contactsSearchLabel">Пошук (тема, email, ім'я)</label>
+                        <input id="contacts-search" type="text" class="form-input w-full p-3 rounded" oninput="handleContactsSearchInput()" data-i18n-title="contactsSearchTitle" data-i18n-placeholder="contactsSearchPlaceholder" title="Пошук по зверненнях" placeholder="Введіть тему, email або ім'я">
                     </div>
                 </div>
                 <div id="contacts-list" class="space-y-4"></div>
