@@ -171,8 +171,10 @@ const ADMIN_I18N = {
         auditDatePresetCustom: "Кастомний",
         auditDateFromLabel: "Від дати",
         auditDateFromTitle: "Початкова дата фільтра аудиту",
+        auditDateFromPlaceholder: "Оберіть початкову дату",
         auditDateToLabel: "До дати",
         auditDateToTitle: "Кінцева дата фільтра аудиту",
+        auditDateToPlaceholder: "Оберіть кінцеву дату",
         auditAutoRefreshLabel: "Автооновлення",
         auditAutoRefreshTitle: "Інтервал автооновлення журналу аудиту",
         auditRefreshIntervalDisabledOption: "Вимкнено",
@@ -465,8 +467,10 @@ const ADMIN_I18N = {
         auditDatePresetCustom: "Custom",
         auditDateFromLabel: "From date",
         auditDateFromTitle: "Audit filter start date",
+        auditDateFromPlaceholder: "Select start date",
         auditDateToLabel: "To date",
         auditDateToTitle: "Audit filter end date",
+        auditDateToPlaceholder: "Select end date",
         auditAutoRefreshLabel: "Auto-refresh",
         auditAutoRefreshTitle: "Audit log auto-refresh interval",
         auditRefreshIntervalDisabledOption: "Disabled",
@@ -773,6 +777,13 @@ function applyAdminStaticTranslations() {
         if (!key) return;
         el.setAttribute("title", tAdmin(key));
     });
+
+    const localeTag = getActiveLocaleTag();
+    document.querySelectorAll('input[type="date"]').forEach((el) => {
+        if (!el || !el.isConnected) return;
+        el.setAttribute("lang", localeTag);
+        el.setAttribute("data-locale", localeTag);
+    });
 }
 
 function getActiveLocaleTag() {
@@ -791,7 +802,8 @@ function applyLanguageFromQuery() {
 }
 
 function syncDocumentLanguage() {
-    document.documentElement.setAttribute("lang", getActiveLanguage());
+    const localeTag = getActiveLocaleTag();
+    document.documentElement.setAttribute("lang", localeTag);
 }
 
 function setLanguageAndReload(language) {
