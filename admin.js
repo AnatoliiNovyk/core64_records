@@ -2849,31 +2849,16 @@ async function refreshCache() {
     if (sectionAtRefresh !== "dashboard") return;
     if (!dashboardSectionEl || !dashboardSectionEl.isConnected) return;
     const getCollectionMethod = getAdapterMethod("getCollection");
-    let nextSettings;
-    try {
-        nextSettings = await getCollectionMethod.call(adapter, "settings");
-    } catch (error) {
-        console.error("Failed to load settings", error);
-        if (sectionNavigationSeq !== navigationSeqAtUpload) return;
-        if (currentSection !== sectionAtUpload) return;
-        if (currentSection !== "settings") return;
-        const settingsSectionEl = document.getElementById("section-settings");
-        if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
-        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("loadSettingsFailed"));
-        await loadSectionSettings();
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during refreshCache");
         return;
     }
-    if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
-    if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
-    if (!dashboardSectionEl.isConnected) return;
+
+    const releases = await getCollectionMethod.call(adapter, "releases");
+    const artists = await getCollectionMethod.call(adapter, "artists");
+    const events = await getCollectionMethod.call(adapter, "events");
     const sponsors = await getCollectionMethod.call(adapter, "sponsors");
-    if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
-    if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
-    if (!dashboardSectionEl.isConnected) return;
     const settings = await getCollectionMethod.call(adapter, "settings");
-    if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
-    if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
-    if (!dashboardSectionEl.isConnected) return;
 
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
