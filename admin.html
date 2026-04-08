@@ -184,43 +184,43 @@
         <div class="p-8">
             <!-- Dashboard -->
             <div id="section-dashboard" class="section-content">
-                <h2 class="text-3xl font-bold mb-8 text-cyan-400">Дашборд</h2>
+                <h2 class="text-3xl font-bold mb-8 text-cyan-400" data-i18n="dashboardTitle">Дашборд</h2>
                 
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     <div class="card p-6 rounded">
                         <div class="flex items-center justify-between mb-4">
-                            <span class="text-gray-400 uppercase text-sm tracking-wider">Всього релізів</span>
+                            <span class="text-gray-400 uppercase text-sm tracking-wider" data-i18n="dashboardTotalReleases">Всього релізів</span>
                             <i data-lucide="disc" class="text-cyan-400 w-8 h-8"></i>
                         </div>
                         <div class="text-4xl font-bold text-white" id="dash-releases">0</div>
                     </div>
                     <div class="card p-6 rounded">
                         <div class="flex items-center justify-between mb-4">
-                            <span class="text-gray-400 uppercase text-sm tracking-wider">Артистів</span>
+                            <span class="text-gray-400 uppercase text-sm tracking-wider" data-i18n="dashboardArtists">Артистів</span>
                             <i data-lucide="users" class="text-pink-400 w-8 h-8"></i>
                         </div>
                         <div class="text-4xl font-bold text-white" id="dash-artists">0</div>
                     </div>
                     <div class="card p-6 rounded">
                         <div class="flex items-center justify-between mb-4">
-                            <span class="text-gray-400 uppercase text-sm tracking-wider">Подій</span>
+                            <span class="text-gray-400 uppercase text-sm tracking-wider" data-i18n="dashboardEvents">Подій</span>
                             <i data-lucide="calendar" class="text-green-400 w-8 h-8"></i>
                         </div>
                         <div class="text-4xl font-bold text-white" id="dash-events">0</div>
                     </div>
                     <div class="card p-6 rounded">
                         <div class="flex items-center justify-between mb-4">
-                            <span class="text-gray-400 uppercase text-sm tracking-wider">Статус</span>
+                            <span class="text-gray-400 uppercase text-sm tracking-wider" data-i18n="dashboardStatus">Статус</span>
                             <i data-lucide="activity" class="text-yellow-400 w-8 h-8"></i>
                         </div>
-                        <div class="text-lg font-bold text-green-400">Активний</div>
+                        <div class="text-lg font-bold text-green-400" data-i18n="dashboardStatusActive">Активний</div>
                     </div>
                 </div>
 
                 <div class="card p-6 rounded">
-                    <h3 class="text-xl font-bold mb-4 text-white">Остання активність</h3>
+                    <h3 class="text-xl font-bold mb-4 text-white" data-i18n="dashboardRecentActivity">Остання активність</h3>
                     <div id="activity-log" class="space-y-3 text-gray-400">
-                        <p>Ласкаво просимо до панелі управління CORE64 Records</p>
+                        <p data-i18n="dashboardWelcomeMessage">Ласкаво просимо до панелі управління CORE64 Records</p>
                     </div>
                 </div>
             </div>
@@ -228,10 +228,10 @@
             <!-- Releases -->
             <div id="section-releases" class="section-content hidden">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-bold text-cyan-400">Управління релізами</h2>
+                    <h2 class="text-3xl font-bold text-cyan-400" data-i18n="releasesSectionTitle">Управління релізами</h2>
                     <button onclick="openModal('release')" class="btn-cyan px-6 py-2 rounded flex items-center gap-2">
                         <i data-lucide="plus" class="w-5 h-5"></i>
-                        Додати реліз
+                        <span data-i18n="releasesAddButton">Додати реліз</span>
                     </button>
                 </div>
                 
@@ -243,10 +243,10 @@
             <!-- Artists -->
             <div id="section-artists" class="section-content hidden">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-bold text-pink-400">Управління артистами</h2>
+                    <h2 class="text-3xl font-bold text-pink-400" data-i18n="artistsSectionTitle">Управління артистами</h2>
                     <button onclick="openModal('artist')" class="btn-cyan px-6 py-2 rounded flex items-center gap-2">
                         <i data-lucide="plus" class="w-5 h-5"></i>
-                        Додати артиста
+                        <span data-i18n="artistsAddButton">Додати артиста</span>
                     </button>
                 </div>
                 
@@ -258,10 +258,10 @@
             <!-- Events -->
             <div id="section-events" class="section-content hidden">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-bold text-green-400">Управління подіями</h2>
+                    <h2 class="text-3xl font-bold text-green-400" data-i18n="eventsSectionTitle">Управління подіями</h2>
                     <button onclick="openModal('event')" class="btn-cyan px-6 py-2 rounded flex items-center gap-2">
                         <i data-lucide="plus" class="w-5 h-5"></i>
-                        Додати подію
+                        <span data-i18n="eventsAddButton">Додати подію</span>
                     </button>
                 </div>
                 
@@ -273,10 +273,10 @@
             <!-- Sponsors -->
             <div id="section-sponsors" class="section-content hidden">
                 <div class="flex justify-between items-center mb-8">
-                    <h2 class="text-3xl font-bold text-yellow-300">Спонсори, Партнери та Друзі</h2>
+                    <h2 class="text-3xl font-bold text-yellow-300" data-i18n="sponsorsSectionTitle">Спонсори, Партнери та Друзі</h2>
                     <button onclick="openModal('sponsor')" class="btn-cyan px-6 py-2 rounded flex items-center gap-2">
                         <i data-lucide="plus" class="w-5 h-5"></i>
-                        Додати партнера
+                        <span data-i18n="sponsorsAddButton">Додати партнера</span>
                     </button>
                 </div>
 
