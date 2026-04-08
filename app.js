@@ -716,6 +716,10 @@ function normalizePublicSectionSettings(sectionSettings) {
 
 function applyPublicSectionSettings(sectionSettings) {
     const normalized = normalizePublicSectionSettings(sectionSettings);
+    const bySectionKey = normalized.reduce((acc, section) => {
+        acc[section.sectionKey] = section;
+        return acc;
+    }, {});
 
     normalized.forEach((section) => {
         const titleEl = document.getElementById(`public-section-title-${section.sectionKey}`);
@@ -731,6 +735,7 @@ function applyPublicSectionSettings(sectionSettings) {
         normalized.forEach((section) => {
             const linkEl = containerEl.querySelector(`a[href="#${section.sectionKey}"]`);
             if (!linkEl) return;
+            linkEl.textContent = section.title;
             if (aboutLinkEl && aboutLinkEl.parentElement === containerEl) {
                 containerEl.insertBefore(linkEl, aboutLinkEl);
             } else {
@@ -748,16 +753,21 @@ function applyPublicSectionSettings(sectionSettings) {
         if (!sectionEl || sectionEl.parentElement !== sectionsParentEl) return;
         sectionEl.hidden = section.isEnabled === false;
         sectionEl.setAttribute("aria-hidden", section.isEnabled === false ? "true" : "false");
-        document.querySelectorAll(`a[href="#${section.sectionKey}"]`).forEach((linkEl) => {
-            linkEl.hidden = section.isEnabled === false;
-            linkEl.setAttribute("aria-hidden", section.isEnabled === false ? "true" : "false");
-            if (section.isEnabled === false) {
+        sectionsParentEl.appendChild(sectionEl);
+    });
+
+    ["releases", "artists", "events", "sponsors"].forEach((sectionKey) => {
+        const section = bySectionKey[sectionKey];
+        const isHidden = !section || section.isEnabled === false;
+        document.querySelectorAll(`a[href="#${sectionKey}"]`).forEach((linkEl) => {
+            linkEl.hidden = isHidden;
+            linkEl.setAttribute("aria-hidden", isHidden ? "true" : "false");
+            if (isHidden) {
                 linkEl.setAttribute("tabindex", "-1");
             } else {
                 linkEl.removeAttribute("tabindex");
             }
         });
-        sectionsParentEl.appendChild(sectionEl);
     });
 }
 
