@@ -449,7 +449,7 @@
                     </div>
                     <div>
                         <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="contactsFilterDateLabel">Фільтр за датою</label>
-                        <input id="contacts-filter-date" type="date" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" data-i18n-title="contactsFilterDateTitle" data-i18n-placeholder="contactsFilterDatePlaceholder" title="Фільтр за датою звернення" placeholder="Оберіть дату">
+                        <input id="contacts-filter-date" type="text" inputmode="numeric" autocomplete="off" class="form-input w-full p-3 rounded" onchange="handleContactsFilterChange()" data-i18n-title="contactsFilterDateTitle" data-i18n-placeholder="contactsFilterDatePlaceholder" title="Фільтр за датою звернення" placeholder="ДД.ММ.РРРР">
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="contactsSearchLabel">Пошук (тема, email, ім'я)</label>
@@ -516,11 +516,11 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditDateFromLabel">Від дати</label>
-                            <input id="audit-date-from" type="date" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" data-i18n-title="auditDateFromTitle" data-i18n-placeholder="auditDateFromPlaceholder" title="Початкова дата фільтра аудиту" placeholder="Оберіть початкову дату">
+                            <input id="audit-date-from" type="text" inputmode="numeric" autocomplete="off" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" data-i18n-title="auditDateFromTitle" data-i18n-placeholder="auditDateFromPlaceholder" title="Початкова дата фільтра аудиту" placeholder="ДД.ММ.РРРР">
                         </div>
                         <div>
                             <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="auditDateToLabel">До дати</label>
-                            <input id="audit-date-to" type="date" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" data-i18n-title="auditDateToTitle" data-i18n-placeholder="auditDateToPlaceholder" title="Кінцева дата фільтра аудиту" placeholder="Оберіть кінцеву дату">
+                            <input id="audit-date-to" type="text" inputmode="numeric" autocomplete="off" class="form-input w-full p-3 rounded" onchange="onAuditDateInputChange()" data-i18n-title="auditDateToTitle" data-i18n-placeholder="auditDateToPlaceholder" title="Кінцева дата фільтра аудиту" placeholder="ДД.ММ.РРРР">
                         </div>
                     </div>
                     <div>

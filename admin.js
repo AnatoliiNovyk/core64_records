@@ -128,7 +128,7 @@ const ADMIN_I18N = {
         contactsFilterAllOption: "Усі",
         contactsFilterDateLabel: "Фільтр за датою",
         contactsFilterDateTitle: "Фільтр за датою звернення",
-        contactsFilterDatePlaceholder: "Оберіть дату",
+        contactsFilterDatePlaceholder: "ДД.ММ.РРРР",
         contactsSearchLabel: "Пошук (тема, email, ім'я)",
         contactsSearchTitle: "Пошук по зверненнях",
         contactsSearchPlaceholder: "Введіть тему, email або ім'я",
@@ -171,10 +171,10 @@ const ADMIN_I18N = {
         auditDatePresetCustom: "Кастомний",
         auditDateFromLabel: "Від дати",
         auditDateFromTitle: "Початкова дата фільтра аудиту",
-        auditDateFromPlaceholder: "Оберіть початкову дату",
+        auditDateFromPlaceholder: "ДД.ММ.РРРР",
         auditDateToLabel: "До дати",
         auditDateToTitle: "Кінцева дата фільтра аудиту",
-        auditDateToPlaceholder: "Оберіть кінцеву дату",
+        auditDateToPlaceholder: "ДД.ММ.РРРР",
         auditAutoRefreshLabel: "Автооновлення",
         auditAutoRefreshTitle: "Інтервал автооновлення журналу аудиту",
         auditRefreshIntervalDisabledOption: "Вимкнено",
@@ -424,7 +424,7 @@ const ADMIN_I18N = {
         contactsFilterAllOption: "All",
         contactsFilterDateLabel: "Filter by date",
         contactsFilterDateTitle: "Filter by request date",
-        contactsFilterDatePlaceholder: "Select date",
+        contactsFilterDatePlaceholder: "MM/DD/YYYY",
         contactsSearchLabel: "Search (subject, email, name)",
         contactsSearchTitle: "Search requests",
         contactsSearchPlaceholder: "Enter subject, email, or name",
@@ -467,10 +467,10 @@ const ADMIN_I18N = {
         auditDatePresetCustom: "Custom",
         auditDateFromLabel: "From date",
         auditDateFromTitle: "Audit filter start date",
-        auditDateFromPlaceholder: "Select start date",
+        auditDateFromPlaceholder: "MM/DD/YYYY",
         auditDateToLabel: "To date",
         auditDateToTitle: "Audit filter end date",
-        auditDateToPlaceholder: "Select end date",
+        auditDateToPlaceholder: "MM/DD/YYYY",
         auditAutoRefreshLabel: "Auto-refresh",
         auditAutoRefreshTitle: "Audit log auto-refresh interval",
         auditRefreshIntervalDisabledOption: "Disabled",
@@ -953,15 +953,8 @@ function getNormalizedAuditFilters() {
     const searchRaw = normalizeAuditSearchControlValue(searchEl);
     const actionFilter = normalizeAuditFilterControlValue(actionFilterEl, "all");
     const entityFilter = normalizeAuditFilterControlValue(entityFilterEl, "all");
-    const dateFrom = dateFromEl && dateFromEl.isConnected ? normalizeIsoDateFilter(dateFromEl.value) : "";
-    const dateTo = dateToEl && dateToEl.isConnected ? normalizeIsoDateFilter(dateToEl.value) : "";
-
-    if (dateFromEl && dateFromEl.isConnected && dateFromEl.value !== dateFrom) {
-        dateFromEl.value = dateFrom;
-    }
-    if (dateToEl && dateToEl.isConnected && dateToEl.value !== dateTo) {
-        dateToEl.value = dateTo;
-    }
+    const dateFrom = normalizeDateFilterControlValue(dateFromEl);
+    const dateTo = normalizeDateFilterControlValue(dateToEl);
 
     return {
         searchRaw,
@@ -996,11 +989,7 @@ function normalizeContactsStatusControlValue(statusFilterEl) {
 
 function normalizeContactsDateControlValue(dateFilterEl) {
     if (!dateFilterEl || !dateFilterEl.isConnected) return "";
-    const normalizedDateFilter = normalizeIsoDateFilter(dateFilterEl.value);
-    if (dateFilterEl.value !== normalizedDateFilter) {
-        dateFilterEl.value = normalizedDateFilter;
-    }
-    return normalizedDateFilter;
+    return normalizeDateFilterControlValue(dateFilterEl);
 }
 
 function normalizeContactsSearchControlValue(searchEl) {
@@ -1030,6 +1019,66 @@ function normalizeIsoDateFilter(value) {
     if (typeof value !== "string") return "";
     const trimmed = value.trim();
     return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : "";
+}
+
+function buildIsoDateFromParts(year, month, day) {
+    const numericYear = Number(year);
+    const numericMonth = Number(month);
+    const numericDay = Number(day);
+    if (!Number.isInteger(numericYear) || !Number.isInteger(numericMonth) || !Number.isInteger(numericDay)) return "";
+    if (numericYear < 1 || numericYear > 9999) return "";
+    if (numericMonth < 1 || numericMonth > 12) return "";
+    if (numericDay < 1 || numericDay > 31) return "";
+
+    const candidate = new Date(Date.UTC(numericYear, numericMonth - 1, numericDay));
+    if (!Number.isFinite(candidate.getTime())) return "";
+    if (candidate.getUTCFullYear() !== numericYear) return "";
+    if (candidate.getUTCMonth() + 1 !== numericMonth) return "";
+    if (candidate.getUTCDate() !== numericDay) return "";
+
+    return `${String(numericYear).padStart(4, "0")}-${String(numericMonth).padStart(2, "0")}-${String(numericDay).padStart(2, "0")}`;
+}
+
+function parseLocaleDateFilter(value, language = getActiveLanguage()) {
+    if (typeof value !== "string") return "";
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+
+    const normalizedIso = normalizeIsoDateFilter(trimmed);
+    if (normalizedIso) return normalizedIso;
+
+    const localePatternMatch = trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+    if (!localePatternMatch) return "";
+
+    const first = Number(localePatternMatch[1]);
+    const second = Number(localePatternMatch[2]);
+    const year = Number(localePatternMatch[3]);
+    const normalizedLanguage = String(language || "").toLowerCase();
+    const isEnglish = normalizedLanguage.startsWith("en");
+    const month = isEnglish ? first : second;
+    const day = isEnglish ? second : first;
+
+    return buildIsoDateFromParts(year, month, day);
+}
+
+function formatIsoDateForLocaleFilter(isoDate, language = getActiveLanguage()) {
+    const normalizedIso = normalizeIsoDateFilter(isoDate);
+    if (!normalizedIso) return "";
+    const [year, month, day] = normalizedIso.split("-");
+    const normalizedLanguage = String(language || "").toLowerCase();
+    const isEnglish = normalizedLanguage.startsWith("en");
+    return isEnglish ? `${month}/${day}/${year}` : `${day}.${month}.${year}`;
+}
+
+function normalizeDateFilterControlValue(dateFilterEl) {
+    if (!dateFilterEl || !dateFilterEl.isConnected) return "";
+    const language = getActiveLanguage();
+    const normalizedIso = parseLocaleDateFilter(dateFilterEl.value, language);
+    const localizedValue = formatIsoDateForLocaleFilter(normalizedIso, language);
+    if (dateFilterEl.value !== localizedValue) {
+        dateFilterEl.value = localizedValue;
+    }
+    return normalizedIso;
 }
 
 function extractIsoDatePrefix(value) {
@@ -3839,8 +3888,9 @@ function validateAuditDateRange() {
     const dateToEl = document.getElementById("audit-date-to");
     const rawFrom = dateFromEl && dateFromEl.isConnected ? String(dateFromEl.value || "") : "";
     const rawTo = dateToEl && dateToEl.isConnected ? String(dateToEl.value || "") : "";
-    const from = normalizeIsoDateFilter(rawFrom);
-    const to = normalizeIsoDateFilter(rawTo);
+    const language = getActiveLanguage();
+    const from = parseLocaleDateFilter(rawFrom, language);
+    const to = parseLocaleDateFilter(rawTo, language);
 
     if (rawFrom && !from) {
         showAuditError(tAdmin("auditInvalidFromDate"));
@@ -3852,12 +3902,15 @@ function validateAuditDateRange() {
         return false;
     }
 
-    if (dateFromEl && dateFromEl.isConnected && dateFromEl.value !== from) {
-        dateFromEl.value = from;
+    const fromLocalized = formatIsoDateForLocaleFilter(from, language);
+    const toLocalized = formatIsoDateForLocaleFilter(to, language);
+
+    if (dateFromEl && dateFromEl.isConnected && dateFromEl.value !== fromLocalized) {
+        dateFromEl.value = fromLocalized;
     }
 
-    if (dateToEl && dateToEl.isConnected && dateToEl.value !== to) {
-        dateToEl.value = to;
+    if (dateToEl && dateToEl.isConnected && dateToEl.value !== toLocalized) {
+        dateToEl.value = toLocalized;
     }
 
     if (!hasValidAuditDateRangeOrder(from, to)) {
@@ -4202,20 +4255,20 @@ function applyAuditDatePreset() {
         toEl.value = "";
     } else if (preset === "today") {
         const today = toDateInputValue(now);
-        fromEl.value = today;
-        toEl.value = today;
+        fromEl.value = formatIsoDateForLocaleFilter(today);
+        toEl.value = formatIsoDateForLocaleFilter(today);
     } else if (preset === "24h") {
         const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-        fromEl.value = toDateInputValue(from);
-        toEl.value = toDateInputValue(now);
+        fromEl.value = formatIsoDateForLocaleFilter(toDateInputValue(from));
+        toEl.value = formatIsoDateForLocaleFilter(toDateInputValue(now));
     } else if (preset === "7d") {
         const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-        fromEl.value = toDateInputValue(from);
-        toEl.value = toDateInputValue(now);
+        fromEl.value = formatIsoDateForLocaleFilter(toDateInputValue(from));
+        toEl.value = formatIsoDateForLocaleFilter(toDateInputValue(now));
     }
 
-    fromEl.value = normalizeIsoDateFilter(fromEl.value);
-    toEl.value = normalizeIsoDateFilter(toEl.value);
+    normalizeDateFilterControlValue(fromEl);
+    normalizeDateFilterControlValue(toEl);
 
     if (currentSection !== sectionAtPreset) return;
     if (currentSection !== "audit") return;
@@ -4227,10 +4280,10 @@ function onAuditDateInputChange() {
     const fromEl = document.getElementById("audit-date-from");
     const toEl = document.getElementById("audit-date-to");
     if (fromEl && fromEl.isConnected) {
-        fromEl.value = normalizeIsoDateFilter(fromEl.value);
+        normalizeDateFilterControlValue(fromEl);
     }
     if (toEl && toEl.isConnected) {
-        toEl.value = normalizeIsoDateFilter(toEl.value);
+        normalizeDateFilterControlValue(toEl);
     }
     const presetEl = document.getElementById("audit-date-preset");
     if (presetEl && presetEl.isConnected) {
