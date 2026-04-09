@@ -8,6 +8,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const baseUrl = (process.env.CORE64_API_BASE || "http://localhost:3000/api").replace(/\/+$/, "");
 const requestTimeoutMs = Number(process.env.CORE64_CONTRACT_TIMEOUT_MS || 15000);
+const REQUIRED_AUDIT_SETTINGS_FIELDS = [
+  "title",
+  "about",
+  "mission",
+  "heroSubtitleUk",
+  "heroSubtitleEn",
+  "contactCaptchaErrorMessage",
+  "contactCaptchaMissingTokenMessage",
+  "contactCaptchaInvalidDomainMessage"
+];
 
 const NEGATIVE_CASES = [
   {
@@ -212,6 +222,10 @@ function getSettingsPayload(value) {
   return value && typeof value === "object" ? value : {};
 }
 
+function getAuditItems(value) {
+  return value && Array.isArray(value.items) ? value.items : [];
+}
+
 async function run() {
   const envAdminPassword = String(process.env.CORE64_ADMIN_PASSWORD || "").trim();
   const backendEnvAdminPassword = readAdminPasswordFromBackendEnv();
@@ -283,6 +297,38 @@ async function run() {
       body: JSON.stringify({ data: updatedSettings })
     });
     ensureOk(saveSettings, "PUT /settings");
+
+    const auditResult = await requestJson("/audit-logs?limit=50&page=1&action=settings_updated&entity=settings", {
+      headers: { authorization: `Bearer ${token}` }
+    });
+    ensureOk(auditResult, "GET /audit-logs?action=settings_updated&entity=settings");
+
+    const auditItems = getAuditItems(auditResult.json?.data);
+    const matchingAuditEntry = auditItems.find((entry) => {
+      const details = entry && typeof entry.details === "object" ? entry.details : null;
+      return details?.source === "/settings";
+    }) || null;
+
+    const settingsDiff = matchingAuditEntry?.details?.diff?.settings;
+    const changedFields = Array.isArray(settingsDiff?.changedFields) ? settingsDiff.changedFields : [];
+    const missingAuditFields = REQUIRED_AUDIT_SETTINGS_FIELDS.filter((field) => !changedFields.includes(field));
+    const hasStructuredChanges = settingsDiff && typeof settingsDiff.changes === "object" && settingsDiff.changedCount > 0;
+
+    report.checks.auditSettingsUpdated = {
+      found: Boolean(matchingAuditEntry),
+      action: matchingAuditEntry?.action || null,
+      entityType: matchingAuditEntry?.entity_type || null,
+      source: matchingAuditEntry?.details?.source || null,
+      changedCount: Number(settingsDiff?.changedCount || 0),
+      changedFields,
+      missingRequiredFields: missingAuditFields,
+      hasStructuredChanges
+    };
+
+    if (!matchingAuditEntry || missingAuditFields.length > 0 || !hasStructuredChanges) {
+      report.passed = false;
+      throw new Error("Settings audit diff entry is missing or malformed after PUT /settings");
+    }
 
     const [publicUk, publicEn] = await Promise.all([
       requestJson("/public?lang=uk"),
