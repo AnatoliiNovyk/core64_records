@@ -106,6 +106,36 @@ function normalizeSectionSettingsForPublic(rows, requestedLanguage) {
     }));
 }
 
+async function verifySettingsI18nLanguages(queryable, settingsId, languages = []) {
+  const normalizedLanguages = Array.isArray(languages)
+    ? languages.map((language) => String(language || "").trim().toLowerCase()).filter(Boolean)
+    : [];
+
+  if (!settingsId || normalizedLanguages.length === 0) {
+    return;
+  }
+
+  const placeholders = normalizedLanguages.map((_, index) => `$${index + 2}`).join(", ");
+  const result = await queryable.query(
+    `SELECT language_code AS "languageCode"
+      FROM settings_i18n
+      WHERE settings_id = $1
+        AND language_code IN (${placeholders})`,
+    [settingsId, ...normalizedLanguages]
+  );
+
+  const present = new Set(
+    (result.rows || [])
+      .map((row) => String(row.languageCode || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const missing = normalizedLanguages.filter((language) => !present.has(language));
+  if (missing.length > 0) {
+    throw new Error(`settings_i18n is missing languages after save: ${missing.join(",")}`);
+  }
+}
+
 async function upsertSettingsHeroSubtitles(queryable, payload) {
   const settingsIdResult = await queryable.query("SELECT id FROM settings ORDER BY id ASC LIMIT 1");
   const settingsId = settingsIdResult.rows[0] && settingsIdResult.rows[0].id;
@@ -120,7 +150,46 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
   const captchaMissingTokenMessage = String(payload.contactCaptchaMissingTokenMessage || "").trim();
   const captchaInvalidDomainMessage = String(payload.contactCaptchaInvalidDomainMessage || "").trim();
 
-  const upsertByLanguage = async (languageCode, heroSubtitle) => {
+  const upsertByLanguage = async (languageCode, heroSubtitle, includeHeroSubtitle = true) => {
+    if (includeHeroSubtitle) {
+      await queryable.query(
+        `INSERT INTO settings_i18n (
+          settings_id,
+          language_code,
+          title,
+          about,
+          mission,
+          contact_captcha_error_message,
+          contact_captcha_missing_token_message,
+          contact_captcha_invalid_domain_message,
+          hero_subtitle
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (settings_id, language_code)
+        DO UPDATE SET
+          title = EXCLUDED.title,
+          about = EXCLUDED.about,
+          mission = EXCLUDED.mission,
+          contact_captcha_error_message = EXCLUDED.contact_captcha_error_message,
+          contact_captcha_missing_token_message = EXCLUDED.contact_captcha_missing_token_message,
+          contact_captcha_invalid_domain_message = EXCLUDED.contact_captcha_invalid_domain_message,
+          hero_subtitle = EXCLUDED.hero_subtitle,
+          updated_at = NOW()`,
+        [
+          settingsId,
+          languageCode,
+          title,
+          about,
+          mission,
+          captchaErrorMessage,
+          captchaMissingTokenMessage,
+          captchaInvalidDomainMessage,
+          heroSubtitle
+        ]
+      );
+      return;
+    }
+
     await queryable.query(
       `INSERT INTO settings_i18n (
         settings_id,
@@ -130,10 +199,9 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
         mission,
         contact_captcha_error_message,
         contact_captcha_missing_token_message,
-        contact_captcha_invalid_domain_message,
-        hero_subtitle
+        contact_captcha_invalid_domain_message
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       ON CONFLICT (settings_id, language_code)
       DO UPDATE SET
         title = EXCLUDED.title,
@@ -142,7 +210,6 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
         contact_captcha_error_message = EXCLUDED.contact_captcha_error_message,
         contact_captcha_missing_token_message = EXCLUDED.contact_captcha_missing_token_message,
         contact_captcha_invalid_domain_message = EXCLUDED.contact_captcha_invalid_domain_message,
-        hero_subtitle = EXCLUDED.hero_subtitle,
         updated_at = NOW()`,
       [
         settingsId,
@@ -152,22 +219,25 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
         mission,
         captchaErrorMessage,
         captchaMissingTokenMessage,
-        captchaInvalidDomainMessage,
-        heroSubtitle
+        captchaInvalidDomainMessage
       ]
     );
   };
 
   try {
-    await upsertByLanguage("uk", heroSubtitleUk);
-    await upsertByLanguage("en", heroSubtitleEn);
+    await upsertByLanguage("uk", heroSubtitleUk, true);
+    await upsertByLanguage("en", heroSubtitleEn, true);
   } catch (error) {
     if (error && error.code === "42703") {
       // hero_subtitle column is unavailable before migration.
-      return;
+      await upsertByLanguage("uk", heroSubtitleUk, false);
+      await upsertByLanguage("en", heroSubtitleEn, false);
+    } else {
+      throw error;
     }
-    throw error;
   }
+
+  await verifySettingsI18nLanguages(queryable, settingsId, ["uk", "en"]);
 }
 
 async function getSettingsHeroSubtitles(queryable) {
@@ -971,7 +1041,19 @@ export async function getAdminSettings() {
 }
 
 export async function saveSettings(payload) {
-  await upsertAdminSettings(pool, payload);
+  const client = await pool.connect();
+
+  await client.query("BEGIN");
+  try {
+    await upsertAdminSettings(client, payload);
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+
   return await getAdminSettings();
 }
 
