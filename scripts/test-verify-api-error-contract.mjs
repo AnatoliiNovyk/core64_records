@@ -23,8 +23,8 @@ function parseJson(output, caseName) {
   }
 }
 
-function writeJson(res, statusCode, payload) {
-  res.writeHead(statusCode, { "content-type": "application/json" });
+function writeJson(res, statusCode, payload, headers = {}) {
+  res.writeHead(statusCode, { "content-type": "application/json", ...headers });
   res.end(JSON.stringify(payload));
 }
 
@@ -53,7 +53,13 @@ async function createMockServer(options = {}) {
   const {
     routeNotFoundCode = "API_ROUTE_NOT_FOUND",
     includeValidationFieldError = true,
-    invalidTokenCode = "AUTH_INVALID_TOKEN"
+    invalidTokenCode = "AUTH_INVALID_TOKEN",
+    authRateLimitCode = "AUTH_RATE_LIMITED",
+    includeAuthRateLimitRetryAfter = true,
+    authRateLimitThreshold = 6,
+    dbHealthMode = "degraded",
+    dbUnavailableCode = "DB_UNAVAILABLE",
+    includeDbUnavailableDetails = true
   } = options;
 
   const adminPassword = "test-admin-password";
@@ -62,6 +68,7 @@ async function createMockServer(options = {}) {
     title: "CORE64",
     email: "hello@example.com"
   };
+  let authLoginAttempts = 0;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -72,7 +79,83 @@ async function createMockServer(options = {}) {
       return;
     }
 
+    if (pathname === "/api/health/db" && req.method === "GET") {
+      if (dbHealthMode === "healthy") {
+        writeJson(res, 200, {
+          status: "ok",
+          database: "ok",
+          service: "core64-api",
+          durationMs: 10,
+          connectionTimeoutMs: 15000,
+          target: {
+            parse: "ok",
+            host: "db.local",
+            port: "5432",
+            database: "core64",
+            sslmode: "require"
+          },
+          time: new Date().toISOString()
+        });
+        return;
+      }
+
+      if (dbHealthMode === "unexpected") {
+        writeJson(res, 500, {
+          status: "error",
+          database: "unknown",
+          code: "INTERNAL_SERVER_ERROR",
+          error: "Unexpected server error"
+        });
+        return;
+      }
+
+      const details = includeDbUnavailableDetails
+        ? {
+          kind: "timeout",
+          dbCode: "ETIMEDOUT",
+          durationMs: 25,
+          connectionTimeoutMs: 15000,
+          target: {
+            parse: "ok",
+            host: "db.local",
+            port: "5432",
+            database: "core64",
+            sslmode: "require"
+          },
+          probe: {
+            attempted: true,
+            dns: { resolved: false, errorCode: "ENOTFOUND", recordsCount: 0 },
+            tcp: { reachable: false, errorCode: "ETIMEDOUT", timeoutMs: 1500 },
+            durationMs: 5
+          }
+        }
+        : {};
+
+      writeJson(res, 503, {
+        status: "degraded",
+        database: "unavailable",
+        code: dbUnavailableCode,
+        error: "Database connectivity check failed",
+        details,
+        time: new Date().toISOString()
+      });
+      return;
+    }
+
     if (pathname === "/api/auth/login" && req.method === "POST") {
+      authLoginAttempts += 1;
+      if (authLoginAttempts > authRateLimitThreshold) {
+        const rateLimitHeaders = includeAuthRateLimitRetryAfter
+          ? { "retry-after": "60" }
+          : {};
+        writeJson(res, 429, {
+          status: 429,
+          code: authRateLimitCode,
+          error: "Too many login attempts. Please try again later."
+        }, rateLimitHeaders);
+        return;
+      }
+
       const body = await readRequestBody(req);
       const password = String(body?.password || "");
 
@@ -299,7 +382,9 @@ function runVerifier(baseUrl, adminPassword) {
         ...process.env,
         CORE64_API_BASE: baseUrl,
         CORE64_ADMIN_PASSWORD: adminPassword,
-        CORE64_CONTRACT_TIMEOUT_MS: "5000"
+        CORE64_CONTRACT_TIMEOUT_MS: "5000",
+        CORE64_CONTRACT_AUTH_RATE_LIMIT_ATTEMPTS: "8",
+        CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK: "false"
       },
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -355,6 +440,20 @@ async function main() {
     expect(report?.checks?.collectionItemNotFound?.ok === true, "happy-path: collectionItemNotFound check should pass");
     expect(report?.checks?.contactRequestNotFound?.ok === true, "happy-path: contactRequestNotFound check should pass");
     expect(report?.checks?.apiRouteNotFound?.ok === true, "happy-path: apiRouteNotFound check should pass");
+    expect(report?.checks?.dbUnavailable?.ok === true, "happy-path: dbUnavailable observer check should pass in degraded mode");
+    expect(report?.checks?.dbUnavailable?.skipped === false, "happy-path: dbUnavailable observer should not be skipped in degraded mode");
+    expect(report?.checks?.authRateLimited?.ok === true, "happy-path: authRateLimited check should pass");
+    expect(report?.checks?.authRateLimited?.retryAfterSeconds >= 1, "happy-path: authRateLimited should include retry-after");
+  });
+
+  await runCase("db-healthy-observer", { dbHealthMode: "healthy" }, ({ result, report }) => {
+    expect(
+      result.code === 0,
+      `db-healthy-observer: expected exit 0, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+    );
+    expect(report?.passed === true, "db-healthy-observer: expected passed=true");
+    expect(report?.checks?.dbUnavailable?.ok === true, "db-healthy-observer: observer check should remain ok");
+    expect(report?.checks?.dbUnavailable?.skipped === true, "db-healthy-observer: observer check should be skipped for healthy DB");
   });
 
   await runCase("route-not-found-mismatch", { routeNotFoundCode: "WRONG_ROUTE_CODE" }, ({ result, report }) => {
@@ -383,6 +482,24 @@ async function main() {
     );
     expect(report?.passed === false, "invalid-token-mismatch: expected passed=false");
     expect(report?.checks?.invalidToken?.ok === false, "invalid-token-mismatch: expected invalidToken check to fail");
+  });
+
+  await runCase("auth-rate-limit-mismatch", { authRateLimitCode: "WRONG_AUTH_RATE_LIMITED" }, ({ result, report }) => {
+    expect(
+      result.code === 1,
+      `auth-rate-limit-mismatch: expected exit 1, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+    );
+    expect(report?.passed === false, "auth-rate-limit-mismatch: expected passed=false");
+    expect(report?.checks?.authRateLimited?.ok === false, "auth-rate-limit-mismatch: expected authRateLimited check to fail");
+  });
+
+  await runCase("db-unavailable-details-missing", { includeDbUnavailableDetails: false }, ({ result, report }) => {
+    expect(
+      result.code === 1,
+      `db-unavailable-details-missing: expected exit 1, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+    );
+    expect(report?.passed === false, "db-unavailable-details-missing: expected passed=false");
+    expect(report?.checks?.dbUnavailable?.ok === false, "db-unavailable-details-missing: expected dbUnavailable check to fail");
   });
 
   console.log("verify-api-error-contract self-test PASSED");

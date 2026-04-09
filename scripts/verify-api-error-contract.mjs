@@ -14,6 +14,14 @@ const requestTimeoutMs = (() => {
   }
   return 15000;
 })();
+const authRateLimitAttempts = (() => {
+  const parsed = Number(process.env.CORE64_CONTRACT_AUTH_RATE_LIMIT_ATTEMPTS);
+  if (Number.isFinite(parsed) && parsed >= 2) {
+    return Math.trunc(parsed);
+  }
+  return 12;
+})();
+const skipAuthRateLimitCheck = String(process.env.CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK || "false").trim().toLowerCase() === "true";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -189,6 +197,129 @@ function evaluateShape({ result, expectedStatus, expectedCode, expectedError }) 
   };
 }
 
+function parseRetryAfterSeconds(value) {
+  const parsed = Number(value);
+  if (Number.isFinite(parsed) && parsed >= 0) {
+    return parsed;
+  }
+
+  return null;
+}
+
+function evaluateRateLimitShape({ result, expectedStatus, expectedCode, expectedError }) {
+  const payload = asErrorPayload(result.json);
+  const statusValue = Number(payload.status);
+  const codeValue = String(payload.code || "").trim();
+  const errorValue = String(payload.error || "").trim();
+  const retryAfterSeconds = parseRetryAfterSeconds(result.response.headers.get("retry-after"));
+
+  return {
+    status: result.response.status,
+    payloadStatus: Number.isFinite(statusValue) ? statusValue : null,
+    code: codeValue || null,
+    error: errorValue || null,
+    retryAfterSeconds,
+    ok:
+      result.response.status === expectedStatus
+      && statusValue === expectedStatus
+      && codeValue === expectedCode
+      && errorValue === expectedError
+      && Number.isFinite(retryAfterSeconds)
+      && retryAfterSeconds >= 1,
+    payload
+  };
+}
+
+async function runAuthRateLimitCheck({ attempts, adminPassword }) {
+  let observedAtAttempt = null;
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    lastResult = await requestJson("/auth/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ password: `${adminPassword}-rate-limit-probe-${attempt}` })
+    });
+
+    if (lastResult.response.status === 429) {
+      observedAtAttempt = attempt;
+      break;
+    }
+  }
+
+  if (!lastResult) {
+    throw new Error("Auth rate-limit probe produced no response");
+  }
+
+  const shape = evaluateRateLimitShape({
+    result: lastResult,
+    expectedStatus: 429,
+    expectedCode: "AUTH_RATE_LIMITED",
+    expectedError: "Too many login attempts. Please try again later."
+  });
+  shape.attempts = attempts;
+  shape.observedAtAttempt = observedAtAttempt;
+  shape.rateLimitObserved = Number.isInteger(observedAtAttempt) && observedAtAttempt >= 1;
+  shape.ok = shape.ok && shape.rateLimitObserved;
+
+  return shape;
+}
+
+function evaluateDbUnavailableObserverShape(result) {
+  const payload = asErrorPayload(result.json);
+
+  if (result.response.status === 200) {
+    return {
+      status: 200,
+      skipped: true,
+      reason: "health_db_available",
+      ok: true,
+      payload
+    };
+  }
+
+  const codeValue = String(payload.code || "").trim();
+  const errorValue = String(payload.error || "").trim();
+  const statusLabel = String(payload.status || "").trim().toLowerCase();
+  const databaseLabel = String(payload.database || "").trim().toLowerCase();
+  const details = asErrorPayload(payload.details);
+  const kind = String(details.kind || "").trim();
+  const target = asErrorPayload(details.target);
+  const durationMs = Number(details.durationMs);
+  const connectionTimeoutMs = Number(details.connectionTimeoutMs);
+  const hasTargetShape = String(target.parse || "").trim().length > 0;
+
+  return {
+    status: result.response.status,
+    skipped: false,
+    code: codeValue || null,
+    error: errorValue || null,
+    state: {
+      status: statusLabel || null,
+      database: databaseLabel || null
+    },
+    details: {
+      kind: kind || null,
+      hasTargetShape,
+      durationMs: Number.isFinite(durationMs) ? durationMs : null,
+      connectionTimeoutMs: Number.isFinite(connectionTimeoutMs) ? connectionTimeoutMs : null
+    },
+    ok:
+      result.response.status === 503
+      && codeValue === "DB_UNAVAILABLE"
+      && errorValue === "Database connectivity check failed"
+      && statusLabel === "degraded"
+      && databaseLabel === "unavailable"
+      && kind.length > 0
+      && hasTargetShape
+      && Number.isFinite(durationMs)
+      && durationMs >= 0
+      && Number.isFinite(connectionTimeoutMs)
+      && connectionTimeoutMs >= 1000,
+    payload
+  };
+}
+
 async function run() {
   baseUrl = await resolveReachableBaseUrl(baseUrl);
 
@@ -199,6 +330,8 @@ async function run() {
   const report = {
     baseUrl,
     requestTimeoutMs,
+    authRateLimitAttempts,
+    skipAuthRateLimitCheck,
     checks: {},
     passed: true
   };
@@ -377,6 +510,28 @@ async function run() {
   report.checks.apiRouteNotFound = routeNotFoundShape;
   if (!routeNotFoundShape.ok) {
     report.passed = false;
+  }
+
+  const dbUnavailableObserverResult = await requestJson("/health/db");
+  const dbUnavailableShape = evaluateDbUnavailableObserverShape(dbUnavailableObserverResult);
+  report.checks.dbUnavailable = dbUnavailableShape;
+  if (!dbUnavailableShape.ok) {
+    report.passed = false;
+  }
+
+  if (skipAuthRateLimitCheck) {
+    report.checks.authRateLimited = {
+      skipped: true,
+      attempts: authRateLimitAttempts,
+      reason: "skip_env_enabled",
+      ok: true
+    };
+  } else {
+    const authRateLimitShape = await runAuthRateLimitCheck({ attempts: authRateLimitAttempts, adminPassword });
+    report.checks.authRateLimited = authRateLimitShape;
+    if (!authRateLimitShape.ok) {
+      report.passed = false;
+    }
   }
 
   console.log(JSON.stringify(report, null, 2));
