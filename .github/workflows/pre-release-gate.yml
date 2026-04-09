@@ -193,6 +193,9 @@ jobs:
       - name: Validate changelog format helper
         run: node scripts/test-verify-changelog-format.mjs
 
+      - name: Validate changelog coverage helper
+        run: node scripts/test-verify-changelog-coverage.mjs
+
       - name: Validate contact smoke expectation helper
         run: node scripts/test-resolve-contact-smoke-expected-status.mjs
 
