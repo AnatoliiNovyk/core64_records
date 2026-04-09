@@ -97,6 +97,7 @@ CI alternative (single gate run):
 - Ensure runtime console usage helper self-test is green.
 - Ensure API error contract helper self-test is green.
 - Ensure settings i18n consistency helper self-test is green.
+- Ensure smoke-check helper self-test is green.
 - Ensure API error contract check is green.
 - Proceed only when workflow finishes successfully.
 
@@ -107,7 +108,7 @@ $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
 ```
 
-Local gate also performs mandatory changelog coverage + changelog format verification for `HEAD~1..HEAD` by default, plus changelog format helper self-test, changelog coverage helper self-test, log sanitizer helper self-test, runtime console usage helper self-test, API error contract helper self-test, settings i18n consistency helper self-test, and API error contract check.
+Local gate also performs mandatory changelog coverage + changelog format verification for `HEAD~1..HEAD` by default, plus changelog format helper self-test, changelog coverage helper self-test, log sanitizer helper self-test, runtime console usage helper self-test, API error contract helper self-test, settings i18n consistency helper self-test, smoke-check helper self-test, and API error contract check.
 
 To override commit range explicitly:
 

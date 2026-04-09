@@ -238,6 +238,9 @@ jobs:
       - name: Validate settings i18n consistency helper
         run: node scripts/test-check-settings-i18n-consistency.mjs
 
+      - name: Validate smoke-check helper
+        run: node scripts/test-smoke-check.mjs
+
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
