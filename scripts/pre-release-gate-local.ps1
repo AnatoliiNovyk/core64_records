@@ -36,6 +36,118 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+Set-Location $repoRoot
+
+function Get-BackendEnvValue {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Key,
+
+        [Parameter(Mandatory = $true)]
+        [string]$EnvPath
+    )
+
+    if (-not (Test-Path -LiteralPath $EnvPath)) {
+        return ""
+    }
+
+    $lines = Get-Content -LiteralPath $EnvPath
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith("#")) {
+            continue
+        }
+
+        $match = [regex]::Match($trimmed, '^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$')
+        if (-not $match.Success) {
+            continue
+        }
+
+        if ($match.Groups[1].Value -ne $Key) {
+            continue
+        }
+
+        $rawValue = $match.Groups[2].Value.Trim()
+        if (-not $rawValue) {
+            return ""
+        }
+
+        $isDoubleQuoted = $rawValue.Length -ge 2 -and $rawValue.StartsWith('"') -and $rawValue.EndsWith('"')
+        $isSingleQuoted = $rawValue.Length -ge 2 -and $rawValue.StartsWith("'") -and $rawValue.EndsWith("'")
+        if ($isDoubleQuoted -or $isSingleQuoted) {
+            return $rawValue.Substring(1, $rawValue.Length - 2)
+        }
+
+        return ($rawValue.Split('#')[0]).Trim()
+    }
+
+    return ""
+}
+
+function Resolve-AdminPassword {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RequestedPassword
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($env:CORE64_ADMIN_PASSWORD)) {
+        return $env:CORE64_ADMIN_PASSWORD.Trim()
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPassword) -and $RequestedPassword -ne "core64admin") {
+        return $RequestedPassword
+    }
+
+    $backendAdminPassword = Get-BackendEnvValue -Key "ADMIN_PASSWORD" -EnvPath (Join-Path $repoRoot "backend/.env")
+    if (-not [string]::IsNullOrWhiteSpace($backendAdminPassword)) {
+        return $backendAdminPassword
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedPassword)) {
+        return $RequestedPassword
+    }
+
+    return "core64admin"
+}
+
+function Invoke-SmokeCheck {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ApiBase,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AdminPassword,
+
+        [Parameter(Mandatory = $true)]
+        [int]$SmokeTimeoutMs,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$SmokeContact
+    )
+
+    $env:CORE64_API_BASE = $ApiBase
+    $env:CORE64_ADMIN_PASSWORD = $AdminPassword
+    $env:CORE64_SMOKE_TIMEOUT_MS = [string]$SmokeTimeoutMs
+    $env:CORE64_SMOKE_CONTACT = if ($SmokeContact) { "true" } else { "false" }
+
+    $tempOutputPath = [System.IO.Path]::GetTempFileName()
+    try {
+        node scripts/smoke-check.mjs *> $tempOutputPath
+        $exitCode = $LASTEXITCODE
+        $output = Get-Content -LiteralPath $tempOutputPath -Raw
+        if (-not [string]::IsNullOrWhiteSpace($output)) {
+            Write-Host ($output.TrimEnd())
+        }
+
+        return @{
+            ExitCode = $exitCode
+            Output = $output
+        }
+    } finally {
+        Remove-Item -LiteralPath $tempOutputPath -ErrorAction SilentlyContinue
+    }
+}
 
 if ([string]::IsNullOrWhiteSpace($Token)) {
     $Token = $env:GITHUB_TOKEN
@@ -60,6 +172,11 @@ if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
 $ExpectedCheckContexts = @($ExpectedCheckContexts | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
 if ($ExpectedCheckContexts.Count -eq 0) {
     throw "ExpectedCheckContexts cannot be empty."
+}
+
+$resolvedCore64AdminPassword = Resolve-AdminPassword -RequestedPassword $Core64AdminPassword
+if ([string]::IsNullOrWhiteSpace($resolvedCore64AdminPassword)) {
+    throw "Core64AdminPassword could not be resolved. Set CORE64_ADMIN_PASSWORD env var or backend/.env ADMIN_PASSWORD."
 }
 
 Write-Host "[1/8] Running DB snapshot helper self-test..."
@@ -99,13 +216,17 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[7/8] Running smoke check..."
-$env:CORE64_API_BASE = $Core64ApiBase
-$env:CORE64_ADMIN_PASSWORD = $Core64AdminPassword
-$env:CORE64_SMOKE_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
-$env:CORE64_SMOKE_CONTACT = if ($Core64SmokeContact) { "true" } else { "false" }
+$smokeResult = Invoke-SmokeCheck -ApiBase $Core64ApiBase -AdminPassword $resolvedCore64AdminPassword -SmokeTimeoutMs $Core64SmokeTimeoutMs -SmokeContact $Core64SmokeContact
+if ($smokeResult.ExitCode -ne 0) {
+    $isFetchFailed = $smokeResult.Output -match 'Smoke check failed:\s*fetch failed'
+    if ($isFetchFailed -and ($Core64ApiBase -match '^https?://localhost(:\d+)?(/.*)?$')) {
+        $fallbackApiBase = $Core64ApiBase -replace '://localhost', '://127.0.0.1'
+        Write-Host "Smoke check failed using localhost fetch path. Retrying with $fallbackApiBase ..."
+        $smokeResult = Invoke-SmokeCheck -ApiBase $fallbackApiBase -AdminPassword $resolvedCore64AdminPassword -SmokeTimeoutMs $Core64SmokeTimeoutMs -SmokeContact $Core64SmokeContact
+    }
+}
 
-node scripts/smoke-check.mjs
-if ($LASTEXITCODE -ne 0) {
+if ($smokeResult.ExitCode -ne 0) {
     throw "Smoke check failed."
 }
 
