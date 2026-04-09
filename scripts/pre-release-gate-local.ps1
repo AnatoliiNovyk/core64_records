@@ -342,7 +342,7 @@ $smokeResult = Invoke-SmokeCheck `
     -AdminPassword $resolvedCore64AdminPassword `
     -SmokeTimeoutMs $Core64SmokeTimeoutMs `
     -SmokeContact $Core64SmokeContact `
-    -SmokeRateLimitCheck $false `
+    -SmokeRateLimitCheck $Core64SmokeRateLimitCheck `
     -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts `
     -SmokeRateLimitCollectionsAttempts $Core64SmokeRateLimitCollectionsAttempts
 if ($smokeResult.ExitCode -ne 0) {
@@ -355,7 +355,7 @@ if ($smokeResult.ExitCode -ne 0) {
             -AdminPassword $resolvedCore64AdminPassword `
             -SmokeTimeoutMs $Core64SmokeTimeoutMs `
             -SmokeContact $Core64SmokeContact `
-            -SmokeRateLimitCheck $false `
+            -SmokeRateLimitCheck $Core64SmokeRateLimitCheck `
             -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts `
             -SmokeRateLimitCollectionsAttempts $Core64SmokeRateLimitCollectionsAttempts
     }
