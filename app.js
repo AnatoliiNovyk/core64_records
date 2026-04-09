@@ -55,6 +55,8 @@ const PUBLIC_I18N = {
         contactMessagePlaceholder: "Опишіть ваше звернення...",
         contactFile: "Файл (для демо-запису)",
         contactFileTitle: "Демо файл",
+        contactFileSelectButton: "Вибрати файл",
+        contactFileNoFile: "Файл не вибрано",
         contactFileHint: "Додавайте аудіо або архів матеріалів. Для теми \"Демо запис\" файл є обов'язковим.",
         contactCaptchaLabel: "Перевірка",
         contactSubmit: "Відправити",
@@ -77,8 +79,8 @@ const PUBLIC_I18N = {
         captchaUnsupportedProvider: "Поточний провайдер капчі не підтримується на фронтенді.",
         captchaMissingSiteKey: "Captcha увімкнена, але не вказано site key.",
         captchaLoadFailed: "Не вдалося завантажити captcha. Оновіть сторінку або спробуйте пізніше.",
-        languageLabelUk: "Укр",
-        languageLabelEn: "Eng"
+        languageLabelUk: "UK",
+        languageLabelEn: "EN"
     },
     en: {
         navReleases: "Releases",
@@ -121,6 +123,8 @@ const PUBLIC_I18N = {
         contactMessagePlaceholder: "Describe your request...",
         contactFile: "File (for demo submission)",
         contactFileTitle: "Demo file",
+        contactFileSelectButton: "Choose file",
+        contactFileNoFile: "No file chosen",
         contactFileHint: "Attach audio or archive materials. For the \"Demo recording\" subject, file is required.",
         contactCaptchaLabel: "Verification",
         contactSubmit: "Send",
@@ -143,8 +147,8 @@ const PUBLIC_I18N = {
         captchaUnsupportedProvider: "The current captcha provider is not supported in the frontend.",
         captchaMissingSiteKey: "Captcha is enabled, but site key is missing.",
         captchaLoadFailed: "Failed to load captcha. Refresh the page or try again later.",
-        languageLabelUk: "Ukr",
-        languageLabelEn: "Eng"
+        languageLabelUk: "UK",
+        languageLabelEn: "EN"
     }
 };
 
@@ -1181,6 +1185,40 @@ function initContactForm() {
     const form = document.getElementById("contact-form");
     if (!form) return;
 
+    const demoFileInput = form.querySelector('input[name="demoFile"]');
+    const demoFileButton = document.getElementById("contact-demo-file-button");
+    const demoFileName = document.getElementById("contact-demo-file-name");
+
+    const updateDemoFileName = () => {
+        if (!demoFileName) return;
+        const selectedFile = demoFileInput && demoFileInput.files && demoFileInput.files.length > 0
+            ? demoFileInput.files[0]
+            : null;
+
+        if (selectedFile && selectedFile.name) {
+            demoFileName.textContent = selectedFile.name;
+            demoFileName.classList.remove("text-gray-400");
+            demoFileName.classList.add("text-cyan-200");
+            return;
+        }
+
+        demoFileName.textContent = tPublic("contactFileNoFile");
+        demoFileName.classList.remove("text-cyan-200");
+        demoFileName.classList.add("text-gray-400");
+    };
+
+    if (demoFileButton && demoFileInput) {
+        demoFileButton.addEventListener("click", () => {
+            demoFileInput.click();
+        });
+    }
+
+    if (demoFileInput) {
+        demoFileInput.addEventListener("change", updateDemoFileName);
+    }
+
+    updateDemoFileName();
+
     initContactCaptcha();
 
     form.addEventListener("submit", async (event) => {
@@ -1236,6 +1274,7 @@ function initContactForm() {
         try {
             await adapter.submitContactRequest(payload);
             form.reset();
+            updateDemoFileName();
             resetContactCaptcha();
             updateContactStatus(tPublic("contactSaved"), false);
         } catch (error) {

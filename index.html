@@ -417,7 +417,11 @@
                     </div>
                     <div>
                         <label class="block text-cyan-400 mb-2 uppercase text-sm tracking-wider" data-i18n="contactFile">Файл (для демо-запису)</label>
-                        <input type="file" name="demoFile" title="Демо файл" data-i18n-title="contactFileTitle" accept="audio/*,.wav,.aiff,.flac,.mp3,.zip,.rar,.7z" class="w-full bg-gray-900 border border-cyan-500/30 p-3 text-white focus:border-cyan-400 focus:outline-none transition-colors">
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full bg-gray-900 border border-cyan-500/30 p-3 text-white focus-within:border-cyan-400 transition-colors">
+                            <input id="contact-demo-file-input" type="file" name="demoFile" title="Демо файл" data-i18n-title="contactFileTitle" accept="audio/*,.wav,.aiff,.flac,.mp3,.zip,.rar,.7z" class="sr-only">
+                            <button id="contact-demo-file-button" type="button" class="px-4 py-2 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-400/10 transition-colors uppercase tracking-wider text-xs w-fit" data-i18n="contactFileSelectButton">Вибрати файл</button>
+                            <span id="contact-demo-file-name" class="text-sm text-gray-400 truncate" data-i18n="contactFileNoFile" aria-live="polite">Файл не вибрано</span>
+                        </div>
                         <p class="mt-2 text-xs text-gray-400" data-i18n="contactFileHint">Додавайте аудіо або архів матеріалів. Для теми "Демо запис" файл є обов'язковим.</p>
                     </div>
                     <div id="contact-captcha-wrap" class="hidden">
