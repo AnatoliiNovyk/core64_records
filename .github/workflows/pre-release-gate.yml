@@ -22,9 +22,9 @@ on:
         default: "false"
         type: string
       core64_smoke_rate_limit_check:
-        description: Enable optional mutation rate-limit 429 smoke check (true/false)
+        description: Enable mutation rate-limit 429 smoke check (true/false)
         required: false
-        default: "false"
+        default: "true"
         type: string
       core64_smoke_rate_limit_attempts:
         description: Max attempts for optional mutation rate-limit smoke check
@@ -212,7 +212,7 @@ jobs:
             -ExpectedConversationResolution "${{ github.event.inputs.expected_conversation_resolution }}" `
             -Token "$env:BRANCH_PROTECTION_TOKEN"
 
-      - name: Run optional mutation rate-limit smoke check
+      - name: Run mutation rate-limit smoke check
         if: ${{ github.event.inputs.core64_smoke_rate_limit_check == 'true' }}
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}

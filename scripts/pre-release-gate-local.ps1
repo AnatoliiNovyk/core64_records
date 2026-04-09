@@ -12,7 +12,7 @@ param(
     [bool]$Core64SmokeContact = $false,
 
     [Parameter(Mandatory = $false)]
-    [bool]$Core64SmokeRateLimitCheck = $false,
+    [bool]$Core64SmokeRateLimitCheck = $true,
 
     [Parameter(Mandatory = $false)]
     [int]$Core64SmokeRateLimitAttempts = 25,
@@ -305,7 +305,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if ($Core64SmokeRateLimitCheck) {
-    Write-Host "[Optional] Running rate-limit 429 smoke check..."
+    Write-Host "[Rate-limit] Running 429 smoke check..."
     $rateLimitResult = Invoke-SmokeCheck `
         -ApiBase $Core64ApiBase `
         -AdminPassword $resolvedCore64AdminPassword `
@@ -319,7 +319,7 @@ if ($Core64SmokeRateLimitCheck) {
         $isFetchFailed = $rateLimitResult.Output -match 'Smoke check failed:\s*fetch failed'
         if ($isFetchFailed -and ($Core64ApiBase -match '^https?://localhost(:\d+)?(/.*)?$')) {
             $fallbackApiBase = $Core64ApiBase -replace '://localhost', '://127.0.0.1'
-            Write-Host "Optional rate-limit smoke failed using localhost fetch path. Retrying with $fallbackApiBase ..."
+            Write-Host "Rate-limit smoke failed using localhost fetch path. Retrying with $fallbackApiBase ..."
             $rateLimitResult = Invoke-SmokeCheck `
                 -ApiBase $fallbackApiBase `
                 -AdminPassword $resolvedCore64AdminPassword `
@@ -332,7 +332,7 @@ if ($Core64SmokeRateLimitCheck) {
     }
 
     if ($rateLimitResult.ExitCode -ne 0) {
-        throw "Optional rate-limit smoke check failed."
+        throw "Rate-limit smoke check failed."
     }
 }
 

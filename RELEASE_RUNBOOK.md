@@ -14,11 +14,11 @@ Google Run + Supabase deployment playbook:
 - PostgreSQL is reachable.
 - Frontend static server is available.
 - Backend production env passes startup preflight:
-	- `DB_SSL=true`
-	- one of: `DB_SSL_REJECT_UNAUTHORIZED=true` or `DB_SSL_ALLOW_SELF_SIGNED=true`
-	- non-default strong `JWT_SECRET`
-	- non-default strong `ADMIN_PASSWORD`
-	- `CORS_ORIGIN` without `*`
+  - `DB_SSL=true`
+  - one of: `DB_SSL_REJECT_UNAUTHORIZED=true` or `DB_SSL_ALLOW_SELF_SIGNED=true`
+  - non-default strong `JWT_SECRET`
+  - non-default strong `ADMIN_PASSWORD`
+  - `CORS_ORIGIN` without `*`
 
 ## 2. Start Services
 
@@ -57,6 +57,15 @@ The release is considered healthy only if output contains:
 - no missing media in public payload
 - no `static.photos` references
 - no bad release links
+- `admin.rateLimitCheck.enabled = true` and `admin.rateLimitCheck.ok = true`
+- `admin.rateLimitCollectionsCheck.enabled = true` and `admin.rateLimitCollectionsCheck.ok = true`
+
+Rate-limit smoke verification is mandatory by default.
+
+Emergency-only opt-out:
+
+- use `CORE64_SMOKE_RATE_LIMIT_CHECK=false` only for temporary incident triage
+- if opt-out is used, run a dedicated rate-limit smoke as soon as API stability is restored
 
 Optional extended check:
 
