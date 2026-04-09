@@ -17,9 +17,9 @@ on:
         default: "15000"
         type: string
       core64_smoke_contact:
-        description: Enable optional contact endpoint smoke check (true/false)
+        description: Enable contact endpoint smoke check (true/false)
         required: false
-        default: "false"
+        default: "true"
         type: string
       core64_smoke_rate_limit_check:
         description: Enable mutation rate-limit 429 smoke check (true/false)
@@ -183,6 +183,9 @@ jobs:
           CORE64_CHANGELOG_BASE_REF: ${{ github.event.inputs.core64_changelog_base_ref }}
           CORE64_CHANGELOG_HEAD_REF: ${{ github.event.inputs.core64_changelog_head_ref }}
         run: node scripts/verify-changelog-coverage.mjs --base "$CORE64_CHANGELOG_BASE_REF" --head "$CORE64_CHANGELOG_HEAD_REF"
+
+      - name: Validate contact smoke expectation helper
+        run: node scripts/test-resolve-contact-smoke-expected-status.mjs
 
       - name: Validate workflow secret
         env:

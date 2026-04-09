@@ -59,6 +59,7 @@ The release is considered healthy only if output contains:
 - no bad release links
 - `admin.rateLimitCheck.enabled = true` and `admin.rateLimitCheck.ok = true`
 - `admin.rateLimitCollectionsCheck.enabled = true` and `admin.rateLimitCollectionsCheck.ok = true`
+- `contact.enabled = true` and `contact.ok = true`
 
 Rate-limit smoke verification is mandatory by default.
 
@@ -67,10 +68,20 @@ Emergency-only opt-out:
 - use `CORE64_SMOKE_RATE_LIMIT_CHECK=false` only for temporary incident triage
 - if opt-out is used, run a dedicated rate-limit smoke as soon as API stability is restored
 
-Optional extended check:
+Contact endpoint smoke verification is mandatory by default.
 
-- enable contact endpoint validation with `CORE64_SMOKE_CONTACT=true`
-- expected status can be overridden with `CORE64_SMOKE_CONTACT_EXPECTED_STATUS`
+Expected status resolution for contact smoke:
+
+- `CORE64_SMOKE_CONTACT_EXPECTED_STATUS` (if set) has highest priority.
+- If CAPTCHA is enabled and provider is not `none`:
+  - with non-empty `CORE64_SMOKE_CONTACT_CAPTCHA_TOKEN` expected status is `201`.
+  - without token expected status is `400` (captcha validation path).
+- Otherwise expected status is `201`.
+
+Emergency-only opt-out for contact smoke:
+
+- use `CORE64_SMOKE_CONTACT=false` only for temporary incident triage
+- if opt-out is used, run a dedicated contact smoke as soon as API stability is restored
 
 CI alternative (single gate run):
 

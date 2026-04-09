@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveContactSmokeExpectedStatus } from "./resolve-contact-smoke-expected-status.mjs";
 
 const baseUrl = (process.env.CORE64_API_BASE || "http://localhost:3000/api").replace(/\/+$/, "");
 const __filename = fileURLToPath(import.meta.url);
@@ -60,8 +61,8 @@ const adminPassword = envAdminPassword || backendEnvAdminPassword || "core64admi
 const adminPasswordSource = envAdminPassword ? "CORE64_ADMIN_PASSWORD" : (backendEnvAdminPassword ? "backend/.env:ADMIN_PASSWORD" : "default:core64admin");
 const requestTimeoutMs = toInteger(process.env.CORE64_SMOKE_TIMEOUT_MS, 10000);
 const smokeMode = String(process.env.CORE64_SMOKE_MODE || "full").trim().toLowerCase();
-const smokeContactEnabled = toBoolean(process.env.CORE64_SMOKE_CONTACT, false);
-const contactExpectedStatus = toInteger(process.env.CORE64_SMOKE_CONTACT_EXPECTED_STATUS, 201);
+const smokeContactEnabled = toBoolean(process.env.CORE64_SMOKE_CONTACT, true);
+const contactExpectedStatusOverride = String(process.env.CORE64_SMOKE_CONTACT_EXPECTED_STATUS || "").trim();
 const smokeRateLimitCheckEnabled = toBoolean(process.env.CORE64_SMOKE_RATE_LIMIT_CHECK, true);
 const smokeRateLimitAttempts = Math.max(2, toInteger(process.env.CORE64_SMOKE_RATE_LIMIT_ATTEMPTS, 25));
 const smokeRateLimitExpectedStatus = toInteger(process.env.CORE64_SMOKE_RATE_LIMIT_EXPECTED_STATUS, 429);
@@ -465,6 +466,7 @@ async function run() {
     const artists = Array.isArray(data.artists) ? data.artists : [];
     const events = Array.isArray(data.events) ? data.events : [];
     const sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
+    const publicSettings = data.settings && typeof data.settings === "object" ? data.settings : {};
 
     const publicChecks = {
         status: publicPayload.response.status,
@@ -661,11 +663,24 @@ async function run() {
 
     report.checks.admin = adminChecks;
 
+    const contactCaptchaToken = String(process.env.CORE64_SMOKE_CONTACT_CAPTCHA_TOKEN || "").trim();
+    const resolvedContactExpectation = resolveContactSmokeExpectedStatus({
+        explicitExpectedStatus: contactExpectedStatusOverride,
+        settings: publicSettings,
+        captchaToken: contactCaptchaToken
+    });
+
     const contactChecks = {
         enabled: smokeContactEnabled,
-        expectedStatus: contactExpectedStatus,
+        explicitExpectedStatus: contactExpectedStatusOverride || null,
+        expectedStatus: resolvedContactExpectation.expectedStatus,
+        expectedStatusSource: resolvedContactExpectation.source,
+        resolvedExpectedStatus: resolvedContactExpectation.expectedStatus,
+        captchaMode: resolvedContactExpectation.captchaMode,
         status: null,
-        ok: null
+        ok: null,
+        errorCode: null,
+        captchaFieldErrorPresent: null
     };
 
     if (smokeContactEnabled) {
@@ -674,7 +689,7 @@ async function run() {
             email: "smoke-check@core64.local",
             subject: "Smoke Check",
             message: `Automated smoke contact check at ${new Date().toISOString()}`,
-            captchaToken: process.env.CORE64_SMOKE_CONTACT_CAPTCHA_TOKEN || ""
+            captchaToken: contactCaptchaToken
         };
 
         const contact = await requestJson("/contact-requests", {
@@ -684,7 +699,17 @@ async function run() {
         });
 
         contactChecks.status = contact.response.status;
-        contactChecks.ok = contact.response.status === contactExpectedStatus;
+        contactChecks.errorCode = String(contact.json?.code || "").trim() || null;
+        const captchaFieldErrors = Array.isArray(contact.json?.details?.fieldErrors?.captchaToken)
+            ? contact.json.details.fieldErrors.captchaToken
+            : [];
+        const expectedCaptchaValidationError = resolvedContactExpectation.expectedStatus === 400;
+
+        contactChecks.captchaFieldErrorPresent = captchaFieldErrors.length > 0;
+        contactChecks.ok = contact.response.status === resolvedContactExpectation.expectedStatus;
+        if (expectedCaptchaValidationError && !contactChecks.captchaFieldErrorPresent) {
+            contactChecks.ok = false;
+        }
 
         if (!contactChecks.ok) {
             report.passed = false;
