@@ -179,43 +179,43 @@ if ([string]::IsNullOrWhiteSpace($resolvedCore64AdminPassword)) {
     throw "Core64AdminPassword could not be resolved. Set CORE64_ADMIN_PASSWORD env var or backend/.env ADMIN_PASSWORD."
 }
 
-Write-Host "[1/9] Running DB snapshot helper self-test..."
+Write-Host "[1/10] Running DB snapshot helper self-test..."
 node scripts/test-print-db-target-snapshot.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DB snapshot helper self-test failed."
 }
 
-Write-Host "[2/9] Running DATABASE_URL policy helper self-test..."
+Write-Host "[2/10] Running DATABASE_URL policy helper self-test..."
 node scripts/test-check-database-url-policy.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DATABASE_URL policy helper self-test failed."
 }
 
-Write-Host "[3/9] Running DATABASE_URL pooler sslmode helper self-test..."
+Write-Host "[3/10] Running DATABASE_URL pooler sslmode helper self-test..."
 node scripts/test-set-database-url-pooler-sslmode.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DATABASE_URL pooler sslmode helper self-test failed."
 }
 
-Write-Host "[4/9] Running Cloud Run network hint helper self-test..."
+Write-Host "[4/10] Running Cloud Run network hint helper self-test..."
 node scripts/test-print-cloud-run-network-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run network hint helper self-test failed."
 }
 
-Write-Host "[5/9] Running Cloud Run DB route verdict helper self-test..."
+Write-Host "[5/10] Running Cloud Run DB route verdict helper self-test..."
 node scripts/test-print-cloud-run-db-route-verdict.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run DB route verdict helper self-test failed."
 }
 
-Write-Host "[6/9] Running DB runtime TLS hint helper self-test..."
+Write-Host "[6/10] Running DB runtime TLS hint helper self-test..."
 node scripts/test-print-db-runtime-tls-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DB runtime TLS hint helper self-test failed."
 }
 
-Write-Host "[7/9] Running smoke check..."
+Write-Host "[7/10] Running smoke check..."
 $smokeResult = Invoke-SmokeCheck -ApiBase $Core64ApiBase -AdminPassword $resolvedCore64AdminPassword -SmokeTimeoutMs $Core64SmokeTimeoutMs -SmokeContact $Core64SmokeContact
 if ($smokeResult.ExitCode -ne 0) {
     $isFetchFailed = $smokeResult.Output -match 'Smoke check failed:\s*fetch failed'
@@ -230,13 +230,19 @@ if ($smokeResult.ExitCode -ne 0) {
     throw "Smoke check failed."
 }
 
-Write-Host "[8/9] Running settings i18n consistency check..."
+Write-Host "[8/10] Running settings/public contract check..."
+node scripts/settings-public-contract-check.mjs
+if ($LASTEXITCODE -ne 0) {
+    throw "Settings/public contract check failed."
+}
+
+Write-Host "[9/10] Running settings i18n consistency check..."
 node scripts/check-settings-i18n-consistency.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings i18n consistency check failed."
 }
 
-Write-Host "[9/9] Running branch protection policy verification..."
+Write-Host "[10/10] Running branch protection policy verification..."
 & pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
     -Owner $Owner `
     -Repo $Repo `
