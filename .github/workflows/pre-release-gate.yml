@@ -232,6 +232,12 @@ jobs:
       - name: Validate runtime console usage helper
         run: node scripts/test-runtime-console-usage.mjs
 
+      - name: Validate API error contract helper
+        run: node scripts/test-verify-api-error-contract.mjs
+
+      - name: Validate settings i18n consistency helper
+        run: node scripts/test-check-settings-i18n-consistency.mjs
+
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}

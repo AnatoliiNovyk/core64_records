@@ -466,6 +466,8 @@ This local gate runs:
 - `scripts/test-print-cloud-run-db-route-verdict.mjs`
 - `scripts/test-log-sanitizer.mjs`
 - `scripts/test-runtime-console-usage.mjs`
+- `scripts/test-verify-api-error-contract.mjs`
+- `scripts/test-check-settings-i18n-consistency.mjs`
 - `scripts/smoke-check.mjs`
 - `scripts/verify-branch-protection.ps1`
 
