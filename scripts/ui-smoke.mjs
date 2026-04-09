@@ -13,6 +13,7 @@ const apiBase = String(process.env.CORE64_API_BASE || "http://localhost:3000/api
 const configuredUiBase = String(process.env.CORE64_UI_BASE || "").trim().replace(/\/+$/, "");
 const requestTimeoutMs = Number(process.env.CORE64_UI_SMOKE_TIMEOUT_MS || 15000);
 const headless = !["0", "false", "no", "off"].includes(String(process.env.CORE64_UI_HEADLESS || "true").trim().toLowerCase());
+const MANAGED_SECTION_KEYS = ["releases", "artists", "events", "sponsors"];
 
 const MIME_TYPES = {
     ".css": "text/css; charset=utf-8",
@@ -115,6 +116,33 @@ function ensureOk(result, label) {
     if (result.response.ok) return result;
     const details = result.json ? JSON.stringify(result.json) : result.text;
     throw new Error(`${label} failed with ${result.response.status}: ${details}`);
+}
+
+function formatValueForError(value) {
+    try {
+        return JSON.stringify(value);
+    } catch (_error) {
+        return String(value);
+    }
+}
+
+function listsMatch(expected, actual) {
+    if (!Array.isArray(expected) || !Array.isArray(actual)) return false;
+    if (expected.length !== actual.length) return false;
+    return expected.every((value, index) => value === actual[index]);
+}
+
+function failWithDetails(message, details = {}) {
+    throw new Error(`${message}. details=${formatValueForError(details)}`);
+}
+
+function assertListEquals(label, expected, actual, details = {}) {
+    if (listsMatch(expected, actual)) return;
+    failWithDetails(`${label} mismatch`, {
+        expected,
+        actual,
+        ...details
+    });
 }
 
 async function startStaticServer() {
@@ -258,7 +286,11 @@ async function openSettingsSection(page) {
         () => {
             const section = document.getElementById("section-settings");
             const list = document.getElementById("section-settings-list");
-            return Boolean(section && !section.classList.contains("hidden") && list && list.children.length >= 4);
+            if (!section || section.classList.contains("hidden") || !list) return false;
+
+            const rowKeys = Array.from(list.querySelectorAll("[data-section-row]"))
+                .map((row) => String(row.getAttribute("data-section-row") || ""));
+            return rowKeys.includes("events") && rowKeys.includes("sponsors");
         },
         undefined,
         requestTimeoutMs,
@@ -335,9 +367,31 @@ async function applyMutationViaUi(page, mutatedSections) {
         throw new Error("Mutation requires events and sponsors sections");
     }
 
-    await page.evaluate(() => {
-        window.moveSectionSetting("events", -1);
-        window.moveSectionSetting("events", -1);
+    const moveSummary = await page.evaluate(() => {
+        if (typeof window.moveSectionSetting !== "function") {
+            throw new Error("window.moveSectionSetting is unavailable");
+        }
+
+        const list = document.getElementById("section-settings-list");
+        if (!list) {
+            throw new Error("#section-settings-list is unavailable");
+        }
+
+        const rowKeys = Array.from(list.querySelectorAll("[data-section-row]"))
+            .map((row) => String(row.getAttribute("data-section-row") || ""));
+        const eventsIndex = rowKeys.indexOf("events");
+        if (eventsIndex < 0) {
+            throw new Error("events row was not found in section settings list");
+        }
+
+        for (let step = eventsIndex; step > 0; step -= 1) {
+            window.moveSectionSetting("events", -1);
+        }
+
+        return {
+            initialEventsIndex: eventsIndex,
+            movesApplied: eventsIndex
+        };
     });
 
     await waitForFunction(
@@ -345,7 +399,7 @@ async function applyMutationViaUi(page, mutatedSections) {
         () => document.querySelector("#section-settings-list [data-section-row]")?.getAttribute("data-section-row") === "events",
         undefined,
         requestTimeoutMs,
-        "wait for events row to move to top"
+        `wait for events row to move to top (initialIndex=${moveSummary.initialEventsIndex}, moves=${moveSummary.movesApplied})`
     );
 
     await page.locator("#section-title-uk-events").fill(eventsSection.titleUk);
@@ -385,7 +439,7 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
         throw new Error("Mutated events section is missing");
     }
 
-    const managedKeys = new Set(["releases", "artists", "events", "sponsors"]);
+    const managedKeys = new Set(MANAGED_SECTION_KEYS);
     const expectedVisibleManagedSections = mutatedSections
         .filter((section) => managedKeys.has(String(section.sectionKey || "")))
         .filter((section) => section.isEnabled !== false)
@@ -401,58 +455,105 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
         "wait for public events title"
     );
 
-    const verification = await page.evaluate(() => {
-        const managedKeys = new Set(["releases", "artists", "events", "sponsors"]);
-        const releasesSection = document.getElementById("releases");
-        const sectionsParent = releasesSection?.parentElement || null;
-        const visibleManagedSections = sectionsParent
-            ? Array.from(sectionsParent.children)
-                .filter((section) => managedKeys.has(section.id) && !section.hidden)
-                .map((section) => section.id)
-            : [];
-        const sponsorsSection = document.getElementById("sponsors");
-        const desktopNav = Array.from(document.querySelectorAll("#public-desktop-nav-links a"));
-        const mobileNav = Array.from(document.querySelectorAll("#public-mobile-nav-links a"));
-        const desktopVisible = desktopNav
-            .filter((anchor) => !anchor.hidden)
-            .map((anchor) => anchor.getAttribute("href"));
-        const mobileVisible = mobileNav
-            .filter((anchor) => !anchor.hidden)
-            .map((anchor) => anchor.getAttribute("href"));
-        const desktopSponsors = desktopNav.find((anchor) => anchor.getAttribute("href") === "#sponsors");
-        const mobileSponsors = mobileNav.find((anchor) => anchor.getAttribute("href") === "#sponsors");
+    const verification = await page.evaluate((managedSectionKeys) => {
+        const managedKeys = new Set(managedSectionKeys);
+        const sectionNodes = Array.from(document.querySelectorAll("section[id]"))
+            .filter((sectionEl) => managedKeys.has(sectionEl.id));
+        const sectionStateByKey = Object.fromEntries(managedSectionKeys.map((sectionKey) => {
+            const sectionEl = document.getElementById(sectionKey);
+            return [sectionKey, {
+                exists: Boolean(sectionEl),
+                hidden: sectionEl ? Boolean(sectionEl.hidden) : null,
+                ariaHidden: sectionEl ? sectionEl.getAttribute("aria-hidden") || null : null
+            }];
+        }));
+
+        const readNavState = (containerId) => {
+            const containerEl = document.getElementById(containerId);
+            const links = containerEl ? Array.from(containerEl.querySelectorAll("a[href^='#']")) : [];
+            const normalizedLinks = links.map((linkEl) => {
+                const href = String(linkEl.getAttribute("href") || "");
+                return {
+                    href,
+                    sectionKey: href.startsWith("#") ? href.slice(1) : href,
+                    hidden: Boolean(linkEl.hidden),
+                    ariaHidden: linkEl.getAttribute("aria-hidden") || null,
+                    tabIndex: linkEl.getAttribute("tabindex") || null
+                };
+            });
+
+            return {
+                exists: Boolean(containerEl),
+                links: normalizedLinks,
+                managedVisibleOrder: normalizedLinks
+                    .filter((link) => managedKeys.has(link.sectionKey) && !link.hidden)
+                    .map((link) => link.sectionKey),
+                sponsorsLink: normalizedLinks.find((link) => link.sectionKey === "sponsors") || null
+            };
+        };
 
         return {
-            visibleManagedSections,
-            sponsorsHidden: Boolean(sponsorsSection?.hidden),
-            sponsorsAriaHidden: sponsorsSection?.getAttribute("aria-hidden") || null,
-            desktopVisible,
-            mobileVisible,
-            desktopSponsorsHidden: Boolean(desktopSponsors?.hidden),
-            mobileSponsorsHidden: Boolean(mobileSponsors?.hidden),
-            desktopSponsorsTabIndex: desktopSponsors?.getAttribute("tabindex") || null,
-            mobileSponsorsTabIndex: mobileSponsors?.getAttribute("tabindex") || null
+            allManagedSectionOrder: sectionNodes.map((sectionEl) => sectionEl.id),
+            visibleManagedSections: sectionNodes
+                .filter((sectionEl) => !sectionEl.hidden)
+                .map((sectionEl) => sectionEl.id),
+            sectionStateByKey,
+            desktopNav: readNavState("public-desktop-nav-links"),
+            mobileNav: readNavState("public-mobile-nav-links")
         };
+    }, Array.from(managedKeys));
+
+    const missingManagedSections = MANAGED_SECTION_KEYS.filter((sectionKey) => verification.sectionStateByKey?.[sectionKey]?.exists !== true);
+    if (missingManagedSections.length > 0) {
+        failWithDetails("Public page is missing managed section nodes", {
+            missingManagedSections,
+            sectionStateByKey: verification.sectionStateByKey
+        });
+    }
+
+    assertListEquals("Visible managed section order", expectedVisibleManagedSections, verification.visibleManagedSections, {
+        allManagedSectionOrder: verification.allManagedSectionOrder
     });
 
-    const expectedNavPrefix = expectedVisibleManagedSections.map((sectionKey) => `#${sectionKey}`);
-    if (verification.visibleManagedSections.join(",") !== expectedVisibleManagedSections.join(",")) {
-        throw new Error(`Unexpected visible section order: ${verification.visibleManagedSections.join(",")}`);
+    const sponsorsSectionState = verification.sectionStateByKey?.sponsors;
+    if (!sponsorsSectionState || sponsorsSectionState.hidden !== true || sponsorsSectionState.ariaHidden !== "true") {
+        failWithDetails("Sponsors section was not hidden correctly on public page", {
+            expected: { hidden: true, ariaHidden: "true" },
+            actual: sponsorsSectionState
+        });
     }
-    if (!verification.sponsorsHidden || verification.sponsorsAriaHidden !== "true") {
-        throw new Error("Sponsors section was not hidden on public page");
+
+    if (!verification.desktopNav?.exists) {
+        failWithDetails("Desktop nav container was not found", {
+            containerId: "public-desktop-nav-links"
+        });
     }
-    if (verification.desktopVisible.slice(0, expectedNavPrefix.length).join(",") !== expectedNavPrefix.join(",")) {
-        throw new Error(`Unexpected desktop nav order: ${verification.desktopVisible.join(",")}`);
+    if (!verification.mobileNav?.exists) {
+        failWithDetails("Mobile nav container was not found", {
+            containerId: "public-mobile-nav-links"
+        });
     }
-    if (verification.mobileVisible.slice(0, expectedNavPrefix.length).join(",") !== expectedNavPrefix.join(",")) {
-        throw new Error(`Unexpected mobile nav order: ${verification.mobileVisible.join(",")}`);
+
+    assertListEquals("Desktop nav managed section order", expectedVisibleManagedSections, verification.desktopNav.managedVisibleOrder, {
+        links: verification.desktopNav.links
+    });
+    assertListEquals("Mobile nav managed section order", expectedVisibleManagedSections, verification.mobileNav.managedVisibleOrder, {
+        links: verification.mobileNav.links
+    });
+
+    const desktopSponsors = verification.desktopNav.sponsorsLink;
+    const mobileSponsors = verification.mobileNav.sponsorsLink;
+    if (!desktopSponsors || desktopSponsors.hidden !== true || desktopSponsors.tabIndex !== "-1" || desktopSponsors.ariaHidden !== "true") {
+        failWithDetails("Desktop sponsors nav link was not hidden correctly", {
+            expected: { hidden: true, tabIndex: "-1", ariaHidden: "true" },
+            actual: desktopSponsors
+        });
     }
-    if (!verification.desktopSponsorsHidden || verification.desktopSponsorsTabIndex !== "-1") {
-        throw new Error("Desktop sponsors nav item was not hidden correctly");
-    }
-    if (!verification.mobileSponsorsHidden || verification.mobileSponsorsTabIndex !== "-1") {
-        throw new Error("Mobile sponsors nav item was not hidden correctly");
+    if (!mobileSponsors || mobileSponsors.hidden !== true || mobileSponsors.tabIndex !== "-1" || mobileSponsors.ariaHidden !== "true") {
+        failWithDetails("Mobile sponsors nav link was not hidden correctly", {
+            expected: { hidden: true, tabIndex: "-1", ariaHidden: "true" },
+            actual: mobileSponsors
+        });
     }
 
     return verification;
