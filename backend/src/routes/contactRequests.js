@@ -15,6 +15,13 @@ const contactCreateRateLimiter = createRateLimiter({
   errorMessage: "Too many contact requests. Please try again later."
 });
 
+const contactUpdateRateLimiter = createRateLimiter({
+  windowMs: config.contactRequestUpdateRateLimitWindowMs,
+  max: config.contactRequestUpdateRateLimitMax,
+  errorCode: "CONTACT_REQUEST_UPDATE_RATE_LIMITED",
+  errorMessage: "Too many contact status updates. Please try again later."
+});
+
 router.get("/contact-requests", requireAuth, async (_req, res, next) => {
   try {
     const data = await listContactRequests();
@@ -51,7 +58,7 @@ router.post("/contact-requests", contactCreateRateLimiter, async (req, res, next
   }
 });
 
-router.patch("/contact-requests/:id", requireAuth, async (req, res, next) => {
+router.patch("/contact-requests/:id", requireAuth, contactUpdateRateLimiter, async (req, res, next) => {
   try {
     const validated = contactRequestStatusSchema.parse(req.body);
     const data = await updateContactRequestStatus(Number(req.params.id), validated.status);

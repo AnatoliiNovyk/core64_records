@@ -41,14 +41,33 @@ function readAdminPasswordFromBackendEnv() {
     }
 }
 
+function toBoolean(value, fallback = false) {
+    if (value === undefined || value === null || value === "") return fallback;
+    const normalized = String(value).trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) return true;
+    if (["0", "false", "no", "off"].includes(normalized)) return false;
+    return fallback;
+}
+
+function toInteger(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 const envAdminPassword = String(process.env.CORE64_ADMIN_PASSWORD || "").trim();
 const backendEnvAdminPassword = readAdminPasswordFromBackendEnv();
 const adminPassword = envAdminPassword || backendEnvAdminPassword || "core64admin";
 const adminPasswordSource = envAdminPassword ? "CORE64_ADMIN_PASSWORD" : (backendEnvAdminPassword ? "backend/.env:ADMIN_PASSWORD" : "default:core64admin");
-const requestTimeoutMs = Number(process.env.CORE64_SMOKE_TIMEOUT_MS || 10000);
+const requestTimeoutMs = toInteger(process.env.CORE64_SMOKE_TIMEOUT_MS, 10000);
 const smokeMode = String(process.env.CORE64_SMOKE_MODE || "full").trim().toLowerCase();
-const smokeContactEnabled = ["1", "true", "yes", "on"].includes(String(process.env.CORE64_SMOKE_CONTACT || "").trim().toLowerCase());
-const contactExpectedStatus = Number(process.env.CORE64_SMOKE_CONTACT_EXPECTED_STATUS || 201);
+const smokeContactEnabled = toBoolean(process.env.CORE64_SMOKE_CONTACT, false);
+const contactExpectedStatus = toInteger(process.env.CORE64_SMOKE_CONTACT_EXPECTED_STATUS, 201);
+const smokeRateLimitCheckEnabled = toBoolean(process.env.CORE64_SMOKE_RATE_LIMIT_CHECK, false);
+const smokeRateLimitAttempts = Math.max(2, toInteger(process.env.CORE64_SMOKE_RATE_LIMIT_ATTEMPTS, 25));
+const smokeRateLimitExpectedStatus = toInteger(process.env.CORE64_SMOKE_RATE_LIMIT_EXPECTED_STATUS, 429);
+const smokeRateLimitExpectedCode = String(
+    process.env.CORE64_SMOKE_RATE_LIMIT_EXPECTED_CODE || "SETTINGS_RATE_LIMITED"
+).trim() || "SETTINGS_RATE_LIMITED";
 
 const genericReleaseLinks = new Set([
     "https://soundcloud.com/",
@@ -178,6 +197,62 @@ function deriveHealthDbHint(kind, dbCode, durationMs, connectionTimeoutMs, probe
     }
 
     return null;
+}
+
+async function runSettingsSectionsRateLimitCheck({ token, sectionsPayload, attempts, expectedStatus, expectedCode }) {
+    const headers = {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json"
+    };
+    const body = JSON.stringify({ data: { sections: sectionsPayload } });
+
+    let observedAtAttempt = null;
+    let status = null;
+    let code = null;
+    let error = null;
+    let retryAfterSeconds = null;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const response = await requestJson("/settings/sections", {
+            method: "PUT",
+            headers,
+            body
+        });
+
+        status = response.response.status;
+        code = response.json?.code || null;
+        error = response.json?.error || null;
+
+        const retryAfter = Number(response.response.headers.get("retry-after"));
+        retryAfterSeconds = Number.isFinite(retryAfter) ? retryAfter : null;
+
+        if (status === expectedStatus) {
+            observedAtAttempt = attempt;
+            break;
+        }
+
+        if (!response.response.ok) {
+            break;
+        }
+    }
+
+    const codeMatches = !expectedCode || code === expectedCode;
+    const retryAfterOk = expectedStatus !== 429 || (retryAfterSeconds !== null && retryAfterSeconds >= 1);
+
+    return {
+        enabled: true,
+        target: "settings_sections",
+        endpoint: "/settings/sections",
+        attempts,
+        expectedStatus,
+        expectedCode,
+        status,
+        code,
+        error,
+        retryAfterSeconds,
+        observedAtAttempt,
+        ok: observedAtAttempt !== null && status === expectedStatus && codeMatches && retryAfterOk
+    };
 }
 
 async function run() {
@@ -337,7 +412,21 @@ async function run() {
         settingsBundleStatus: null,
         settingsBundleSettingsReturned: null,
         settingsBundleSectionsReturned: null,
-        settingsBundleRoundTripOk: null
+        settingsBundleRoundTripOk: null,
+        rateLimitCheck: {
+            enabled: smokeRateLimitCheckEnabled,
+            target: "settings_sections",
+            endpoint: "/settings/sections",
+            attempts: smokeRateLimitAttempts,
+            expectedStatus: smokeRateLimitExpectedStatus,
+            expectedCode: smokeRateLimitExpectedCode,
+            status: null,
+            code: null,
+            error: null,
+            retryAfterSeconds: null,
+            observedAtAttempt: null,
+            ok: null
+        }
     };
 
     if (!login.response.ok || !token) {
@@ -408,6 +497,27 @@ async function run() {
 
             if (!bundle.response.ok || !adminChecks.settingsBundleRoundTripOk) {
                 report.passed = false;
+            }
+        }
+
+        if (smokeRateLimitCheckEnabled) {
+            if (!settingsSections.response.ok || sectionsPayload.length === 0) {
+                adminChecks.rateLimitCheck.ok = false;
+                adminChecks.rateLimitCheck.error = "Rate-limit check failed: settings sections payload unavailable.";
+                report.passed = false;
+            } else {
+                const rateLimitCheck = await runSettingsSectionsRateLimitCheck({
+                    token,
+                    sectionsPayload,
+                    attempts: smokeRateLimitAttempts,
+                    expectedStatus: smokeRateLimitExpectedStatus,
+                    expectedCode: smokeRateLimitExpectedCode
+                });
+
+                adminChecks.rateLimitCheck = rateLimitCheck;
+                if (!rateLimitCheck.ok) {
+                    report.passed = false;
+                }
             }
         }
     }

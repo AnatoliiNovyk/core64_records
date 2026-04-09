@@ -12,6 +12,12 @@ param(
     [bool]$Core64SmokeContact = $false,
 
     [Parameter(Mandatory = $false)]
+    [bool]$Core64SmokeRateLimitCheck = $false,
+
+    [Parameter(Mandatory = $false)]
+    [int]$Core64SmokeRateLimitAttempts = 25,
+
+    [Parameter(Mandatory = $false)]
     [string]$Owner = "AnatoliiNovyk",
 
     [Parameter(Mandatory = $false)]
@@ -123,13 +129,25 @@ function Invoke-SmokeCheck {
         [int]$SmokeTimeoutMs,
 
         [Parameter(Mandatory = $true)]
-        [bool]$SmokeContact
+        [bool]$SmokeContact,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$SmokeRateLimitCheck,
+
+        [Parameter(Mandatory = $true)]
+        [int]$SmokeRateLimitAttempts
     )
 
     $env:CORE64_API_BASE = $ApiBase
     $env:CORE64_ADMIN_PASSWORD = $AdminPassword
     $env:CORE64_SMOKE_TIMEOUT_MS = [string]$SmokeTimeoutMs
     $env:CORE64_SMOKE_CONTACT = if ($SmokeContact) { "true" } else { "false" }
+    $env:CORE64_SMOKE_RATE_LIMIT_CHECK = if ($SmokeRateLimitCheck) { "true" } else { "false" }
+    if ($SmokeRateLimitCheck) {
+        $env:CORE64_SMOKE_RATE_LIMIT_ATTEMPTS = [string]$SmokeRateLimitAttempts
+    } else {
+        Remove-Item Env:CORE64_SMOKE_RATE_LIMIT_ATTEMPTS -ErrorAction SilentlyContinue
+    }
 
     $tempOutputPath = [System.IO.Path]::GetTempFileName()
     try {
@@ -163,6 +181,10 @@ if ([string]::IsNullOrWhiteSpace($Core64ApiBase) -or ($Core64ApiBase -notmatch '
 
 if ($Core64SmokeTimeoutMs -lt 1000) {
     throw "Core64SmokeTimeoutMs must be >= 1000."
+}
+
+if ($Core64SmokeRateLimitAttempts -lt 2) {
+    throw "Core64SmokeRateLimitAttempts must be >= 2."
 }
 
 if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
@@ -216,13 +238,25 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[7/10] Running smoke check..."
-$smokeResult = Invoke-SmokeCheck -ApiBase $Core64ApiBase -AdminPassword $resolvedCore64AdminPassword -SmokeTimeoutMs $Core64SmokeTimeoutMs -SmokeContact $Core64SmokeContact
+$smokeResult = Invoke-SmokeCheck `
+    -ApiBase $Core64ApiBase `
+    -AdminPassword $resolvedCore64AdminPassword `
+    -SmokeTimeoutMs $Core64SmokeTimeoutMs `
+    -SmokeContact $Core64SmokeContact `
+    -SmokeRateLimitCheck $false `
+    -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
 if ($smokeResult.ExitCode -ne 0) {
     $isFetchFailed = $smokeResult.Output -match 'Smoke check failed:\s*fetch failed'
     if ($isFetchFailed -and ($Core64ApiBase -match '^https?://localhost(:\d+)?(/.*)?$')) {
         $fallbackApiBase = $Core64ApiBase -replace '://localhost', '://127.0.0.1'
         Write-Host "Smoke check failed using localhost fetch path. Retrying with $fallbackApiBase ..."
-        $smokeResult = Invoke-SmokeCheck -ApiBase $fallbackApiBase -AdminPassword $resolvedCore64AdminPassword -SmokeTimeoutMs $Core64SmokeTimeoutMs -SmokeContact $Core64SmokeContact
+        $smokeResult = Invoke-SmokeCheck `
+            -ApiBase $fallbackApiBase `
+            -AdminPassword $resolvedCore64AdminPassword `
+            -SmokeTimeoutMs $Core64SmokeTimeoutMs `
+            -SmokeContact $Core64SmokeContact `
+            -SmokeRateLimitCheck $false `
+            -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
     }
 }
 
@@ -254,6 +288,36 @@ Write-Host "[10/10] Running branch protection policy verification..."
 
 if ($LASTEXITCODE -ne 0) {
     throw "Branch protection policy verification failed."
+}
+
+if ($Core64SmokeRateLimitCheck) {
+    Write-Host "[Optional] Running rate-limit 429 smoke check..."
+    $rateLimitResult = Invoke-SmokeCheck `
+        -ApiBase $Core64ApiBase `
+        -AdminPassword $resolvedCore64AdminPassword `
+        -SmokeTimeoutMs $Core64SmokeTimeoutMs `
+        -SmokeContact $false `
+        -SmokeRateLimitCheck $true `
+        -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
+
+    if ($rateLimitResult.ExitCode -ne 0) {
+        $isFetchFailed = $rateLimitResult.Output -match 'Smoke check failed:\s*fetch failed'
+        if ($isFetchFailed -and ($Core64ApiBase -match '^https?://localhost(:\d+)?(/.*)?$')) {
+            $fallbackApiBase = $Core64ApiBase -replace '://localhost', '://127.0.0.1'
+            Write-Host "Optional rate-limit smoke failed using localhost fetch path. Retrying with $fallbackApiBase ..."
+            $rateLimitResult = Invoke-SmokeCheck `
+                -ApiBase $fallbackApiBase `
+                -AdminPassword $resolvedCore64AdminPassword `
+                -SmokeTimeoutMs $Core64SmokeTimeoutMs `
+                -SmokeContact $false `
+                -SmokeRateLimitCheck $true `
+                -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
+        }
+    }
+
+    if ($rateLimitResult.ExitCode -ne 0) {
+        throw "Optional rate-limit smoke check failed."
+    }
 }
 
 Write-Host "Pre-release local gate PASSED."

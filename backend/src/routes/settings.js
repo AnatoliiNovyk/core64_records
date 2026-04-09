@@ -10,8 +10,16 @@ import {
   writeAuditLog
 } from "../db/repository.js";
 import { buildSettingsDiff, buildSectionSettingsDiff } from "../utils/settingsAuditDiff.js";
+import { config } from "../config.js";
+import { createRateLimiter } from "../middleware/security.js";
 
 const router = Router();
+const settingsMutationRateLimiter = createRateLimiter({
+  windowMs: config.settingsRateLimitWindowMs,
+  max: config.settingsRateLimitMax,
+  errorCode: "SETTINGS_RATE_LIMITED",
+  errorMessage: "Too many settings updates. Please try again later."
+});
 
 function resolveAuditActor(req) {
   return String(req.user?.username || "admin").trim() || "admin";
@@ -48,7 +56,7 @@ router.get("/settings", requireAuth, async (_req, res, next) => {
   }
 });
 
-router.put("/settings", requireAuth, async (req, res, next) => {
+router.put("/settings", requireAuth, settingsMutationRateLimiter, async (req, res, next) => {
   try {
     const payload = req.body.data || req.body;
     const validated = settingsSchema.parse(payload);
@@ -69,7 +77,7 @@ router.put("/settings", requireAuth, async (req, res, next) => {
   }
 });
 
-router.put("/settings/bundle", requireAuth, async (req, res, next) => {
+router.put("/settings/bundle", requireAuth, settingsMutationRateLimiter, async (req, res, next) => {
   try {
     const payload = req.body.data || req.body;
     const settings = settingsSchema.parse(payload.settings || {});
@@ -107,7 +115,7 @@ router.get("/settings/sections", requireAuth, async (_req, res, next) => {
   }
 });
 
-router.put("/settings/sections", requireAuth, async (req, res, next) => {
+router.put("/settings/sections", requireAuth, settingsMutationRateLimiter, async (req, res, next) => {
   try {
     const payload = req.body.data || req.body;
     const validated = sectionSettingsSchema.parse(payload);

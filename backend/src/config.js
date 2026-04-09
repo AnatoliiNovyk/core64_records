@@ -44,6 +44,12 @@ export const config = {
   authRateLimitMax: toNumber(process.env.AUTH_RATE_LIMIT_MAX, 10),
   contactRateLimitWindowMs: toNumber(process.env.CONTACT_RATE_LIMIT_WINDOW_MS, 60000),
   contactRateLimitMax: toNumber(process.env.CONTACT_RATE_LIMIT_MAX, 20),
+  collectionsRateLimitWindowMs: toNumber(process.env.COLLECTIONS_RATE_LIMIT_WINDOW_MS, 300000),
+  collectionsRateLimitMax: toNumber(process.env.COLLECTIONS_RATE_LIMIT_MAX, 30),
+  settingsRateLimitWindowMs: toNumber(process.env.SETTINGS_RATE_LIMIT_WINDOW_MS, 300000),
+  settingsRateLimitMax: toNumber(process.env.SETTINGS_RATE_LIMIT_MAX, 20),
+  contactRequestUpdateRateLimitWindowMs: toNumber(process.env.CONTACT_REQUEST_UPDATE_RATE_LIMIT_WINDOW_MS, 300000),
+  contactRequestUpdateRateLimitMax: toNumber(process.env.CONTACT_REQUEST_UPDATE_RATE_LIMIT_MAX, 50),
   cspMode: readEnvString("CSP_MODE", "enforce").toLowerCase(),
   cspReportUri: readEnvString("CSP_REPORT_URI", "/api/security/csp-report"),
   dbSsl: toBoolean(process.env.DB_SSL, true),
@@ -144,6 +150,33 @@ export const validateConfig = () => {
 
   if (!Number.isInteger(config.contactRateLimitMax) || config.contactRateLimitMax < 1) {
     errors.push("CONTACT_RATE_LIMIT_MAX must be an integer >= 1.");
+  }
+
+  if (!Number.isInteger(config.collectionsRateLimitWindowMs) || config.collectionsRateLimitWindowMs < 1000) {
+    errors.push("COLLECTIONS_RATE_LIMIT_WINDOW_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.collectionsRateLimitMax) || config.collectionsRateLimitMax < 1) {
+    errors.push("COLLECTIONS_RATE_LIMIT_MAX must be an integer >= 1.");
+  }
+
+  if (!Number.isInteger(config.settingsRateLimitWindowMs) || config.settingsRateLimitWindowMs < 1000) {
+    errors.push("SETTINGS_RATE_LIMIT_WINDOW_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.settingsRateLimitMax) || config.settingsRateLimitMax < 1) {
+    errors.push("SETTINGS_RATE_LIMIT_MAX must be an integer >= 1.");
+  }
+
+  if (
+    !Number.isInteger(config.contactRequestUpdateRateLimitWindowMs)
+    || config.contactRequestUpdateRateLimitWindowMs < 1000
+  ) {
+    errors.push("CONTACT_REQUEST_UPDATE_RATE_LIMIT_WINDOW_MS must be an integer >= 1000.");
+  }
+
+  if (!Number.isInteger(config.contactRequestUpdateRateLimitMax) || config.contactRequestUpdateRateLimitMax < 1) {
+    errors.push("CONTACT_REQUEST_UPDATE_RATE_LIMIT_MAX must be an integer >= 1.");
   }
 
   if (!allowedCspModes.has(config.cspMode)) {

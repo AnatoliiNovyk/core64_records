@@ -21,6 +21,16 @@ on:
         required: false
         default: "false"
         type: string
+      core64_smoke_rate_limit_check:
+        description: Enable optional mutation rate-limit 429 smoke check (true/false)
+        required: false
+        default: "false"
+        type: string
+      core64_smoke_rate_limit_attempts:
+        description: Max attempts for optional mutation rate-limit smoke check
+        required: false
+        default: "25"
+        type: string
       owner:
         description: Repository owner for branch protection verification
         required: false
@@ -78,6 +88,8 @@ jobs:
           CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          CORE64_SMOKE_RATE_LIMIT_CHECK: ${{ github.event.inputs.core64_smoke_rate_limit_check }}
+          CORE64_SMOKE_RATE_LIMIT_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_attempts }}
         run: |
           if [ -z "$CORE64_API_BASE" ]; then
             echo "Missing required input: core64_api_base"
@@ -101,6 +113,16 @@ jobs:
 
           if [ "$CORE64_SMOKE_CONTACT" != "true" ] && [ "$CORE64_SMOKE_CONTACT" != "false" ]; then
             echo "core64_smoke_contact must be 'true' or 'false'"
+            exit 1
+          fi
+
+          if [ "$CORE64_SMOKE_RATE_LIMIT_CHECK" != "true" ] && [ "$CORE64_SMOKE_RATE_LIMIT_CHECK" != "false" ]; then
+            echo "core64_smoke_rate_limit_check must be 'true' or 'false'"
+            exit 1
+          fi
+
+          if ! [[ "$CORE64_SMOKE_RATE_LIMIT_ATTEMPTS" =~ ^[0-9]+$ ]] || [ "$CORE64_SMOKE_RATE_LIMIT_ATTEMPTS" -lt 2 ]; then
+            echo "core64_smoke_rate_limit_attempts must be an integer >= 2"
             exit 1
           fi
 
@@ -178,3 +200,14 @@ jobs:
             -MinimumApprovals ([int]"${{ github.event.inputs.minimum_approvals }}") `
             -ExpectedConversationResolution "${{ github.event.inputs.expected_conversation_resolution }}" `
             -Token "$env:BRANCH_PROTECTION_TOKEN"
+
+      - name: Run optional mutation rate-limit smoke check
+        if: ${{ github.event.inputs.core64_smoke_rate_limit_check == 'true' }}
+        env:
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_SMOKE_CONTACT: "false"
+          CORE64_SMOKE_RATE_LIMIT_CHECK: "true"
+          CORE64_SMOKE_RATE_LIMIT_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_attempts }}
+        run: node scripts/smoke-check.mjs

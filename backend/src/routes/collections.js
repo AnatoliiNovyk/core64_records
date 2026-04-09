@@ -14,8 +14,17 @@ import {
 } from "../db/repository.js";
 import { resolveLanguage } from "../i18n/language.js";
 import { requireAuth } from "../middleware/auth.js";
+import { config } from "../config.js";
+import { createRateLimiter } from "../middleware/security.js";
 
 const router = Router();
+const collectionsMutationRateLimiter = createRateLimiter({
+  windowMs: config.collectionsRateLimitWindowMs,
+  max: config.collectionsRateLimitMax,
+  errorCode: "COLLECTIONS_RATE_LIMITED",
+  errorMessage: "Too many collection updates. Please try again later."
+});
+
 const schemaMap = {
   releases: releaseSchema,
   artists: artistSchema,
@@ -33,7 +42,7 @@ router.get("/:type(releases|artists|events|sponsors)", async (req, res, next) =>
   }
 });
 
-router.post("/:type(releases|artists|events|sponsors)", requireAuth, async (req, res, next) => {
+router.post("/:type(releases|artists|events|sponsors)", requireAuth, collectionsMutationRateLimiter, async (req, res, next) => {
   try {
     const schema = schemaMap[req.params.type];
     const validated = schema.parse(req.body);
@@ -44,7 +53,7 @@ router.post("/:type(releases|artists|events|sponsors)", requireAuth, async (req,
   }
 });
 
-router.put("/:type(releases|artists|events|sponsors)/:id", requireAuth, async (req, res, next) => {
+router.put("/:type(releases|artists|events|sponsors)/:id", requireAuth, collectionsMutationRateLimiter, async (req, res, next) => {
   try {
     const schema = schemaMap[req.params.type];
     const validated = schema.partial().parse(req.body);
@@ -58,7 +67,7 @@ router.put("/:type(releases|artists|events|sponsors)/:id", requireAuth, async (r
   }
 });
 
-router.delete("/:type(releases|artists|events|sponsors)/:id", requireAuth, async (req, res, next) => {
+router.delete("/:type(releases|artists|events|sponsors)/:id", requireAuth, collectionsMutationRateLimiter, async (req, res, next) => {
   try {
     await deleteByType(req.params.type, Number(req.params.id));
     res.status(204).send();
