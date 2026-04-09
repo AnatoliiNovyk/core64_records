@@ -9,7 +9,8 @@ import { chromium } from "playwright";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const repoRoot = path.resolve(__dirname, "..");
-const apiBase = String(process.env.CORE64_API_BASE || "http://localhost:3000/api").trim().replace(/\/+$/, "");
+const configuredApiBase = String(process.env.CORE64_API_BASE || "http://localhost:3000/api").trim().replace(/\/+$/, "");
+let apiBase = configuredApiBase;
 const configuredUiBase = String(process.env.CORE64_UI_BASE || "").trim().replace(/\/+$/, "");
 const requestTimeoutMs = Number(process.env.CORE64_UI_SMOKE_TIMEOUT_MS || 15000);
 const headless = !["0", "false", "no", "off"].includes(String(process.env.CORE64_UI_HEADLESS || "true").trim().toLowerCase());
@@ -31,7 +32,9 @@ const MIME_TYPES = {
     ".webp": "image/webp"
 };
 
-const backendOrigin = apiBase.replace(/\/api$/, "");
+function getBackendOrigin() {
+    return apiBase.replace(/\/api$/, "");
+}
 
 function readAdminPasswordFromBackendEnv() {
     try {
@@ -151,6 +154,54 @@ function buildPublicUrlWithLanguage(publicUrl, language) {
     return nextUrl.toString();
 }
 
+function buildLocalhostFallbackApiBase(baseUrl) {
+    try {
+        const parsed = new URL(baseUrl);
+        if (parsed.hostname.toLowerCase() !== "localhost") {
+            return "";
+        }
+        parsed.hostname = "127.0.0.1";
+        return parsed.toString().replace(/\/+$/, "");
+    } catch (_error) {
+        return "";
+    }
+}
+
+function isFetchFailedError(error) {
+    return /fetch failed/i.test(String(error?.message || ""));
+}
+
+async function resolveReachableApiBase(preferredApiBase) {
+    const fallbackApiBase = buildLocalhostFallbackApiBase(preferredApiBase);
+    const candidates = [preferredApiBase];
+    if (fallbackApiBase && fallbackApiBase !== preferredApiBase) {
+        candidates.push(fallbackApiBase);
+    }
+
+    let lastError = null;
+    for (let index = 0; index < candidates.length; index += 1) {
+        const candidate = candidates[index];
+        try {
+            const health = await requestJson(`${candidate}/health`);
+            ensureOk(health, `GET /health (${candidate})`);
+            if (index > 0) {
+                console.warn(`UI smoke preflight switched API base to ${candidate} after localhost fetch failure.`);
+            }
+            return candidate;
+        } catch (error) {
+            lastError = error;
+            const hasNextCandidate = index + 1 < candidates.length;
+            if (hasNextCandidate && isFetchFailedError(error)) {
+                console.warn(`UI smoke preflight failed for ${candidate} (${error.message}). Retrying with ${candidates[index + 1]} ...`);
+                continue;
+            }
+            throw new Error(`API preflight failed for ${candidate}: ${error.message}`);
+        }
+    }
+
+    throw new Error(`API preflight failed: ${lastError?.message || "unknown error"}`);
+}
+
 async function startStaticServer() {
     const server = http.createServer((req, res) => {
         (async () => {
@@ -168,7 +219,7 @@ async function startStaticServer() {
                 const forwardedHeaders = Object.fromEntries(
                     Object.entries(req.headers || {}).filter(([key]) => !["host", "connection", "content-length"].includes(String(key).toLowerCase()))
                 );
-                const upstream = await fetch(`${backendOrigin}${requestUrl.pathname}${requestUrl.search}`, {
+                const upstream = await fetch(`${getBackendOrigin()}${requestUrl.pathname}${requestUrl.search}`, {
                     method: req.method || "GET",
                     headers: forwardedHeaders,
                     body: ["GET", "HEAD"].includes(String(req.method || "GET").toUpperCase()) ? undefined : bodyBuffer
@@ -769,8 +820,7 @@ async function restoreOriginalBundle(token, bundle) {
 
 async function run() {
     const adminPassword = String(process.env.CORE64_ADMIN_PASSWORD || readAdminPasswordFromBackendEnv() || "core64admin").trim();
-    const health = await requestJson(`${apiBase}/health`);
-    ensureOk(health, "GET /health");
+    apiBase = await resolveReachableApiBase(apiBase);
 
     const staticServer = configuredUiBase ? null : await startStaticServer();
     const uiBase = configuredUiBase || staticServer.baseUrl;
