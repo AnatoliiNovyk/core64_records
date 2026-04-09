@@ -538,10 +538,68 @@
             .trim();
     }
 
+    function decodeHtmlEntities(text) {
+        let decodedText = text === null || text === undefined ? "" : String(text);
+        for (let i = 0; i < 5; i += 1) {
+            const nextDecodedText = decodedText
+                .replace(/&amp;/gi, "&")
+                .replace(/&lt;/gi, "<")
+                .replace(/&gt;/gi, ">")
+                .replace(/&quot;/gi, '"')
+                .replace(/&#039;/gi, "'");
+            if (nextDecodedText === decodedText) break;
+            decodedText = nextDecodedText;
+        }
+        return decodedText;
+    }
+
+    function normalizeSettingsPlainText(value, fallback = "") {
+        const decoded = decodeHtmlEntities(value);
+        const normalized = String(decoded || "").trim();
+        const normalizedFallback = String(fallback || "").trim();
+        return normalized || normalizedFallback;
+    }
+
+    function normalizeSettingsUrl(value, options = {}) {
+        const { platform = "" } = options || {};
+        const decodedValue = decodeHtmlEntities(value).trim();
+        if (!decodedValue || decodedValue === "#") return "#";
+
+        const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(decodedValue)
+            ? decodedValue
+            : (decodedValue.startsWith("www.") ? `https://${decodedValue}` : decodedValue);
+
+        let parsedUrl;
+        try {
+            parsedUrl = new URL(withProtocol);
+        } catch (_error) {
+            return "#";
+        }
+
+        if (!/^https?:$/i.test(parsedUrl.protocol)) {
+            return "#";
+        }
+
+        if (platform === "youtube" && parsedUrl.hostname.toLowerCase() === "music.youtube.com" && parsedUrl.pathname.startsWith("/@")) {
+            parsedUrl.hostname = "www.youtube.com";
+        }
+
+        return parsedUrl.toString();
+    }
+
+    function normalizeSettingsHostname(value) {
+        const normalized = normalizeSettingsPlainText(value, "").toLowerCase().replace(/^https?:\/\//i, "").split("/")[0];
+        return /^[a-z0-9.-]+$/i.test(normalized) ? normalized : "";
+    }
+
     const adapter = {
         defaults: deepClone(DEFAULT_DATA),
 
         sanitizeText,
+        decodeHtmlEntities,
+        normalizeSettingsPlainText,
+        normalizeSettingsUrl,
+        normalizeSettingsHostname,
 
         async isApiAvailable() {
             try {

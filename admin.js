@@ -2945,6 +2945,11 @@ function sanitizeInput(text) {
 }
 
 function decodeHtmlEntities(text) {
+    const decodeHtmlEntitiesMethod = getAdapterMethod("decodeHtmlEntities");
+    if (decodeHtmlEntitiesMethod) {
+        return decodeHtmlEntitiesMethod.call(adapter, text);
+    }
+
     let decodedText = text === null || text === undefined ? "" : String(text);
     for (let i = 0; i < 5; i += 1) {
         const nextDecodedText = decodedText
@@ -2960,6 +2965,11 @@ function decodeHtmlEntities(text) {
 }
 
 function normalizeSettingsUrlInput(value, options = {}) {
+    const normalizeSettingsUrlMethod = getAdapterMethod("normalizeSettingsUrl");
+    if (normalizeSettingsUrlMethod) {
+        return normalizeSettingsUrlMethod.call(adapter, value, options);
+    }
+
     const { platform = "" } = options || {};
     const decodedValue = decodeHtmlEntities(value).trim();
     if (!decodedValue || decodedValue === "#") return "#";
@@ -2993,12 +3003,22 @@ function normalizeCaptchaProviderValue(value) {
 }
 
 function normalizeSettingsPlainText(value, fallback = "") {
+    const normalizeSettingsPlainTextMethod = getAdapterMethod("normalizeSettingsPlainText");
+    if (normalizeSettingsPlainTextMethod) {
+        return normalizeSettingsPlainTextMethod.call(adapter, value, fallback);
+    }
+
     const decoded = decodeHtmlEntities(value);
     const normalized = String(decoded || "").trim();
     return normalized || fallback;
 }
 
 function normalizeSettingsHostname(value) {
+    const normalizeSettingsHostnameMethod = getAdapterMethod("normalizeSettingsHostname");
+    if (normalizeSettingsHostnameMethod) {
+        return normalizeSettingsHostnameMethod.call(adapter, value);
+    }
+
     const normalized = normalizeSettingsPlainText(value, "").toLowerCase().replace(/^https?:\/\//i, "").split("/")[0];
     return /^[a-z0-9.-]+$/i.test(normalized) ? normalized : "";
 }
@@ -3576,13 +3596,13 @@ async function loadSettings() {
     const captchaMissingTokenMessageEl = document.getElementById("setting-captcha-missing-token-message");
     const captchaInvalidDomainMessageEl = document.getElementById("setting-captcha-invalid-domain-message");
     if (titleInputEl && titleInputEl.isConnected) {
-        titleInputEl.value = cache.settings.title || "";
+        titleInputEl.value = decodeHtmlEntities(cache.settings.title || "");
     }
     if (aboutInputEl && aboutInputEl.isConnected) {
-        aboutInputEl.value = cache.settings.about || "";
+        aboutInputEl.value = decodeHtmlEntities(cache.settings.about || "");
     }
     if (missionInputEl && missionInputEl.isConnected) {
-        missionInputEl.value = cache.settings.mission || "";
+        missionInputEl.value = decodeHtmlEntities(cache.settings.mission || "");
     }
     if (heroSubtitleUkInputEl && heroSubtitleUkInputEl.isConnected) {
         heroSubtitleUkInputEl.value = decodeHtmlEntities(cache.settings.heroSubtitleUk || "");
@@ -3591,7 +3611,7 @@ async function loadSettings() {
         heroSubtitleEnInputEl.value = decodeHtmlEntities(cache.settings.heroSubtitleEn || "");
     }
     if (emailInputEl && emailInputEl.isConnected) {
-        emailInputEl.value = cache.settings.email || "";
+        emailInputEl.value = decodeHtmlEntities(cache.settings.email || "");
     }
     if (instagramInputEl && instagramInputEl.isConnected) {
         instagramInputEl.value = decodeHtmlEntities(cache.settings.instagramUrl || "");
@@ -5737,12 +5757,12 @@ async function saveSettings(options = {}) {
     }
 
     const settings = {
-        title: sanitizeInput(titleInputEl.value),
-        about: sanitizeInput(aboutInputEl.value),
-        mission: sanitizeInput(missionInputEl.value),
+        title: normalizeSettingsPlainText(titleInputEl.value, ""),
+        about: normalizeSettingsPlainText(aboutInputEl.value, ""),
+        mission: normalizeSettingsPlainText(missionInputEl.value, ""),
         heroSubtitleUk: normalizeSettingsPlainText(heroSubtitleUkInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         heroSubtitleEn: normalizeSettingsPlainText(heroSubtitleEnInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
-        email: sanitizeInput(emailInputEl.value),
+        email: normalizeSettingsPlainText(emailInputEl.value, ""),
         instagramUrl: normalizeSettingsUrlInput(instagramInputEl.value, { platform: "instagram" }),
         youtubeUrl: normalizeSettingsUrlInput(youtubeInputEl.value, { platform: "youtube" }),
         soundcloudUrl: normalizeSettingsUrlInput(soundcloudInputEl.value, { platform: "soundcloud" }),

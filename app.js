@@ -148,6 +148,13 @@ const PUBLIC_I18N = {
     }
 };
 
+function getAdapterMethod(methodName) {
+    if (!adapter || typeof adapter !== "object") return null;
+    if (typeof methodName !== "string" || !methodName.trim()) return null;
+    const method = adapter[methodName];
+    return typeof method === "function" ? method : null;
+}
+
 function tPublic(key) {
     const language = getActiveLanguage();
     const dictionary = PUBLIC_I18N[language] || PUBLIC_I18N.uk;
@@ -1095,6 +1102,11 @@ function loadAbout(settings) {
 }
 
 function decodeHtmlEntities(text) {
+    const decodeHtmlEntitiesMethod = getAdapterMethod("decodeHtmlEntities");
+    if (decodeHtmlEntitiesMethod) {
+        return decodeHtmlEntitiesMethod.call(adapter, text);
+    }
+
     let decodedText = text === null || text === undefined ? "" : String(text);
     for (let i = 0; i < 5; i += 1) {
         const nextDecodedText = decodedText
@@ -1110,6 +1122,11 @@ function decodeHtmlEntities(text) {
 }
 
 function normalizeSocialUrl(value, options = {}) {
+    const normalizeSettingsUrlMethod = getAdapterMethod("normalizeSettingsUrl");
+    if (normalizeSettingsUrlMethod) {
+        return normalizeSettingsUrlMethod.call(adapter, value, options);
+    }
+
     const { platform = "" } = options || {};
     const decodedValue = decodeHtmlEntities(value).trim();
     if (!decodedValue || decodedValue === "#") return "#";
