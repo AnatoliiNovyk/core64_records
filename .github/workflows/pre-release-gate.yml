@@ -36,6 +36,11 @@ on:
         required: false
         default: "35"
         type: string
+      core64_override_role_diversity:
+        description: Override release owner diversity requirement in emergency (true/false)
+        required: false
+        default: "false"
+        type: string
       owner:
         description: Repository owner for branch protection verification
         required: false
@@ -96,6 +101,7 @@ jobs:
           CORE64_SMOKE_RATE_LIMIT_CHECK: ${{ github.event.inputs.core64_smoke_rate_limit_check }}
           CORE64_SMOKE_RATE_LIMIT_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_attempts }}
           CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_collections_attempts }}
+          CORE64_OVERRIDE_ROLE_DIVERSITY: ${{ github.event.inputs.core64_override_role_diversity }}
         run: |
           if [ -z "$CORE64_API_BASE" ]; then
             echo "Missing required input: core64_api_base"
@@ -136,6 +142,17 @@ jobs:
             echo "core64_smoke_rate_limit_collections_attempts must be an integer >= 2"
             exit 1
           fi
+
+          if [ "$CORE64_OVERRIDE_ROLE_DIVERSITY" != "true" ] && [ "$CORE64_OVERRIDE_ROLE_DIVERSITY" != "false" ]; then
+            echo "core64_override_role_diversity must be 'true' or 'false'"
+            exit 1
+          fi
+
+      - name: Validate release owner assignments
+        shell: pwsh
+        run: |
+          $overrideRoleDiversity = "${{ github.event.inputs.core64_override_role_diversity }}" -eq "true"
+          ./scripts/verify-release-owner-assignments.ps1 -OverrideRoleDiversity:$overrideRoleDiversity
 
       - name: Validate workflow secret
         env:

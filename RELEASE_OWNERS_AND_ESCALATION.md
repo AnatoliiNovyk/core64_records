@@ -18,7 +18,22 @@ This document defines roles, responsibilities, and incident escalation for produ
 - Database Owner: `AnatoliiNovyk`
 - Communications Owner: `AnatoliiNovyk`
 
-## 3. Mandatory Checkpoints
+## 3. Role Diversity Requirement
+
+- Pre-release gate validates role diversity via `scripts/verify-release-owner-assignments.ps1`.
+- At least 3 unique non-empty assignees are required across:
+  - Release Commander
+  - Deployer
+  - Verifier
+  - Database Owner
+  - Communications Owner
+- Gate fails fast if requirement is not met.
+- Emergency-only override is available:
+  - Local gate: `-Core64OverrideRoleDiversity $true`
+  - CI gate input: `core64_override_role_diversity=true`
+- Any override usage must be announced in release communication and removed for the next run.
+
+## 4. Mandatory Checkpoints
 
 1. Pre-release gate is green.
 2. Deploy workflow completed without errors.
@@ -27,7 +42,7 @@ This document defines roles, responsibilities, and incident escalation for produ
 
 Only Release Commander can announce final go/no-go.
 
-## 4. Incident Severity and Escalation
+## 5. Incident Severity and Escalation
 
 - `SEV-1` (Production outage / auth failures / data corruption risk)
   - Immediate rollback workflow.
@@ -40,14 +55,14 @@ Only Release Commander can announce final go/no-go.
   - Continue release if all critical checks are green.
   - Create follow-up task.
 
-## 5. Communication Cadence
+## 6. Communication Cadence
 
 - T-30 min: release start notice.
 - T-0: deployment started.
 - T+10 min: post-deploy smoke status.
 - T+20 min: final go/no-go announcement.
 
-## 6. Rollback Trigger Conditions
+## 7. Rollback Trigger Conditions
 
 Rollback is mandatory if any of the following is true:
 

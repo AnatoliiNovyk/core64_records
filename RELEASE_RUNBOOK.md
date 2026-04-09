@@ -77,6 +77,7 @@ CI alternative (single gate run):
 - Run GitHub Actions workflow `Pre-Release Gate`.
 - Provide `core64_api_base` and `core64_admin_password` inputs.
 - Ensure repository secret `BRANCH_PROTECTION_TOKEN` is configured.
+- Ensure release owner diversity check is green (or explicitly overridden for emergency only).
 - Proceed only when workflow finishes successfully.
 
 Local alternative (single gate command):
@@ -85,6 +86,11 @@ Local alternative (single gate command):
 $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
 ```
+
+Emergency-only override for role diversity check:
+
+- Local: `-Core64OverrideRoleDiversity $true`
+- CI input: `core64_override_role_diversity=true`
 
 ## 4. Manual UI Spot Check
 
