@@ -145,6 +145,12 @@ function assertListEquals(label, expected, actual, details = {}) {
     });
 }
 
+function buildPublicUrlWithLanguage(publicUrl, language) {
+    const nextUrl = new URL(publicUrl);
+    nextUrl.searchParams.set("lang", language);
+    return nextUrl.toString();
+}
+
 async function startStaticServer() {
     const server = http.createServer((req, res) => {
         (async () => {
@@ -556,7 +562,97 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
         });
     }
 
-    return verification;
+    const localizationExpectations = {
+        uk: {
+            fileButtonText: "Вибрати файл",
+            fileNoFileText: "Файл не вибрано"
+        },
+        en: {
+            fileButtonText: "Choose file",
+            fileNoFileText: "No file chosen"
+        }
+    };
+
+    const localizationVerification = {};
+    for (const language of ["uk", "en"]) {
+        const expected = localizationExpectations[language];
+        await page.goto(buildPublicUrlWithLanguage(publicUrl, language), { waitUntil: "domcontentloaded" });
+
+        await waitForFunction(
+            page,
+            (payload) => {
+                const ukDesktop = document.getElementById("public-lang-uk")?.textContent?.trim() || "";
+                const enDesktop = document.getElementById("public-lang-en")?.textContent?.trim() || "";
+                const ukMobile = document.getElementById("public-lang-uk-mobile")?.textContent?.trim() || "";
+                const enMobile = document.getElementById("public-lang-en-mobile")?.textContent?.trim() || "";
+                const fileButton = document.getElementById("contact-demo-file-button")?.textContent?.trim() || "";
+                const fileName = document.getElementById("contact-demo-file-name")?.textContent?.trim() || "";
+
+                return ukDesktop === "UK"
+                    && enDesktop === "EN"
+                    && ukMobile === "UK"
+                    && enMobile === "EN"
+                    && fileButton === payload.fileButtonText
+                    && fileName === payload.fileNoFileText;
+            },
+            expected,
+            requestTimeoutMs,
+            `wait for localized language/file controls (${language})`
+        );
+
+        localizationVerification[language] = await page.evaluate(() => ({
+            languageSwitcher: {
+                desktopUk: document.getElementById("public-lang-uk")?.textContent?.trim() || "",
+                desktopEn: document.getElementById("public-lang-en")?.textContent?.trim() || "",
+                mobileUk: document.getElementById("public-lang-uk-mobile")?.textContent?.trim() || "",
+                mobileEn: document.getElementById("public-lang-en-mobile")?.textContent?.trim() || ""
+            },
+            filePicker: {
+                buttonText: document.getElementById("contact-demo-file-button")?.textContent?.trim() || "",
+                fileNameText: document.getElementById("contact-demo-file-name")?.textContent?.trim() || ""
+            }
+        }));
+    }
+
+    await page.goto(buildPublicUrlWithLanguage(publicUrl, "en"), { waitUntil: "domcontentloaded" });
+    await page.locator("#contact-demo-file-input").setInputFiles({
+        name: "demo-test.wav",
+        mimeType: "audio/wav",
+        buffer: Buffer.from("core64-demo")
+    });
+
+    await waitForFunction(
+        page,
+        (expectedFileName) => document.getElementById("contact-demo-file-name")?.textContent?.trim() === expectedFileName,
+        "demo-test.wav",
+        requestTimeoutMs,
+        "wait for selected file name in custom file picker"
+    );
+
+    const selectedFileState = await page.evaluate(() => ({
+        buttonText: document.getElementById("contact-demo-file-button")?.textContent?.trim() || "",
+        fileNameText: document.getElementById("contact-demo-file-name")?.textContent?.trim() || "",
+        languageSwitcher: {
+            desktopUk: document.getElementById("public-lang-uk")?.textContent?.trim() || "",
+            desktopEn: document.getElementById("public-lang-en")?.textContent?.trim() || ""
+        }
+    }));
+
+    if (selectedFileState.buttonText !== "Choose file" || selectedFileState.fileNameText !== "demo-test.wav") {
+        failWithDetails("Custom file picker did not render expected selected-file state", {
+            expected: {
+                buttonText: "Choose file",
+                fileNameText: "demo-test.wav"
+            },
+            actual: selectedFileState
+        });
+    }
+
+    return {
+        ...verification,
+        localizationVerification,
+        selectedFileState
+    };
 }
 
 async function verifyApiState(token, mutatedSections) {
