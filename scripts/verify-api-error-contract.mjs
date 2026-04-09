@@ -22,6 +22,21 @@ const authRateLimitAttempts = (() => {
   return 12;
 })();
 const skipAuthRateLimitCheck = String(process.env.CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK || "false").trim().toLowerCase() === "true";
+const stressRateLimitCheckEnabled = String(process.env.CORE64_CONTRACT_STRESS_RATE_LIMIT_CHECK || "false").trim().toLowerCase() === "true";
+const settingsRateLimitAttempts = (() => {
+  const parsed = Number(process.env.CORE64_CONTRACT_SETTINGS_RATE_LIMIT_ATTEMPTS);
+  if (Number.isFinite(parsed) && parsed >= 2) {
+    return Math.trunc(parsed);
+  }
+  return 22;
+})();
+const collectionsRateLimitAttempts = (() => {
+  const parsed = Number(process.env.CORE64_CONTRACT_COLLECTIONS_RATE_LIMIT_ATTEMPTS);
+  if (Number.isFinite(parsed) && parsed >= 2) {
+    return Math.trunc(parsed);
+  }
+  return 32;
+})();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -265,6 +280,77 @@ async function runAuthRateLimitCheck({ attempts, adminPassword }) {
   return shape;
 }
 
+async function runSettingsRateLimitCheck({ attempts, authHeaders }) {
+  let observedAtAttempt = null;
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    lastResult = await requestJson("/settings", {
+      method: "PUT",
+      headers: authHeaders,
+      body: JSON.stringify({})
+    });
+
+    if (lastResult.response.status === 429) {
+      observedAtAttempt = attempt;
+      break;
+    }
+  }
+
+  if (!lastResult) {
+    throw new Error("Settings rate-limit probe produced no response");
+  }
+
+  const shape = evaluateRateLimitShape({
+    result: lastResult,
+    expectedStatus: 429,
+    expectedCode: "SETTINGS_RATE_LIMITED",
+    expectedError: "Too many settings updates. Please try again later."
+  });
+  shape.attempts = attempts;
+  shape.observedAtAttempt = observedAtAttempt;
+  shape.rateLimitObserved = Number.isInteger(observedAtAttempt) && observedAtAttempt >= 1;
+  shape.ok = shape.ok && shape.rateLimitObserved;
+
+  return shape;
+}
+
+async function runCollectionsRateLimitCheck({ attempts, authHeaders }) {
+  const missingCollectionId = 999999;
+  let observedAtAttempt = null;
+  let lastResult = null;
+
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    lastResult = await requestJson(`/releases/${missingCollectionId}`, {
+      method: "PUT",
+      headers: authHeaders,
+      body: JSON.stringify({})
+    });
+
+    if (lastResult.response.status === 429) {
+      observedAtAttempt = attempt;
+      break;
+    }
+  }
+
+  if (!lastResult) {
+    throw new Error("Collections rate-limit probe produced no response");
+  }
+
+  const shape = evaluateRateLimitShape({
+    result: lastResult,
+    expectedStatus: 429,
+    expectedCode: "COLLECTIONS_RATE_LIMITED",
+    expectedError: "Too many collection updates. Please try again later."
+  });
+  shape.attempts = attempts;
+  shape.observedAtAttempt = observedAtAttempt;
+  shape.rateLimitObserved = Number.isInteger(observedAtAttempt) && observedAtAttempt >= 1;
+  shape.ok = shape.ok && shape.rateLimitObserved;
+
+  return shape;
+}
+
 function evaluateDbUnavailableObserverShape(result) {
   const payload = asErrorPayload(result.json);
 
@@ -332,6 +418,9 @@ async function run() {
     requestTimeoutMs,
     authRateLimitAttempts,
     skipAuthRateLimitCheck,
+    stressRateLimitCheckEnabled,
+    settingsRateLimitAttempts,
+    collectionsRateLimitAttempts,
     checks: {},
     passed: true
   };
@@ -530,6 +619,33 @@ async function run() {
     const authRateLimitShape = await runAuthRateLimitCheck({ attempts: authRateLimitAttempts, adminPassword });
     report.checks.authRateLimited = authRateLimitShape;
     if (!authRateLimitShape.ok) {
+      report.passed = false;
+    }
+  }
+
+  if (!stressRateLimitCheckEnabled) {
+    report.checks.settingsRateLimitedStress = {
+      skipped: true,
+      attempts: settingsRateLimitAttempts,
+      reason: "stress_mode_disabled",
+      ok: true
+    };
+    report.checks.collectionsRateLimitedStress = {
+      skipped: true,
+      attempts: collectionsRateLimitAttempts,
+      reason: "stress_mode_disabled",
+      ok: true
+    };
+  } else {
+    const settingsRateLimitShape = await runSettingsRateLimitCheck({ attempts: settingsRateLimitAttempts, authHeaders });
+    report.checks.settingsRateLimitedStress = settingsRateLimitShape;
+    if (!settingsRateLimitShape.ok) {
+      report.passed = false;
+    }
+
+    const collectionsRateLimitShape = await runCollectionsRateLimitCheck({ attempts: collectionsRateLimitAttempts, authHeaders });
+    report.checks.collectionsRateLimitedStress = collectionsRateLimitShape;
+    if (!collectionsRateLimitShape.ok) {
       report.passed = false;
     }
   }

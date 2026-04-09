@@ -57,6 +57,12 @@ async function createMockServer(options = {}) {
     authRateLimitCode = "AUTH_RATE_LIMITED",
     includeAuthRateLimitRetryAfter = true,
     authRateLimitThreshold = 6,
+    settingsRateLimitCode = "SETTINGS_RATE_LIMITED",
+    includeSettingsRateLimitRetryAfter = true,
+    settingsRateLimitThreshold = 5,
+    collectionsRateLimitCode = "COLLECTIONS_RATE_LIMITED",
+    includeCollectionsRateLimitRetryAfter = true,
+    collectionsRateLimitThreshold = 5,
     dbHealthMode = "degraded",
     dbUnavailableCode = "DB_UNAVAILABLE",
     includeDbUnavailableDetails = true
@@ -69,6 +75,8 @@ async function createMockServer(options = {}) {
     email: "hello@example.com"
   };
   let authLoginAttempts = 0;
+  let settingsMutationAttempts = 0;
+  let collectionsMutationAttempts = 0;
 
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -222,6 +230,19 @@ async function createMockServer(options = {}) {
         return;
       }
 
+      settingsMutationAttempts += 1;
+      if (settingsMutationAttempts > settingsRateLimitThreshold) {
+        const rateLimitHeaders = includeSettingsRateLimitRetryAfter
+          ? { "retry-after": "60" }
+          : {};
+        writeJson(res, 429, {
+          status: 429,
+          code: settingsRateLimitCode,
+          error: "Too many settings updates. Please try again later."
+        }, rateLimitHeaders);
+        return;
+      }
+
       const body = await readRequestBody(req);
       const email = String(body?.data?.email || "");
       if (email === "not-an-email") {
@@ -293,6 +314,19 @@ async function createMockServer(options = {}) {
           code: "AUTH_REQUIRED",
           error: "Unauthorized"
         });
+        return;
+      }
+
+      collectionsMutationAttempts += 1;
+      if (collectionsMutationAttempts > collectionsRateLimitThreshold) {
+        const rateLimitHeaders = includeCollectionsRateLimitRetryAfter
+          ? { "retry-after": "60" }
+          : {};
+        writeJson(res, 429, {
+          status: 429,
+          code: collectionsRateLimitCode,
+          error: "Too many collection updates. Please try again later."
+        }, rateLimitHeaders);
         return;
       }
 
@@ -375,7 +409,7 @@ async function createMockServer(options = {}) {
   };
 }
 
-function runVerifier(baseUrl, adminPassword) {
+function runVerifier(baseUrl, adminPassword, envOverrides = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [targetScript], {
       env: {
@@ -384,7 +418,11 @@ function runVerifier(baseUrl, adminPassword) {
         CORE64_ADMIN_PASSWORD: adminPassword,
         CORE64_CONTRACT_TIMEOUT_MS: "5000",
         CORE64_CONTRACT_AUTH_RATE_LIMIT_ATTEMPTS: "8",
-        CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK: "false"
+        CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK: "false",
+        CORE64_CONTRACT_STRESS_RATE_LIMIT_CHECK: "false",
+        CORE64_CONTRACT_SETTINGS_RATE_LIMIT_ATTEMPTS: "7",
+        CORE64_CONTRACT_COLLECTIONS_RATE_LIMIT_ATTEMPTS: "7",
+        ...envOverrides
       },
       stdio: ["ignore", "pipe", "pipe"]
     });
@@ -414,10 +452,10 @@ function runVerifier(baseUrl, adminPassword) {
   });
 }
 
-async function runCase(caseName, serverOptions, assertions) {
+async function runCase(caseName, serverOptions, assertions, verifierEnv = {}) {
   const mock = await createMockServer(serverOptions);
   try {
-    const result = await runVerifier(mock.baseUrl, mock.adminPassword);
+    const result = await runVerifier(mock.baseUrl, mock.adminPassword, verifierEnv);
     const report = result.stdout ? parseJson(result.stdout, caseName) : null;
     assertions({ result, report });
   } finally {
@@ -444,6 +482,26 @@ async function main() {
     expect(report?.checks?.dbUnavailable?.skipped === false, "happy-path: dbUnavailable observer should not be skipped in degraded mode");
     expect(report?.checks?.authRateLimited?.ok === true, "happy-path: authRateLimited check should pass");
     expect(report?.checks?.authRateLimited?.retryAfterSeconds >= 1, "happy-path: authRateLimited should include retry-after");
+    expect(report?.checks?.settingsRateLimitedStress?.ok === true, "happy-path: settings stress check should stay ok when skipped");
+    expect(report?.checks?.settingsRateLimitedStress?.skipped === true, "happy-path: settings stress check should be skipped by default");
+    expect(report?.checks?.collectionsRateLimitedStress?.ok === true, "happy-path: collections stress check should stay ok when skipped");
+    expect(report?.checks?.collectionsRateLimitedStress?.skipped === true, "happy-path: collections stress check should be skipped by default");
+  });
+
+  await runCase("stress-rate-limit-enabled", {}, ({ result, report }) => {
+    expect(
+      result.code === 0,
+      `stress-rate-limit-enabled: expected exit 0, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+    );
+    expect(report?.passed === true, "stress-rate-limit-enabled: expected passed=true");
+    expect(report?.checks?.settingsRateLimitedStress?.ok === true, "stress-rate-limit-enabled: settings stress check should pass");
+    expect(report?.checks?.settingsRateLimitedStress?.retryAfterSeconds >= 1, "stress-rate-limit-enabled: settings stress check should include retry-after");
+    expect(report?.checks?.collectionsRateLimitedStress?.ok === true, "stress-rate-limit-enabled: collections stress check should pass");
+    expect(report?.checks?.collectionsRateLimitedStress?.retryAfterSeconds >= 1, "stress-rate-limit-enabled: collections stress check should include retry-after");
+  }, {
+    CORE64_CONTRACT_STRESS_RATE_LIMIT_CHECK: "true",
+    CORE64_CONTRACT_SETTINGS_RATE_LIMIT_ATTEMPTS: "7",
+    CORE64_CONTRACT_COLLECTIONS_RATE_LIMIT_ATTEMPTS: "7"
   });
 
   await runCase("db-healthy-observer", { dbHealthMode: "healthy" }, ({ result, report }) => {
@@ -491,6 +549,32 @@ async function main() {
     );
     expect(report?.passed === false, "auth-rate-limit-mismatch: expected passed=false");
     expect(report?.checks?.authRateLimited?.ok === false, "auth-rate-limit-mismatch: expected authRateLimited check to fail");
+  });
+
+  await runCase("settings-rate-limit-mismatch", { settingsRateLimitCode: "WRONG_SETTINGS_RATE_LIMITED" }, ({ result, report }) => {
+    expect(
+      result.code === 1,
+      `settings-rate-limit-mismatch: expected exit 1, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+    );
+    expect(report?.passed === false, "settings-rate-limit-mismatch: expected passed=false");
+    expect(report?.checks?.settingsRateLimitedStress?.ok === false, "settings-rate-limit-mismatch: expected settings stress check to fail");
+  }, {
+    CORE64_CONTRACT_STRESS_RATE_LIMIT_CHECK: "true",
+    CORE64_CONTRACT_SETTINGS_RATE_LIMIT_ATTEMPTS: "7",
+    CORE64_CONTRACT_COLLECTIONS_RATE_LIMIT_ATTEMPTS: "7"
+  });
+
+  await runCase("collections-rate-limit-mismatch", { collectionsRateLimitCode: "WRONG_COLLECTIONS_RATE_LIMITED" }, ({ result, report }) => {
+    expect(
+      result.code === 1,
+      `collections-rate-limit-mismatch: expected exit 1, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+    );
+    expect(report?.passed === false, "collections-rate-limit-mismatch: expected passed=false");
+    expect(report?.checks?.collectionsRateLimitedStress?.ok === false, "collections-rate-limit-mismatch: expected collections stress check to fail");
+  }, {
+    CORE64_CONTRACT_STRESS_RATE_LIMIT_CHECK: "true",
+    CORE64_CONTRACT_SETTINGS_RATE_LIMIT_ATTEMPTS: "7",
+    CORE64_CONTRACT_COLLECTIONS_RATE_LIMIT_ATTEMPTS: "7"
   });
 
   await runCase("db-unavailable-details-missing", { includeDbUnavailableDetails: false }, ({ result, report }) => {
