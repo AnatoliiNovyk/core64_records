@@ -585,6 +585,14 @@ jobs:
           echo "Post-deploy smoke-check failed after $RETRIES attempts."
           exit 1
 
+      - name: Post-deploy public About binding guard
+        if: ${{ success() && github.event.inputs.run_post_deploy_smoke == 'true' }}
+        env:
+          CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
+        run: |
+          echo "Running post-deploy public About binding guard"
+          CORE64_PUBLIC_URL="$CORS_ORIGIN" node scripts/check-public-about-binding.mjs
+
       - name: Collect diagnostics after smoke failure
         if: ${{ failure() && github.event.inputs.run_post_deploy_smoke == 'true' }}
         env:
