@@ -24,6 +24,12 @@ param(
     [bool]$Core64OverrideRoleDiversity = $false,
 
     [Parameter(Mandatory = $false)]
+    [string]$Core64ChangelogBaseRef = "HEAD~1",
+
+    [Parameter(Mandatory = $false)]
+    [string]$Core64ChangelogHeadRef = "HEAD",
+
+    [Parameter(Mandatory = $false)]
     [string]$Owner = "AnatoliiNovyk",
 
     [Parameter(Mandatory = $false)]
@@ -206,6 +212,14 @@ if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
     throw "MinimumApprovals must be between 1 and 6."
 }
 
+if ([string]::IsNullOrWhiteSpace($Core64ChangelogBaseRef)) {
+    throw "Core64ChangelogBaseRef cannot be empty."
+}
+
+if ([string]::IsNullOrWhiteSpace($Core64ChangelogHeadRef)) {
+    throw "Core64ChangelogHeadRef cannot be empty."
+}
+
 $ExpectedCheckContexts = @($ExpectedCheckContexts | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
 if ($ExpectedCheckContexts.Count -eq 0) {
     throw "ExpectedCheckContexts cannot be empty."
@@ -216,50 +230,56 @@ if ([string]::IsNullOrWhiteSpace($resolvedCore64AdminPassword)) {
     throw "Core64AdminPassword could not be resolved. Set CORE64_ADMIN_PASSWORD env var or backend/.env ADMIN_PASSWORD."
 }
 
-Write-Host "[1/11] Validating release owner assignments..."
+Write-Host "[1/12] Validating release owner assignments..."
 & pwsh -NoProfile -File scripts/verify-release-owner-assignments.ps1 `
     -OverrideRoleDiversity:$Core64OverrideRoleDiversity
 if ($LASTEXITCODE -ne 0) {
     throw "Release owner assignments validation failed."
 }
 
-Write-Host "[2/11] Running DB snapshot helper self-test..."
+Write-Host "[2/12] Validating changelog coverage..."
+node scripts/verify-changelog-coverage.mjs --base "$Core64ChangelogBaseRef" --head "$Core64ChangelogHeadRef"
+if ($LASTEXITCODE -ne 0) {
+    throw "Changelog coverage validation failed."
+}
+
+Write-Host "[3/12] Running DB snapshot helper self-test..."
 node scripts/test-print-db-target-snapshot.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DB snapshot helper self-test failed."
 }
 
-Write-Host "[3/11] Running DATABASE_URL policy helper self-test..."
+Write-Host "[4/12] Running DATABASE_URL policy helper self-test..."
 node scripts/test-check-database-url-policy.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DATABASE_URL policy helper self-test failed."
 }
 
-Write-Host "[4/11] Running DATABASE_URL pooler sslmode helper self-test..."
+Write-Host "[5/12] Running DATABASE_URL pooler sslmode helper self-test..."
 node scripts/test-set-database-url-pooler-sslmode.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DATABASE_URL pooler sslmode helper self-test failed."
 }
 
-Write-Host "[5/11] Running Cloud Run network hint helper self-test..."
+Write-Host "[6/12] Running Cloud Run network hint helper self-test..."
 node scripts/test-print-cloud-run-network-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run network hint helper self-test failed."
 }
 
-Write-Host "[6/11] Running Cloud Run DB route verdict helper self-test..."
+Write-Host "[7/12] Running Cloud Run DB route verdict helper self-test..."
 node scripts/test-print-cloud-run-db-route-verdict.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run DB route verdict helper self-test failed."
 }
 
-Write-Host "[7/11] Running DB runtime TLS hint helper self-test..."
+Write-Host "[8/12] Running DB runtime TLS hint helper self-test..."
 node scripts/test-print-db-runtime-tls-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DB runtime TLS hint helper self-test failed."
 }
 
-Write-Host "[8/11] Running smoke check..."
+Write-Host "[9/12] Running smoke check..."
 $smokeResult = Invoke-SmokeCheck `
     -ApiBase $Core64ApiBase `
     -AdminPassword $resolvedCore64AdminPassword `
@@ -288,19 +308,19 @@ if ($smokeResult.ExitCode -ne 0) {
     throw "Smoke check failed."
 }
 
-Write-Host "[9/11] Running settings/public contract check..."
+Write-Host "[10/12] Running settings/public contract check..."
 node scripts/settings-public-contract-check.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings/public contract check failed."
 }
 
-Write-Host "[10/11] Running settings i18n consistency check..."
+Write-Host "[11/12] Running settings i18n consistency check..."
 node scripts/check-settings-i18n-consistency.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings i18n consistency check failed."
 }
 
-Write-Host "[11/11] Running branch protection policy verification..."
+Write-Host "[12/12] Running branch protection policy verification..."
 & pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
     -Owner $Owner `
     -Repo $Repo `

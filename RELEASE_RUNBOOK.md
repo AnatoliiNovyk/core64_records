@@ -78,6 +78,7 @@ CI alternative (single gate run):
 - Provide `core64_api_base` and `core64_admin_password` inputs.
 - Ensure repository secret `BRANCH_PROTECTION_TOKEN` is configured.
 - Ensure release owner diversity check is green (or explicitly overridden for emergency only).
+- Ensure changelog coverage check is green for the selected commit range.
 - Proceed only when workflow finishes successfully.
 
 Local alternative (single gate command):
@@ -85,6 +86,14 @@ Local alternative (single gate command):
 ```powershell
 $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
+```
+
+Local gate also performs mandatory changelog coverage verification for `HEAD~1..HEAD` by default.
+
+To override commit range explicitly:
+
+```powershell
+pwsh -File scripts/pre-release-gate-local.ps1 -Core64ChangelogBaseRef "<base_ref>" -Core64ChangelogHeadRef "<head_ref>"
 ```
 
 Emergency-only override for role diversity check:

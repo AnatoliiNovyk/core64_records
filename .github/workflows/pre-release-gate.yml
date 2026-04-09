@@ -41,6 +41,16 @@ on:
         required: false
         default: "false"
         type: string
+      core64_changelog_base_ref:
+        description: Git base ref for changelog coverage check
+        required: false
+        default: HEAD~1
+        type: string
+      core64_changelog_head_ref:
+        description: Git head ref for changelog coverage check
+        required: false
+        default: HEAD
+        type: string
       owner:
         description: Repository owner for branch protection verification
         required: false
@@ -84,6 +94,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
@@ -102,6 +114,8 @@ jobs:
           CORE64_SMOKE_RATE_LIMIT_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_attempts }}
           CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_collections_attempts }}
           CORE64_OVERRIDE_ROLE_DIVERSITY: ${{ github.event.inputs.core64_override_role_diversity }}
+          CORE64_CHANGELOG_BASE_REF: ${{ github.event.inputs.core64_changelog_base_ref }}
+          CORE64_CHANGELOG_HEAD_REF: ${{ github.event.inputs.core64_changelog_head_ref }}
         run: |
           if [ -z "$CORE64_API_BASE" ]; then
             echo "Missing required input: core64_api_base"
@@ -148,11 +162,27 @@ jobs:
             exit 1
           fi
 
+          if [ -z "$CORE64_CHANGELOG_BASE_REF" ]; then
+            echo "Missing required input: core64_changelog_base_ref"
+            exit 1
+          fi
+
+          if [ -z "$CORE64_CHANGELOG_HEAD_REF" ]; then
+            echo "Missing required input: core64_changelog_head_ref"
+            exit 1
+          fi
+
       - name: Validate release owner assignments
         shell: pwsh
         run: |
           $overrideRoleDiversity = "${{ github.event.inputs.core64_override_role_diversity }}" -eq "true"
           ./scripts/verify-release-owner-assignments.ps1 -OverrideRoleDiversity:$overrideRoleDiversity
+
+      - name: Validate changelog coverage
+        env:
+          CORE64_CHANGELOG_BASE_REF: ${{ github.event.inputs.core64_changelog_base_ref }}
+          CORE64_CHANGELOG_HEAD_REF: ${{ github.event.inputs.core64_changelog_head_ref }}
+        run: node scripts/verify-changelog-coverage.mjs --base "$CORE64_CHANGELOG_BASE_REF" --head "$CORE64_CHANGELOG_HEAD_REF"
 
       - name: Validate workflow secret
         env:
