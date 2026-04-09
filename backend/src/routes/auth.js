@@ -4,6 +4,7 @@ import { pool } from "../db/pool.js";
 import { config } from "../config.js";
 import { createToken, requireAuth } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/security.js";
+import { sendApiError } from "../utils/apiError.js";
 
 const router = Router();
 
@@ -27,7 +28,8 @@ router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
     const userResult = await pool.query("SELECT id, username, password_hash FROM admin_users LIMIT 1");
 
     if (!userResult.rows[0]) {
-      return res.status(500).json({
+      return sendApiError(res, {
+        status: 500,
         code: "AUTH_ADMIN_NOT_INITIALIZED",
         error: "Admin user is not initialized"
       });
@@ -37,7 +39,8 @@ router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
     const isValid = await bcrypt.compare(password, user.password_hash);
 
     if (!isValid) {
-      return res.status(401).json({
+      return sendApiError(res, {
+        status: 401,
         code: "AUTH_INVALID_CREDENTIALS",
         error: "Invalid credentials"
       });
@@ -47,7 +50,8 @@ router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
     return res.json({ data: { token } });
   } catch (error) {
     console.error("Login route failed", error);
-    return res.status(503).json({
+    return sendApiError(res, {
+      status: 503,
       code: "AUTH_SERVICE_UNAVAILABLE",
       error: "Authentication service is temporarily unavailable"
     });

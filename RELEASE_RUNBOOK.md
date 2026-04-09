@@ -93,6 +93,7 @@ CI alternative (single gate run):
 - Ensure changelog format check is green for changed changelog files in the selected commit range.
 - Ensure changelog format helper self-test is green.
 - Ensure changelog coverage helper self-test is green.
+- Ensure API error contract check is green.
 - Proceed only when workflow finishes successfully.
 
 Local alternative (single gate command):
@@ -102,7 +103,7 @@ $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
 ```
 
-Local gate also performs mandatory changelog coverage + changelog format verification for `HEAD~1..HEAD` by default, plus changelog format helper self-test and changelog coverage helper self-test.
+Local gate also performs mandatory changelog coverage + changelog format verification for `HEAD~1..HEAD` by default, plus changelog format helper self-test, changelog coverage helper self-test, and API error contract check.
 
 To override commit range explicitly:
 

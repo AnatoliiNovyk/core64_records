@@ -241,6 +241,13 @@ jobs:
           CORE64_CONTRACT_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
         run: npm run contract-check:settings-public
 
+      - name: Run API error contract check
+        env:
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
+          CORE64_CONTRACT_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+        run: node scripts/verify-api-error-contract.mjs
+
       - name: Install UI smoke dependencies
         run: npm ci
 

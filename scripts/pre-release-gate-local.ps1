@@ -230,80 +230,80 @@ if ([string]::IsNullOrWhiteSpace($resolvedCore64AdminPassword)) {
     throw "Core64AdminPassword could not be resolved. Set CORE64_ADMIN_PASSWORD env var or backend/.env ADMIN_PASSWORD."
 }
 
-Write-Host "[1/16] Validating release owner assignments..."
+Write-Host "[1/17] Validating release owner assignments..."
 & pwsh -NoProfile -File scripts/verify-release-owner-assignments.ps1 `
     -OverrideRoleDiversity:$Core64OverrideRoleDiversity
 if ($LASTEXITCODE -ne 0) {
     throw "Release owner assignments validation failed."
 }
 
-Write-Host "[2/16] Validating changelog coverage..."
+Write-Host "[2/17] Validating changelog coverage..."
 node scripts/verify-changelog-coverage.mjs --base "$Core64ChangelogBaseRef" --head "$Core64ChangelogHeadRef"
 if ($LASTEXITCODE -ne 0) {
     throw "Changelog coverage validation failed."
 }
 
-Write-Host "[3/16] Validating changelog format..."
+Write-Host "[3/17] Validating changelog format..."
 node scripts/verify-changelog-format.mjs --base "$Core64ChangelogBaseRef" --head "$Core64ChangelogHeadRef"
 if ($LASTEXITCODE -ne 0) {
     throw "Changelog format validation failed."
 }
 
-Write-Host "[4/16] Running changelog format helper self-test..."
+Write-Host "[4/17] Running changelog format helper self-test..."
 node scripts/test-verify-changelog-format.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Changelog format helper self-test failed."
 }
 
-Write-Host "[5/16] Running changelog coverage helper self-test..."
+Write-Host "[5/17] Running changelog coverage helper self-test..."
 node scripts/test-verify-changelog-coverage.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Changelog coverage helper self-test failed."
 }
 
-Write-Host "[6/16] Running contact smoke expectation helper self-test..."
+Write-Host "[6/17] Running contact smoke expectation helper self-test..."
 node scripts/test-resolve-contact-smoke-expected-status.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Contact smoke expectation helper self-test failed."
 }
 
-Write-Host "[7/16] Running DB snapshot helper self-test..."
+Write-Host "[7/17] Running DB snapshot helper self-test..."
 node scripts/test-print-db-target-snapshot.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DB snapshot helper self-test failed."
 }
 
-Write-Host "[8/16] Running DATABASE_URL policy helper self-test..."
+Write-Host "[8/17] Running DATABASE_URL policy helper self-test..."
 node scripts/test-check-database-url-policy.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DATABASE_URL policy helper self-test failed."
 }
 
-Write-Host "[9/16] Running DATABASE_URL pooler sslmode helper self-test..."
+Write-Host "[9/17] Running DATABASE_URL pooler sslmode helper self-test..."
 node scripts/test-set-database-url-pooler-sslmode.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DATABASE_URL pooler sslmode helper self-test failed."
 }
 
-Write-Host "[10/16] Running Cloud Run network hint helper self-test..."
+Write-Host "[10/17] Running Cloud Run network hint helper self-test..."
 node scripts/test-print-cloud-run-network-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run network hint helper self-test failed."
 }
 
-Write-Host "[11/16] Running Cloud Run DB route verdict helper self-test..."
+Write-Host "[11/17] Running Cloud Run DB route verdict helper self-test..."
 node scripts/test-print-cloud-run-db-route-verdict.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run DB route verdict helper self-test failed."
 }
 
-Write-Host "[12/16] Running DB runtime TLS hint helper self-test..."
+Write-Host "[12/17] Running DB runtime TLS hint helper self-test..."
 node scripts/test-print-db-runtime-tls-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "DB runtime TLS hint helper self-test failed."
 }
 
-Write-Host "[13/16] Running smoke check..."
+Write-Host "[13/17] Running smoke check..."
 $smokeResult = Invoke-SmokeCheck `
     -ApiBase $Core64ApiBase `
     -AdminPassword $resolvedCore64AdminPassword `
@@ -332,19 +332,28 @@ if ($smokeResult.ExitCode -ne 0) {
     throw "Smoke check failed."
 }
 
-Write-Host "[14/16] Running settings/public contract check..."
+Write-Host "[14/17] Running settings/public contract check..."
 node scripts/settings-public-contract-check.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings/public contract check failed."
 }
 
-Write-Host "[15/16] Running settings i18n consistency check..."
+Write-Host "[15/17] Running API error contract check..."
+$env:CORE64_API_BASE = $Core64ApiBase
+$env:CORE64_ADMIN_PASSWORD = $resolvedCore64AdminPassword
+$env:CORE64_CONTRACT_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
+node scripts/verify-api-error-contract.mjs
+if ($LASTEXITCODE -ne 0) {
+    throw "API error contract check failed."
+}
+
+Write-Host "[16/17] Running settings i18n consistency check..."
 node scripts/check-settings-i18n-consistency.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings i18n consistency check failed."
 }
 
-Write-Host "[16/16] Running branch protection policy verification..."
+Write-Host "[17/17] Running branch protection policy verification..."
 & pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
     -Owner $Owner `
     -Repo $Repo `

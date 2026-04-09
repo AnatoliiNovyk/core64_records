@@ -115,6 +115,7 @@ export function createRateLimiter(options = {}) {
       const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
       res.setHeader("Retry-After", String(retryAfterSeconds));
       return res.status(429).json({
+        status: 429,
         code: errorCode,
         error: errorMessage
       });

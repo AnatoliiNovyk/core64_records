@@ -16,6 +16,7 @@ import { resolveLanguage } from "../i18n/language.js";
 import { requireAuth } from "../middleware/auth.js";
 import { config } from "../config.js";
 import { createRateLimiter } from "../middleware/security.js";
+import { sendApiError } from "../utils/apiError.js";
 
 const router = Router();
 const collectionsMutationRateLimiter = createRateLimiter({
@@ -59,7 +60,15 @@ router.put("/:type(releases|artists|events|sponsors)/:id", requireAuth, collecti
     const validated = schema.partial().parse(req.body);
     const updated = await updateByType(req.params.type, Number(req.params.id), validated);
     if (!updated) {
-      return res.status(404).json({ error: "Item not found" });
+      return sendApiError(res, {
+        status: 404,
+        code: "COLLECTION_ITEM_NOT_FOUND",
+        error: "Item not found",
+        meta: {
+          type: req.params.type,
+          id: Number(req.params.id)
+        }
+      });
     }
     return res.json({ data: updated });
   } catch (error) {

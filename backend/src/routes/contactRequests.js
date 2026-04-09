@@ -5,6 +5,7 @@ import { requireAuth } from "../middleware/auth.js";
 import { verifyContactCaptcha } from "../services/captcha.js";
 import { config } from "../config.js";
 import { createRateLimiter } from "../middleware/security.js";
+import { sendApiError, sendValidationError } from "../utils/apiError.js";
 
 const router = Router();
 
@@ -40,14 +41,13 @@ router.post("/contact-requests", contactCreateRateLimiter, async (req, res, next
       host: req.headers.host || ""
     });
     if (!captchaCheck.ok) {
-      return res.status(400).json({
-        error: "Validation failed",
-        details: {
-          formErrors: [],
-          fieldErrors: {
-            captchaToken: [captchaCheck.message || "Captcha verification failed"]
-          }
+      return sendValidationError(res, {
+        formErrors: [],
+        fieldErrors: {
+          captchaToken: [captchaCheck.message || "Captcha verification failed"]
         }
+      }, {
+        code: "CONTACT_CAPTCHA_VALIDATION_FAILED"
       });
     }
 
@@ -63,7 +63,14 @@ router.patch("/contact-requests/:id", requireAuth, contactUpdateRateLimiter, asy
     const validated = contactRequestStatusSchema.parse(req.body);
     const data = await updateContactRequestStatus(Number(req.params.id), validated.status);
     if (!data) {
-      return res.status(404).json({ error: "Contact request not found" });
+      return sendApiError(res, {
+        status: 404,
+        code: "CONTACT_REQUEST_NOT_FOUND",
+        error: "Contact request not found",
+        meta: {
+          id: Number(req.params.id)
+        }
+      });
     }
 
     await writeAuditLog({

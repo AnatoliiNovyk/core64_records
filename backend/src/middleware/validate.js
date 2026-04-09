@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { sendValidationError } from "../utils/apiError.js";
 
 const languageCodeSchema = z.string().trim().toLowerCase().regex(/^[a-z]{2}(?:-[a-z]{2})?$/);
 
@@ -245,7 +246,7 @@ export function validateBody(schema) {
   return (req, res, next) => {
     const result = schema.safeParse(req.body);
     if (!result.success) {
-      return res.status(400).json({ error: "Validation failed", details: result.error.flatten() });
+      return sendValidationError(res, result.error.flatten());
     }
 
     req.validatedBody = result.data;

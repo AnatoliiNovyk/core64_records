@@ -14,6 +14,7 @@ import auditRoutes from "./routes/auditLogs.js";
 import securityRoutes from "./routes/security.js";
 import { isDatabaseConnectivityError } from "./utils/dbError.js";
 import { applySecurityHeaders } from "./middleware/security.js";
+import { fromZodError, sendApiError } from "./utils/apiError.js";
 
 validateConfig();
 
@@ -50,19 +51,24 @@ app.get("/admin", (_req, res) => {
 
 app.use((error, _req, res, _next) => {
   if (error instanceof ZodError) {
-    return res.status(400).json({ error: "Validation failed", details: error.flatten() });
+    return res.status(400).json(fromZodError(error));
   }
 
   if (isDatabaseConnectivityError(error)) {
     console.error("Database unavailable", error);
-    return res.status(503).json({
+    return sendApiError(res, {
+      status: 503,
       code: "DB_UNAVAILABLE",
       error: "Database is unavailable"
     });
   }
 
   console.error(error);
-  return res.status(500).json({ error: "Internal server error" });
+  return sendApiError(res, {
+    status: 500,
+    code: "INTERNAL_SERVER_ERROR",
+    error: "Internal server error"
+  });
 });
 
 app.listen(config.port, () => {
