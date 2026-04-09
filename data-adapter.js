@@ -135,6 +135,8 @@
             heroSubtitleUk: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
             heroSubtitleEn: "Neurofunk • Drum & Bass • Breakbeat • Techstep",
             email: "demo@core64.records",
+            headerLogoUrl: "",
+            footerLogoUrl: "",
             instagramUrl: "#",
             youtubeUrl: "#",
             soundcloudUrl: "#",

@@ -234,6 +234,12 @@ const ADMIN_I18N = {
         settingsMissionPlaceholder: "Наша місія — підтримувати андерграунд сцену...",
         settingsLabelEmail: "Контактний Email",
         settingsEmailPlaceholder: "hello@core64.records",
+        settingsBrandLogosTitle: "Логотипи бренду",
+        settingsHeaderLogoLabel: "Лого хедера (URL/шлях)",
+        settingsHeaderLogoPlaceholder: "/images/logo-header.png",
+        settingsFooterLogoLabel: "Лого футера (URL/шлях)",
+        settingsFooterLogoPlaceholder: "/images/logo-footer.png",
+        settingsBrandLogosHint: "Підтримуються https:// URL та відносні шляхи (наприклад /images/logo.png).",
         settingsHeroLinksTitle: "Соцпосилання Hero-блоку",
         settingsHeroLinksHint: "Якщо поле порожнє, буде використано символ #.",
         settingsAuditThresholdsTitle: "Пороги latency для аудиту",
@@ -530,6 +536,12 @@ const ADMIN_I18N = {
         settingsMissionPlaceholder: "Our mission is to support the underground scene...",
         settingsLabelEmail: "Contact email",
         settingsEmailPlaceholder: "hello@core64.records",
+        settingsBrandLogosTitle: "Brand logos",
+        settingsHeaderLogoLabel: "Header logo (URL/path)",
+        settingsHeaderLogoPlaceholder: "/images/logo-header.png",
+        settingsFooterLogoLabel: "Footer logo (URL/path)",
+        settingsFooterLogoPlaceholder: "/images/logo-footer.png",
+        settingsBrandLogosHint: "Supports https:// URLs and relative paths (for example /images/logo.png).",
         settingsHeroLinksTitle: "Hero social links",
         settingsHeroLinksHint: "If a field is empty, symbol # will be used.",
         settingsAuditThresholdsTitle: "Audit latency thresholds",
@@ -3581,6 +3593,8 @@ async function loadSettings() {
     const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
     const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
+    const headerLogoInputEl = document.getElementById("setting-header-logo-url");
+    const footerLogoInputEl = document.getElementById("setting-footer-logo-url");
     const instagramInputEl = document.getElementById("setting-social-instagram");
     const youtubeInputEl = document.getElementById("setting-social-youtube");
     const soundcloudInputEl = document.getElementById("setting-social-soundcloud");
@@ -3612,6 +3626,12 @@ async function loadSettings() {
     }
     if (emailInputEl && emailInputEl.isConnected) {
         emailInputEl.value = decodeHtmlEntities(cache.settings.email || "");
+    }
+    if (headerLogoInputEl && headerLogoInputEl.isConnected) {
+        headerLogoInputEl.value = decodeHtmlEntities(cache.settings.headerLogoUrl || "");
+    }
+    if (footerLogoInputEl && footerLogoInputEl.isConnected) {
+        footerLogoInputEl.value = decodeHtmlEntities(cache.settings.footerLogoUrl || "");
     }
     if (instagramInputEl && instagramInputEl.isConnected) {
         instagramInputEl.value = decodeHtmlEntities(cache.settings.instagramUrl || "");
@@ -5689,6 +5709,8 @@ async function saveSettings(options = {}) {
     const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
     const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
+    const headerLogoInputEl = document.getElementById("setting-header-logo-url");
+    const footerLogoInputEl = document.getElementById("setting-footer-logo-url");
     const instagramInputEl = document.getElementById("setting-social-instagram");
     const youtubeInputEl = document.getElementById("setting-social-youtube");
     const soundcloudInputEl = document.getElementById("setting-social-soundcloud");
@@ -5703,6 +5725,10 @@ async function saveSettings(options = {}) {
     const captchaErrorMessageEl = document.getElementById("setting-captcha-error-message");
     const captchaMissingTokenMessageEl = document.getElementById("setting-captcha-missing-token-message");
     const captchaInvalidDomainMessageEl = document.getElementById("setting-captcha-invalid-domain-message");
+    if (!headerLogoInputEl || !footerLogoInputEl || !headerLogoInputEl.isConnected || !footerLogoInputEl.isConnected) {
+        console.warn("Brand logo inputs are unavailable during settings save");
+        return false;
+    }
     if (!titleInputEl || !aboutInputEl || !missionInputEl || !heroSubtitleUkInputEl || !heroSubtitleEnInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !captchaEnabledEl || !captchaProviderEl || !captchaDomainEl || !hcaptchaSiteKeyEl || !hcaptchaSecretKeyEl || !recaptchaSiteKeyEl || !recaptchaSecretKeyEl || !captchaErrorMessageEl || !captchaMissingTokenMessageEl || !captchaInvalidDomainMessageEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !heroSubtitleUkInputEl.isConnected || !heroSubtitleEnInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected || !captchaEnabledEl.isConnected || !captchaProviderEl.isConnected || !captchaDomainEl.isConnected || !hcaptchaSiteKeyEl.isConnected || !hcaptchaSecretKeyEl.isConnected || !recaptchaSiteKeyEl.isConnected || !recaptchaSecretKeyEl.isConnected || !captchaErrorMessageEl.isConnected || !captchaMissingTokenMessageEl.isConnected || !captchaInvalidDomainMessageEl.isConnected) {
         console.warn("Core settings inputs are unavailable during settings save");
         return false;
@@ -5763,6 +5789,8 @@ async function saveSettings(options = {}) {
         heroSubtitleUk: normalizeSettingsPlainText(heroSubtitleUkInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         heroSubtitleEn: normalizeSettingsPlainText(heroSubtitleEnInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         email: normalizeSettingsPlainText(emailInputEl.value, ""),
+        headerLogoUrl: normalizeSettingsPlainText(headerLogoInputEl.value, ""),
+        footerLogoUrl: normalizeSettingsPlainText(footerLogoInputEl.value, ""),
         instagramUrl: normalizeSettingsUrlInput(instagramInputEl.value, { platform: "instagram" }),
         youtubeUrl: normalizeSettingsUrlInput(youtubeInputEl.value, { platform: "youtube" }),
         soundcloudUrl: normalizeSettingsUrlInput(soundcloudInputEl.value, { platform: "soundcloud" }),

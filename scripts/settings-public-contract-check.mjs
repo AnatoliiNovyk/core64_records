@@ -14,6 +14,8 @@ const REQUIRED_AUDIT_SETTINGS_FIELDS = [
   "mission",
   "heroSubtitleUk",
   "heroSubtitleEn",
+  "headerLogoUrl",
+  "footerLogoUrl",
   "contactCaptchaErrorMessage",
   "contactCaptchaMissingTokenMessage",
   "contactCaptchaInvalidDomainMessage"
@@ -189,6 +191,8 @@ function buildExpectedContractValues(marker) {
     mission: `CONTRACT MISSION ${marker}`,
     heroSubtitleUk: `CONTRACT HERO UK ${marker}`,
     heroSubtitleEn: `CONTRACT HERO EN ${marker}`,
+    headerLogoUrl: `https://cdn.core64.example/header-${marker}.png`,
+    footerLogoUrl: `/images/footer-${marker}.png`,
     contactCaptchaErrorMessage: `CONTRACT CAPTCHA ERROR ${marker}`,
     contactCaptchaMissingTokenMessage: `CONTRACT CAPTCHA MISSING ${marker}`,
     contactCaptchaInvalidDomainMessage: `CONTRACT CAPTCHA DOMAIN ${marker}`
@@ -286,6 +290,8 @@ async function run() {
       mission: expectedValues.mission,
       heroSubtitleUk: expectedValues.heroSubtitleUk,
       heroSubtitleEn: expectedValues.heroSubtitleEn,
+      headerLogoUrl: expectedValues.headerLogoUrl,
+      footerLogoUrl: expectedValues.footerLogoUrl,
       contactCaptchaErrorMessage: expectedValues.contactCaptchaErrorMessage,
       contactCaptchaMissingTokenMessage: expectedValues.contactCaptchaMissingTokenMessage,
       contactCaptchaInvalidDomainMessage: expectedValues.contactCaptchaInvalidDomainMessage
@@ -347,6 +353,8 @@ async function run() {
       about: normalizeText(publicUkSettings.about),
       mission: normalizeText(publicUkSettings.mission),
       heroSubtitle: normalizeText(publicUkSettings.heroSubtitle),
+      headerLogoUrl: normalizeText(publicUkSettings.headerLogoUrl),
+      footerLogoUrl: normalizeText(publicUkSettings.footerLogoUrl),
       contactCaptchaErrorMessage: normalizeText(publicUkSettings.contactCaptchaErrorMessage),
       contactCaptchaMissingTokenMessage: normalizeText(publicUkSettings.contactCaptchaMissingTokenMessage),
       contactCaptchaInvalidDomainMessage: normalizeText(publicUkSettings.contactCaptchaInvalidDomainMessage)
@@ -356,6 +364,8 @@ async function run() {
       about: normalizeText(publicEnSettings.about),
       mission: normalizeText(publicEnSettings.mission),
       heroSubtitle: normalizeText(publicEnSettings.heroSubtitle),
+      headerLogoUrl: normalizeText(publicEnSettings.headerLogoUrl),
+      footerLogoUrl: normalizeText(publicEnSettings.footerLogoUrl),
       contactCaptchaErrorMessage: normalizeText(publicEnSettings.contactCaptchaErrorMessage),
       contactCaptchaMissingTokenMessage: normalizeText(publicEnSettings.contactCaptchaMissingTokenMessage),
       contactCaptchaInvalidDomainMessage: normalizeText(publicEnSettings.contactCaptchaInvalidDomainMessage)
@@ -365,6 +375,8 @@ async function run() {
       "title",
       "about",
       "mission",
+      "headerLogoUrl",
+      "footerLogoUrl",
       "contactCaptchaErrorMessage",
       "contactCaptchaMissingTokenMessage",
       "contactCaptchaInvalidDomainMessage"
@@ -405,10 +417,12 @@ async function run() {
       about: normalizeText(postNegativePayload.about),
       mission: normalizeText(postNegativePayload.mission),
       heroSubtitleUk: normalizeText(postNegativePayload.heroSubtitleUk),
-      heroSubtitleEn: normalizeText(postNegativePayload.heroSubtitleEn)
+      heroSubtitleEn: normalizeText(postNegativePayload.heroSubtitleEn),
+      headerLogoUrl: normalizeText(postNegativePayload.headerLogoUrl),
+      footerLogoUrl: normalizeText(postNegativePayload.footerLogoUrl)
     };
 
-    const postNegativeFields = ["title", "about", "mission", "heroSubtitleUk", "heroSubtitleEn"];
+    const postNegativeFields = ["title", "about", "mission", "heroSubtitleUk", "heroSubtitleEn", "headerLogoUrl", "footerLogoUrl"];
     for (const field of postNegativeFields) {
       ensureFieldMatches(report, "expected", "postNegative", field, expectedValues[field], postNegativePayload[field]);
     }

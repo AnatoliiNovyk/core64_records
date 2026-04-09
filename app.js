@@ -1157,6 +1157,61 @@ function normalizeSocialUrl(value, options = {}) {
     return parsedUrl.toString();
 }
 
+function normalizeBrandLogoUrl(value) {
+    const decodedValue = decodeHtmlEntities(value).trim();
+    if (!decodedValue || decodedValue === "#") return "";
+
+    const lowered = decodedValue.toLowerCase();
+    if (lowered.startsWith("javascript:") || lowered.startsWith("data:")) {
+        return "";
+    }
+
+    try {
+        const parsedUrl = new URL(decodedValue, window.location.origin);
+        if (!/^https?:$/i.test(parsedUrl.protocol)) return "";
+        return parsedUrl.toString();
+    } catch (_error) {
+        return "";
+    }
+}
+
+function applyBrandLogoElement(logoEl, fallbackIconEl, sourceUrl) {
+    if (!logoEl) return;
+
+    if (!sourceUrl) {
+        logoEl.classList.add("hidden");
+        logoEl.removeAttribute("src");
+        if (fallbackIconEl) fallbackIconEl.classList.remove("hidden");
+        return;
+    }
+
+    logoEl.onerror = () => {
+        if (!logoEl.isConnected) return;
+        logoEl.classList.add("hidden");
+        if (fallbackIconEl && fallbackIconEl.isConnected) {
+            fallbackIconEl.classList.remove("hidden");
+        }
+    };
+
+    logoEl.src = sourceUrl;
+    logoEl.classList.remove("hidden");
+    if (fallbackIconEl) fallbackIconEl.classList.add("hidden");
+}
+
+function applyBrandLogos(settings) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const headerLogoUrl = normalizeBrandLogoUrl(source.headerLogoUrl);
+    const footerLogoUrl = normalizeBrandLogoUrl(source.footerLogoUrl);
+
+    const headerLogoEl = document.getElementById("public-header-logo");
+    const headerIconEl = document.getElementById("public-header-icon");
+    const footerLogoEl = document.getElementById("public-footer-logo");
+    const footerIconEl = document.getElementById("public-footer-icon");
+
+    applyBrandLogoElement(headerLogoEl, headerIconEl, headerLogoUrl);
+    applyBrandLogoElement(footerLogoEl, footerIconEl, footerLogoUrl);
+}
+
 function applyHeroSocialLinks(settings) {
     const source = settings && typeof settings === "object" ? settings : {};
     const links = {
@@ -1322,6 +1377,7 @@ async function bootstrap() {
         contactRuntimeSettings = data.settings || {};
         loadAbout(data.settings || {});
         applyHeroSocialLinks(data.settings || {});
+        applyBrandLogos(data.settings || {});
     } catch (error) {
         console.error("Failed to load site data", error);
         if (requireApi) {
@@ -1338,6 +1394,7 @@ async function bootstrap() {
         contactRuntimeSettings = fallback.settings || {};
         loadAbout(fallback.settings);
         applyHeroSocialLinks(fallback.settings);
+        applyBrandLogos(fallback.settings || {});
     }
 
     initContactForm();

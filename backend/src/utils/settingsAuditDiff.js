@@ -10,6 +10,8 @@ const SETTINGS_TRACKED_FIELDS = [
   "heroSubtitleUk",
   "heroSubtitleEn",
   "email",
+  "headerLogoUrl",
+  "footerLogoUrl",
   "instagramUrl",
   "youtubeUrl",
   "soundcloudUrl",
