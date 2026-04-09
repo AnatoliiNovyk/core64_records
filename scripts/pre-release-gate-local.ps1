@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory = $false)]
-    [string]$Core64ApiBase = "http://localhost:3000/api",
+    [string]$Core64ApiBase = "http://127.0.0.1:3000/api",
 
     [Parameter(Mandatory = $false)]
     [string]$Core64AdminPassword = "core64admin",
