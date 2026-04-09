@@ -190,6 +190,9 @@ jobs:
           CORE64_CHANGELOG_HEAD_REF: ${{ github.event.inputs.core64_changelog_head_ref }}
         run: node scripts/verify-changelog-format.mjs --base "$CORE64_CHANGELOG_BASE_REF" --head "$CORE64_CHANGELOG_HEAD_REF"
 
+      - name: Validate changelog format helper
+        run: node scripts/test-verify-changelog-format.mjs
+
       - name: Validate contact smoke expectation helper
         run: node scripts/test-resolve-contact-smoke-expected-status.mjs
 
