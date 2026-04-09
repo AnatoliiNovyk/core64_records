@@ -472,6 +472,8 @@ This local gate runs:
 - `scripts/smoke-check.mjs`
 - `scripts/verify-branch-protection.ps1`
 
+Local gate covers API/helper checks, including settings i18n consistency. UI smoke (`npm run ui-smoke`) remains a CI pre-release step by default because it depends on Playwright/Chromium setup.
+
 Pre-deploy env sanity check for Google Run:
 
 ```powershell

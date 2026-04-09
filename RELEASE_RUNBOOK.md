@@ -98,6 +98,7 @@ CI alternative (single gate run):
 - Ensure API error contract helper self-test is green.
 - Ensure settings i18n consistency helper self-test is green.
 - Ensure smoke-check helper self-test is green.
+- Ensure settings i18n consistency check is green.
 - Ensure API error contract check is green.
 - Proceed only when workflow finishes successfully.
 
@@ -109,6 +110,8 @@ pwsh -File scripts/pre-release-gate-local.ps1
 ```
 
 Local gate also performs mandatory changelog coverage + changelog format verification for `HEAD~1..HEAD` by default, plus changelog format helper self-test, changelog coverage helper self-test, log sanitizer helper self-test, runtime console usage helper self-test, API error contract helper self-test, settings i18n consistency helper self-test, smoke-check helper self-test, and API error contract check.
+
+UI smoke is intentionally CI-only in pre-release defaults (Playwright + Chromium install path). Use manual `npm run ui-smoke` locally when browser-level validation is needed outside CI.
 
 To override commit range explicitly:
 

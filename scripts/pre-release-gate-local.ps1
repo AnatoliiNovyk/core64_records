@@ -372,7 +372,7 @@ if ($smokeResult.ExitCode -ne 0) {
 }
 
 Write-Host "[20/22] Running settings/public contract check..."
-node scripts/settings-public-contract-check.mjs
+npm run contract-check:settings-public
 if ($LASTEXITCODE -ne 0) {
     throw "Settings/public contract check failed."
 }
