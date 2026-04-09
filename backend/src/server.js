@@ -15,6 +15,8 @@ import securityRoutes from "./routes/security.js";
 import { isDatabaseConnectivityError } from "./utils/dbError.js";
 import { applySecurityHeaders } from "./middleware/security.js";
 import { fromZodError, sendApiError } from "./utils/apiError.js";
+import { requestLoggingMiddleware } from "./middleware/requestLogging.js";
+import { logger } from "./utils/logger.js";
 
 validateConfig();
 
@@ -30,6 +32,7 @@ app.use(cors({
 app.use(applySecurityHeaders);
 app.use("/api", securityRoutes);
 app.use(express.json({ limit: "1mb" }));
+app.use(requestLoggingMiddleware);
 
 app.use(express.static(publicDir));
 
@@ -56,13 +59,23 @@ app.get("/admin", (_req, res) => {
   res.sendFile(path.join(publicDir, "admin.html"));
 });
 
-app.use((error, _req, res, _next) => {
+app.use((error, req, res, _next) => {
+  const requestId = String(res.getHeader("x-request-id") || "");
+  const errorContext = {
+    requestId,
+    method: req.method,
+    url: req.originalUrl,
+    path: req.path,
+    error
+  };
+
   if (error instanceof ZodError) {
+    logger.warn("http.request.validation_error", errorContext);
     return res.status(400).json(fromZodError(error));
   }
 
   if (isDatabaseConnectivityError(error)) {
-    console.error("Database unavailable", error);
+    logger.error("http.request.database_unavailable", errorContext);
     return sendApiError(res, {
       status: 503,
       code: "DB_UNAVAILABLE",
@@ -70,7 +83,7 @@ app.use((error, _req, res, _next) => {
     });
   }
 
-  console.error(error);
+  logger.error("http.request.unhandled_error", errorContext);
   return sendApiError(res, {
     status: 500,
     code: "INTERNAL_SERVER_ERROR",
@@ -79,5 +92,10 @@ app.use((error, _req, res, _next) => {
 });
 
 app.listen(config.port, () => {
-  console.log(`CORE64 API listening on port ${config.port}`);
+  logger.info("api.server.started", {
+    port: config.port,
+    nodeEnv: config.nodeEnv,
+    logLevel: config.logLevel,
+    requestLoggingEnabled: config.requestLoggingEnabled
+  });
 });

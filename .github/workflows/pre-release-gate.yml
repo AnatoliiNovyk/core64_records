@@ -226,6 +226,9 @@ jobs:
       - name: Validate DB runtime TLS hint helper
         run: node scripts/test-print-db-runtime-tls-hint.mjs
 
+      - name: Validate log sanitizer helper
+        run: node scripts/test-log-sanitizer.mjs
+
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}

@@ -31,6 +31,9 @@ const readEnvString = (name, fallback = "") => {
 export const config = {
   port: toNumber(process.env.PORT, 3000),
   nodeEnv: readEnvString("NODE_ENV", "development") || "development",
+  logLevel: readEnvString("LOG_LEVEL", "info").toLowerCase(),
+  requestLoggingEnabled: toBoolean(process.env.REQUEST_LOGGING_ENABLED, true),
+  requestLoggingMaxBodyChars: toNumber(process.env.REQUEST_LOGGING_MAX_BODY_CHARS, 2048),
   defaultLanguage: readEnvString("DEFAULT_LANGUAGE", "uk").toLowerCase(),
   supportedLanguages: readEnvString("SUPPORTED_LANGUAGES", "uk,en")
     .split(",")
@@ -113,7 +116,16 @@ const validateDatabaseUrl = (value) => {
 export const validateConfig = () => {
   const errors = [];
   const isProduction = config.nodeEnv === "production";
+  const allowedLogLevels = new Set(["debug", "info", "warn", "error"]);
   const allowedCspModes = new Set(["enforce", "report-only", "both"]);
+
+  if (!allowedLogLevels.has(config.logLevel)) {
+    errors.push("LOG_LEVEL must be one of: debug, info, warn, error.");
+  }
+
+  if (!Number.isInteger(config.requestLoggingMaxBodyChars) || config.requestLoggingMaxBodyChars < 128) {
+    errors.push("REQUEST_LOGGING_MAX_BODY_CHARS must be an integer >= 128.");
+  }
 
   if (!config.supportedLanguages.includes(config.defaultLanguage)) {
     errors.push("DEFAULT_LANGUAGE must be included in SUPPORTED_LANGUAGES.");
