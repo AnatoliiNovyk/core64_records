@@ -18,6 +18,9 @@ param(
     [int]$Core64SmokeRateLimitAttempts = 25,
 
     [Parameter(Mandatory = $false)]
+    [int]$Core64SmokeRateLimitCollectionsAttempts = 35,
+
+    [Parameter(Mandatory = $false)]
     [string]$Owner = "AnatoliiNovyk",
 
     [Parameter(Mandatory = $false)]
@@ -135,7 +138,10 @@ function Invoke-SmokeCheck {
         [bool]$SmokeRateLimitCheck,
 
         [Parameter(Mandatory = $true)]
-        [int]$SmokeRateLimitAttempts
+        [int]$SmokeRateLimitAttempts,
+
+        [Parameter(Mandatory = $true)]
+        [int]$SmokeRateLimitCollectionsAttempts
     )
 
     $env:CORE64_API_BASE = $ApiBase
@@ -145,8 +151,10 @@ function Invoke-SmokeCheck {
     $env:CORE64_SMOKE_RATE_LIMIT_CHECK = if ($SmokeRateLimitCheck) { "true" } else { "false" }
     if ($SmokeRateLimitCheck) {
         $env:CORE64_SMOKE_RATE_LIMIT_ATTEMPTS = [string]$SmokeRateLimitAttempts
+        $env:CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS = [string]$SmokeRateLimitCollectionsAttempts
     } else {
         Remove-Item Env:CORE64_SMOKE_RATE_LIMIT_ATTEMPTS -ErrorAction SilentlyContinue
+        Remove-Item Env:CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS -ErrorAction SilentlyContinue
     }
 
     $tempOutputPath = [System.IO.Path]::GetTempFileName()
@@ -185,6 +193,10 @@ if ($Core64SmokeTimeoutMs -lt 1000) {
 
 if ($Core64SmokeRateLimitAttempts -lt 2) {
     throw "Core64SmokeRateLimitAttempts must be >= 2."
+}
+
+if ($Core64SmokeRateLimitCollectionsAttempts -lt 2) {
+    throw "Core64SmokeRateLimitCollectionsAttempts must be >= 2."
 }
 
 if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
@@ -244,7 +256,8 @@ $smokeResult = Invoke-SmokeCheck `
     -SmokeTimeoutMs $Core64SmokeTimeoutMs `
     -SmokeContact $Core64SmokeContact `
     -SmokeRateLimitCheck $false `
-    -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
+    -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts `
+    -SmokeRateLimitCollectionsAttempts $Core64SmokeRateLimitCollectionsAttempts
 if ($smokeResult.ExitCode -ne 0) {
     $isFetchFailed = $smokeResult.Output -match 'Smoke check failed:\s*fetch failed'
     if ($isFetchFailed -and ($Core64ApiBase -match '^https?://localhost(:\d+)?(/.*)?$')) {
@@ -256,7 +269,8 @@ if ($smokeResult.ExitCode -ne 0) {
             -SmokeTimeoutMs $Core64SmokeTimeoutMs `
             -SmokeContact $Core64SmokeContact `
             -SmokeRateLimitCheck $false `
-            -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
+            -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts `
+            -SmokeRateLimitCollectionsAttempts $Core64SmokeRateLimitCollectionsAttempts
     }
 }
 
@@ -298,7 +312,8 @@ if ($Core64SmokeRateLimitCheck) {
         -SmokeTimeoutMs $Core64SmokeTimeoutMs `
         -SmokeContact $false `
         -SmokeRateLimitCheck $true `
-        -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
+        -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts `
+        -SmokeRateLimitCollectionsAttempts $Core64SmokeRateLimitCollectionsAttempts
 
     if ($rateLimitResult.ExitCode -ne 0) {
         $isFetchFailed = $rateLimitResult.Output -match 'Smoke check failed:\s*fetch failed'
@@ -311,7 +326,8 @@ if ($Core64SmokeRateLimitCheck) {
                 -SmokeTimeoutMs $Core64SmokeTimeoutMs `
                 -SmokeContact $false `
                 -SmokeRateLimitCheck $true `
-                -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts
+                -SmokeRateLimitAttempts $Core64SmokeRateLimitAttempts `
+                -SmokeRateLimitCollectionsAttempts $Core64SmokeRateLimitCollectionsAttempts
         }
     }
 

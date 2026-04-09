@@ -31,6 +31,31 @@ function resolveClientIp(req) {
   return "unknown";
 }
 
+function normalizePathSegment(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw.startsWith("/") ? raw : `/${raw}`;
+}
+
+function resolveRequestScope(req) {
+  const method = String(req.method || "GET").trim().toUpperCase() || "GET";
+  const baseUrl = normalizePathSegment(req.baseUrl);
+
+  let routePath = "";
+  if (typeof req.route?.path === "string") {
+    routePath = normalizePathSegment(req.route.path);
+  } else if (req.route?.path instanceof RegExp) {
+    routePath = String(req.route.path);
+  }
+
+  if (!routePath) {
+    routePath = normalizePathSegment(req.path) || "/";
+  }
+
+  const fullPath = `${baseUrl}${routePath}` || "/";
+  return `${method}:${fullPath}`;
+}
+
 export function applySecurityHeaders(req, res, next) {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("X-Frame-Options", "DENY");
@@ -78,7 +103,7 @@ export function createRateLimiter(options = {}) {
     const now = Date.now();
     cleanupExpired(now);
 
-    const key = `${resolveClientIp(req)}:${req.path}`;
+    const key = `${resolveClientIp(req)}:${resolveRequestScope(req)}`;
     const current = hits.get(key);
 
     if (!current || current.resetAt <= now) {

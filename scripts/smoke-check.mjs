@@ -68,6 +68,17 @@ const smokeRateLimitExpectedStatus = toInteger(process.env.CORE64_SMOKE_RATE_LIM
 const smokeRateLimitExpectedCode = String(
     process.env.CORE64_SMOKE_RATE_LIMIT_EXPECTED_CODE || "SETTINGS_RATE_LIMITED"
 ).trim() || "SETTINGS_RATE_LIMITED";
+const smokeRateLimitCollectionsAttempts = Math.max(
+    2,
+    toInteger(process.env.CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS, 35)
+);
+const smokeRateLimitCollectionsExpectedStatus = toInteger(
+    process.env.CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_EXPECTED_STATUS,
+    429
+);
+const smokeRateLimitCollectionsExpectedCode = String(
+    process.env.CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_EXPECTED_CODE || "COLLECTIONS_RATE_LIMITED"
+).trim() || "COLLECTIONS_RATE_LIMITED";
 
 const genericReleaseLinks = new Set([
     "https://soundcloud.com/",
@@ -255,6 +266,105 @@ async function runSettingsSectionsRateLimitCheck({ token, sectionsPayload, attem
     };
 }
 
+async function runCollectionsDynamicRateLimitCheck({ token, attempts, expectedStatus, expectedCode }) {
+    const authHeaders = {
+        authorization: `Bearer ${token}`
+    };
+    const releasesResponse = await requestJson("/releases", {
+        headers: authHeaders
+    });
+
+    const releases = Array.isArray(releasesResponse.json?.data) ? releasesResponse.json.data : [];
+    const normalizedReleases = releases
+        .map((release) => {
+            const id = Number(release?.id);
+            if (!Number.isInteger(id) || id <= 0) return null;
+            return {
+                id,
+                title: String(release?.title || "").trim()
+            };
+        })
+        .filter(Boolean);
+
+    const idsTested = normalizedReleases.slice(0, 2).map((release) => release.id);
+
+    if (!releasesResponse.response.ok || idsTested.length < 2) {
+        return {
+            enabled: true,
+            target: "collections_release_update_dynamic_ids",
+            endpointTemplate: "/releases/:id",
+            idsTested,
+            attempts,
+            expectedStatus,
+            expectedCode,
+            status: releasesResponse.response.status,
+            code: releasesResponse.json?.code || null,
+            error: "Collections rate-limit check requires at least two releases with numeric ids.",
+            retryAfterSeconds: null,
+            observedAtAttempt: null,
+            ok: false
+        };
+    }
+
+    const headers = {
+        authorization: `Bearer ${token}`,
+        "content-type": "application/json"
+    };
+
+    let observedAtAttempt = null;
+    let status = null;
+    let code = null;
+    let error = null;
+    let retryAfterSeconds = null;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+        const releaseId = idsTested[(attempt - 1) % idsTested.length];
+        const release = normalizedReleases.find((entry) => entry.id === releaseId);
+        const title = String(release?.title || `Rate limit smoke release ${releaseId}`).trim() || `Rate limit smoke release ${releaseId}`;
+
+        const response = await requestJson(`/releases/${releaseId}`, {
+            method: "PUT",
+            headers,
+            body: JSON.stringify({ title })
+        });
+
+        status = response.response.status;
+        code = response.json?.code || null;
+        error = response.json?.error || null;
+
+        const retryAfter = Number(response.response.headers.get("retry-after"));
+        retryAfterSeconds = Number.isFinite(retryAfter) ? retryAfter : null;
+
+        if (status === expectedStatus) {
+            observedAtAttempt = attempt;
+            break;
+        }
+
+        if (!response.response.ok && status !== 404) {
+            break;
+        }
+    }
+
+    const codeMatches = !expectedCode || code === expectedCode;
+    const retryAfterOk = expectedStatus !== 429 || (retryAfterSeconds !== null && retryAfterSeconds >= 1);
+
+    return {
+        enabled: true,
+        target: "collections_release_update_dynamic_ids",
+        endpointTemplate: "/releases/:id",
+        idsTested,
+        attempts,
+        expectedStatus,
+        expectedCode,
+        status,
+        code,
+        error,
+        retryAfterSeconds,
+        observedAtAttempt,
+        ok: observedAtAttempt !== null && status === expectedStatus && codeMatches && retryAfterOk
+    };
+}
+
 async function run() {
     const report = {
         baseUrl,
@@ -426,6 +536,21 @@ async function run() {
             retryAfterSeconds: null,
             observedAtAttempt: null,
             ok: null
+        },
+        rateLimitCollectionsCheck: {
+            enabled: smokeRateLimitCheckEnabled,
+            target: "collections_release_update_dynamic_ids",
+            endpointTemplate: "/releases/:id",
+            idsTested: [],
+            attempts: smokeRateLimitCollectionsAttempts,
+            expectedStatus: smokeRateLimitCollectionsExpectedStatus,
+            expectedCode: smokeRateLimitCollectionsExpectedCode,
+            status: null,
+            code: null,
+            error: null,
+            retryAfterSeconds: null,
+            observedAtAttempt: null,
+            ok: null
         }
     };
 
@@ -516,6 +641,18 @@ async function run() {
 
                 adminChecks.rateLimitCheck = rateLimitCheck;
                 if (!rateLimitCheck.ok) {
+                    report.passed = false;
+                }
+
+                const collectionsRateLimitCheck = await runCollectionsDynamicRateLimitCheck({
+                    token,
+                    attempts: smokeRateLimitCollectionsAttempts,
+                    expectedStatus: smokeRateLimitCollectionsExpectedStatus,
+                    expectedCode: smokeRateLimitCollectionsExpectedCode
+                });
+
+                adminChecks.rateLimitCollectionsCheck = collectionsRateLimitCheck;
+                if (!collectionsRateLimitCheck.ok) {
                     report.passed = false;
                 }
             }
