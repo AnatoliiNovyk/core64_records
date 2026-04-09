@@ -30,9 +30,9 @@ app.use(cors({
   credentials: true
 }));
 app.use(applySecurityHeaders);
-app.use("/api", securityRoutes);
 app.use(express.json({ limit: "1mb" }));
 app.use(requestLoggingMiddleware);
+app.use("/api", securityRoutes);
 
 app.use(express.static(publicDir));
 

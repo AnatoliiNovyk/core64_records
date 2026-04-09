@@ -4,6 +4,7 @@ import net from "node:net";
 import { pool } from "../db/pool.js";
 import { config } from "../config.js";
 import { classifyDatabaseError, sanitizeDatabaseErrorCode } from "../utils/dbError.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 
@@ -95,7 +96,7 @@ router.get("/health", (_req, res) => {
   res.json({ status: "ok", service: "core64-api", time: new Date().toISOString() });
 });
 
-router.get("/health/db", async (_req, res) => {
+router.get("/health/db", async (req, res) => {
   const startedAt = Date.now();
   const target = getSafeDatabaseTarget();
   const connectionTimeoutMs = config.dbConnectionTimeoutMs;
@@ -116,7 +117,15 @@ router.get("/health/db", async (_req, res) => {
     const dbCode = sanitizeDatabaseErrorCode(error);
     const shouldProbe = new Set(["timeout", "network", "connection", "dns"]).has(kind);
     const probe = shouldProbe ? await runConnectivityProbe(target, connectionTimeoutMs) : null;
-    console.error("DB health check failed", error);
+    logger.error("health.db.check_failed", {
+      requestId: String(res.getHeader("x-request-id") || ""),
+      method: req.method,
+      path: req.path,
+      kind,
+      dbCode,
+      target,
+      error
+    });
     res.status(503).json({
       status: "degraded",
       database: "unavailable",

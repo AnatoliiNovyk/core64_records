@@ -5,6 +5,7 @@ import { config } from "../config.js";
 import { createToken, requireAuth } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/security.js";
 import { sendApiError } from "../utils/apiError.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 
@@ -49,7 +50,12 @@ router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
     const token = createToken({ sub: user.id, username: user.username });
     return res.json({ data: { token } });
   } catch (error) {
-    console.error("Login route failed", error);
+    logger.error("auth.login.failed", {
+      requestId: String(res.getHeader("x-request-id") || ""),
+      method: req.method,
+      path: req.path,
+      error
+    });
     return sendApiError(res, {
       status: 503,
       code: "AUTH_SERVICE_UNAVAILABLE",

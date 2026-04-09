@@ -1,4 +1,5 @@
 import express from "express";
+import { logger } from "../utils/logger.js";
 
 const router = express.Router();
 
@@ -12,12 +13,33 @@ function toNumberOrNull(value) {
 }
 
 function parseCspReportPayload(rawBody) {
-  if (!rawBody || typeof rawBody !== "string") return null;
+  if (!rawBody) return null;
+
+  if (Array.isArray(rawBody)) {
+    return rawBody;
+  }
+
+  if (typeof rawBody === "object") {
+    return rawBody;
+  }
+
+  if (typeof rawBody !== "string") {
+    return null;
+  }
+
   try {
     return JSON.parse(rawBody);
   } catch {
     return null;
   }
+}
+
+function resolveRequestId(req, res) {
+  const responseValue = String(res.getHeader("x-request-id") || "").trim();
+  if (responseValue) return responseValue;
+
+  const requestValue = String(req.headers["x-request-id"] || "").trim();
+  return requestValue;
 }
 
 function summarizeLegacyReport(report) {
@@ -69,14 +91,19 @@ router.post(
   "/security/csp-report",
   express.text({ type: "*/*", limit: "64kb" }),
   (req, res) => {
+    const requestId = resolveRequestId(req, res);
     const payload = parseCspReportPayload(req.body);
     const summary = summarizeCspPayload(payload);
 
     if (summary) {
-      console.warn("CSP violation report", summary);
+      logger.warn("security.csp.violation", {
+        requestId,
+        summary
+      });
     } else {
       const rawSize = typeof req.body === "string" ? req.body.length : 0;
-      console.warn("CSP violation report received (unparsed)", {
+      logger.warn("security.csp.violation_unparsed", {
+        requestId,
         contentType: safeText(req.headers["content-type"], 128),
         rawSize
       });

@@ -465,6 +465,7 @@ This local gate runs:
 - `scripts/test-print-cloud-run-network-hint.mjs`
 - `scripts/test-print-cloud-run-db-route-verdict.mjs`
 - `scripts/test-log-sanitizer.mjs`
+- `scripts/test-runtime-console-usage.mjs`
 - `scripts/smoke-check.mjs`
 - `scripts/verify-branch-protection.ps1`
 

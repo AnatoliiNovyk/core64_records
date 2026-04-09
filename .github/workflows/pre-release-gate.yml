@@ -229,6 +229,9 @@ jobs:
       - name: Validate log sanitizer helper
         run: node scripts/test-log-sanitizer.mjs
 
+      - name: Validate runtime console usage helper
+        run: node scripts/test-runtime-console-usage.mjs
+
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
