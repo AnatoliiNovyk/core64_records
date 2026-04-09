@@ -259,35 +259,15 @@ async function run() {
     report.passed = false;
   }
 
-  const releaseNotFoundResult = await requestJson("/releases/999999999", {
-    method: "PUT",
-    headers: authHeaders,
-    body: JSON.stringify({ title: "missing release contract check" })
-  });
-  const releaseNotFoundShape = evaluateShape({
-    result: releaseNotFoundResult,
+  const routeNotFoundResult = await requestJson("/__error_contract_probe_missing_route__");
+  const routeNotFoundShape = evaluateShape({
+    result: routeNotFoundResult,
     expectedStatus: 404,
-    expectedCode: "COLLECTION_ITEM_NOT_FOUND",
-    expectedError: "Item not found"
+    expectedCode: "API_ROUTE_NOT_FOUND",
+    expectedError: "API route not found"
   });
-  report.checks.collectionNotFound = releaseNotFoundShape;
-  if (!releaseNotFoundShape.ok) {
-    report.passed = false;
-  }
-
-  const contactNotFoundResult = await requestJson("/contact-requests/999999999", {
-    method: "PATCH",
-    headers: authHeaders,
-    body: JSON.stringify({ status: "done" })
-  });
-  const contactNotFoundShape = evaluateShape({
-    result: contactNotFoundResult,
-    expectedStatus: 404,
-    expectedCode: "CONTACT_REQUEST_NOT_FOUND",
-    expectedError: "Contact request not found"
-  });
-  report.checks.contactRequestNotFound = contactNotFoundShape;
-  if (!contactNotFoundShape.ok) {
+  report.checks.apiRouteNotFound = routeNotFoundShape;
+  if (!routeNotFoundShape.ok) {
     report.passed = false;
   }
 

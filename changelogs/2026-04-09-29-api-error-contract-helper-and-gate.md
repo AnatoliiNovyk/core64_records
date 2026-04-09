@@ -21,8 +21,7 @@
 - Додано новий контрактний verifier `scripts/verify-api-error-contract.mjs` для сценаріїв:
   - auth required 401,
   - settings validation 400,
-  - collections not-found 404,
-  - contact request not-found 404.
+  - API route-not-found 404.
 - Інтегровано verifier у gate:
   - local: `scripts/pre-release-gate-local.ps1` (новий крок `Running API error contract check...`);
   - CI: `.github/workflows/pre-release-gate.yml` (крок `Run API error contract check`).

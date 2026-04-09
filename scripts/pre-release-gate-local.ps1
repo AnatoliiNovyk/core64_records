@@ -303,7 +303,16 @@ if ($LASTEXITCODE -ne 0) {
     throw "DB runtime TLS hint helper self-test failed."
 }
 
-Write-Host "[13/17] Running smoke check..."
+Write-Host "[13/17] Running API error contract check..."
+$env:CORE64_API_BASE = $Core64ApiBase
+$env:CORE64_ADMIN_PASSWORD = $resolvedCore64AdminPassword
+$env:CORE64_CONTRACT_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
+node scripts/verify-api-error-contract.mjs
+if ($LASTEXITCODE -ne 0) {
+    throw "API error contract check failed."
+}
+
+Write-Host "[14/17] Running smoke check..."
 $smokeResult = Invoke-SmokeCheck `
     -ApiBase $Core64ApiBase `
     -AdminPassword $resolvedCore64AdminPassword `
@@ -332,19 +341,10 @@ if ($smokeResult.ExitCode -ne 0) {
     throw "Smoke check failed."
 }
 
-Write-Host "[14/17] Running settings/public contract check..."
+Write-Host "[15/17] Running settings/public contract check..."
 node scripts/settings-public-contract-check.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings/public contract check failed."
-}
-
-Write-Host "[15/17] Running API error contract check..."
-$env:CORE64_API_BASE = $Core64ApiBase
-$env:CORE64_ADMIN_PASSWORD = $resolvedCore64AdminPassword
-$env:CORE64_CONTRACT_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
-node scripts/verify-api-error-contract.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "API error contract check failed."
 }
 
 Write-Host "[16/17] Running settings i18n consistency check..."

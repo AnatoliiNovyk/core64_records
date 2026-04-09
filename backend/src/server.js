@@ -40,6 +40,13 @@ app.use("/api", collectionRoutes);
 app.use("/api", settingsRoutes);
 app.use("/api", contactRoutes);
 app.use("/api", auditRoutes);
+app.use("/api", (_req, res) => {
+  return sendApiError(res, {
+    status: 404,
+    code: "API_ROUTE_NOT_FOUND",
+    error: "API route not found"
+  });
+});
 
 app.get("/", (_req, res) => {
   res.sendFile(path.join(publicDir, "index.html"));
