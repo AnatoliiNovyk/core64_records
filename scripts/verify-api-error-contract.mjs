@@ -160,6 +160,15 @@ function normalizeFieldErrors(payload, key) {
   return Array.isArray(candidate) ? candidate : [];
 }
 
+function normalizeFieldErrorKeys(payload) {
+  const fieldErrors = payload?.details?.fieldErrors;
+  if (!fieldErrors || typeof fieldErrors !== "object") {
+    return [];
+  }
+
+  return Object.keys(fieldErrors);
+}
+
 function evaluateShape({ result, expectedStatus, expectedCode, expectedError }) {
   const payload = asErrorPayload(result.json);
   const statusValue = Number(payload.status);
@@ -206,6 +215,22 @@ async function run() {
     report.passed = false;
   }
 
+  const invalidCredentialsResult = await requestJson("/auth/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password: `${adminPassword}-invalid` })
+  });
+  const invalidCredentialsShape = evaluateShape({
+    result: invalidCredentialsResult,
+    expectedStatus: 401,
+    expectedCode: "AUTH_INVALID_CREDENTIALS",
+    expectedError: "Invalid credentials"
+  });
+  report.checks.invalidCredentials = invalidCredentialsShape;
+  if (!invalidCredentialsShape.ok) {
+    report.passed = false;
+  }
+
   const login = await requestJson("/auth/login", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -222,6 +247,22 @@ async function run() {
     authorization: `Bearer ${token}`,
     "content-type": "application/json"
   };
+
+  const invalidTokenResult = await requestJson("/auth/me", {
+    headers: {
+      authorization: "Bearer invalid-token"
+    }
+  });
+  const invalidTokenShape = evaluateShape({
+    result: invalidTokenResult,
+    expectedStatus: 401,
+    expectedCode: "AUTH_INVALID_TOKEN",
+    expectedError: "Invalid token"
+  });
+  report.checks.invalidToken = invalidTokenShape;
+  if (!invalidTokenShape.ok) {
+    report.passed = false;
+  }
 
   const settingsResult = await requestJson("/settings", { headers: authHeaders });
   ensureOk(settingsResult, "GET /settings");
@@ -256,6 +297,73 @@ async function run() {
   invalidSettingsShape.ok = invalidSettingsShape.ok && invalidSettingsShape.emailFieldErrorPresent;
   report.checks.settingsValidation = invalidSettingsShape;
   if (!invalidSettingsShape.ok) {
+    report.passed = false;
+  }
+
+  const collectionValidationResult = await requestJson("/releases", {
+    method: "POST",
+    headers: authHeaders,
+    body: JSON.stringify({})
+  });
+  const collectionValidationShape = evaluateShape({
+    result: collectionValidationResult,
+    expectedStatus: 400,
+    expectedCode: "VALIDATION_FAILED",
+    expectedError: "Validation failed"
+  });
+  collectionValidationShape.fieldErrorKeys = normalizeFieldErrorKeys(collectionValidationShape.payload);
+  collectionValidationShape.hasFieldErrors = collectionValidationShape.fieldErrorKeys.length > 0;
+  collectionValidationShape.ok = collectionValidationShape.ok && collectionValidationShape.hasFieldErrors;
+  report.checks.collectionValidation = collectionValidationShape;
+  if (!collectionValidationShape.ok) {
+    report.passed = false;
+  }
+
+  const missingCollectionId = 999999;
+  const collectionItemNotFoundResult = await requestJson(`/releases/${missingCollectionId}`, {
+    method: "PUT",
+    headers: authHeaders,
+    body: JSON.stringify({})
+  });
+  const collectionItemNotFoundShape = evaluateShape({
+    result: collectionItemNotFoundResult,
+    expectedStatus: 404,
+    expectedCode: "COLLECTION_ITEM_NOT_FOUND",
+    expectedError: "Item not found"
+  });
+  const collectionItemMeta = asErrorPayload(collectionItemNotFoundShape.payload?.meta);
+  collectionItemNotFoundShape.meta = {
+    type: String(collectionItemMeta.type || ""),
+    id: Number(collectionItemMeta.id)
+  };
+  collectionItemNotFoundShape.metaMatches = collectionItemNotFoundShape.meta.type === "releases"
+    && collectionItemNotFoundShape.meta.id === missingCollectionId;
+  collectionItemNotFoundShape.ok = collectionItemNotFoundShape.ok && collectionItemNotFoundShape.metaMatches;
+  report.checks.collectionItemNotFound = collectionItemNotFoundShape;
+  if (!collectionItemNotFoundShape.ok) {
+    report.passed = false;
+  }
+
+  const missingContactRequestId = 999999;
+  const contactRequestNotFoundResult = await requestJson(`/contact-requests/${missingContactRequestId}`, {
+    method: "PATCH",
+    headers: authHeaders,
+    body: JSON.stringify({ status: "done" })
+  });
+  const contactRequestNotFoundShape = evaluateShape({
+    result: contactRequestNotFoundResult,
+    expectedStatus: 404,
+    expectedCode: "CONTACT_REQUEST_NOT_FOUND",
+    expectedError: "Contact request not found"
+  });
+  const contactRequestMeta = asErrorPayload(contactRequestNotFoundShape.payload?.meta);
+  contactRequestNotFoundShape.meta = {
+    id: Number(contactRequestMeta.id)
+  };
+  contactRequestNotFoundShape.metaMatches = contactRequestNotFoundShape.meta.id === missingContactRequestId;
+  contactRequestNotFoundShape.ok = contactRequestNotFoundShape.ok && contactRequestNotFoundShape.metaMatches;
+  report.checks.contactRequestNotFound = contactRequestNotFoundShape;
+  if (!contactRequestNotFoundShape.ok) {
     report.passed = false;
   }
 

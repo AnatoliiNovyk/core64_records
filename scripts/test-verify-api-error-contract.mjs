@@ -52,7 +52,8 @@ function readRequestBody(req) {
 async function createMockServer(options = {}) {
   const {
     routeNotFoundCode = "API_ROUTE_NOT_FOUND",
-    includeValidationFieldError = true
+    includeValidationFieldError = true,
+    invalidTokenCode = "AUTH_INVALID_TOKEN"
   } = options;
 
   const adminPassword = "test-admin-password";
@@ -87,6 +88,26 @@ async function createMockServer(options = {}) {
       writeJson(res, 200, {
         data: {
           token: authToken
+        }
+      });
+      return;
+    }
+
+    if (pathname === "/api/auth/me" && req.method === "GET") {
+      const authorization = String(req.headers.authorization || "");
+      if (authorization !== `Bearer ${authToken}`) {
+        writeJson(res, 401, {
+          status: 401,
+          code: invalidTokenCode,
+          error: "Invalid token"
+        });
+        return;
+      }
+
+      writeJson(res, 200, {
+        data: {
+          id: "test-user-id",
+          username: "admin"
         }
       });
       return;
@@ -141,6 +162,106 @@ async function createMockServer(options = {}) {
       }
 
       writeJson(res, 200, { data: body?.data || settingsPayload });
+      return;
+    }
+
+    if (pathname === "/api/releases" && req.method === "POST") {
+      const authorization = String(req.headers.authorization || "");
+      if (authorization !== `Bearer ${authToken}`) {
+        writeJson(res, 401, {
+          status: 401,
+          code: "AUTH_REQUIRED",
+          error: "Unauthorized"
+        });
+        return;
+      }
+
+      const body = await readRequestBody(req);
+      const title = String(body?.title || "").trim();
+      if (!title) {
+        writeJson(res, 400, {
+          status: 400,
+          code: "VALIDATION_FAILED",
+          error: "Validation failed",
+          details: {
+            fieldErrors: {
+              title: ["Required"]
+            }
+          }
+        });
+        return;
+      }
+
+      writeJson(res, 201, {
+        data: {
+          id: 1,
+          ...body
+        }
+      });
+      return;
+    }
+
+    const releasesMatch = pathname.match(/^\/api\/releases\/(\d+)$/);
+    if (releasesMatch && req.method === "PUT") {
+      const authorization = String(req.headers.authorization || "");
+      if (authorization !== `Bearer ${authToken}`) {
+        writeJson(res, 401, {
+          status: 401,
+          code: "AUTH_REQUIRED",
+          error: "Unauthorized"
+        });
+        return;
+      }
+
+      const id = Number(releasesMatch[1]);
+      if (id === 999999) {
+        writeJson(res, 404, {
+          status: 404,
+          code: "COLLECTION_ITEM_NOT_FOUND",
+          error: "Item not found",
+          meta: {
+            type: "releases",
+            id
+          }
+        });
+        return;
+      }
+
+      writeJson(res, 200, { data: { id } });
+      return;
+    }
+
+    const contactRequestMatch = pathname.match(/^\/api\/contact-requests\/(\d+)$/);
+    if (contactRequestMatch && req.method === "PATCH") {
+      const authorization = String(req.headers.authorization || "");
+      if (authorization !== `Bearer ${authToken}`) {
+        writeJson(res, 401, {
+          status: 401,
+          code: "AUTH_REQUIRED",
+          error: "Unauthorized"
+        });
+        return;
+      }
+
+      const id = Number(contactRequestMatch[1]);
+      if (id === 999999) {
+        writeJson(res, 404, {
+          status: 404,
+          code: "CONTACT_REQUEST_NOT_FOUND",
+          error: "Contact request not found",
+          meta: {
+            id
+          }
+        });
+        return;
+      }
+
+      writeJson(res, 200, {
+        data: {
+          id,
+          status: "done"
+        }
+      });
       return;
     }
 
@@ -227,7 +348,12 @@ async function main() {
     );
     expect(report?.passed === true, "happy-path: expected passed=true");
     expect(report?.checks?.authRequired?.ok === true, "happy-path: authRequired check should pass");
+    expect(report?.checks?.invalidCredentials?.ok === true, "happy-path: invalidCredentials check should pass");
+    expect(report?.checks?.invalidToken?.ok === true, "happy-path: invalidToken check should pass");
     expect(report?.checks?.settingsValidation?.ok === true, "happy-path: settingsValidation check should pass");
+    expect(report?.checks?.collectionValidation?.ok === true, "happy-path: collectionValidation check should pass");
+    expect(report?.checks?.collectionItemNotFound?.ok === true, "happy-path: collectionItemNotFound check should pass");
+    expect(report?.checks?.contactRequestNotFound?.ok === true, "happy-path: contactRequestNotFound check should pass");
     expect(report?.checks?.apiRouteNotFound?.ok === true, "happy-path: apiRouteNotFound check should pass");
   });
 
@@ -248,6 +374,15 @@ async function main() {
     expect(report?.passed === false, "validation-field-error-missing: expected passed=false");
     expect(report?.checks?.settingsValidation?.ok === false, "validation-field-error-missing: expected failing validation details check");
     expect(report?.checks?.settingsValidation?.emailFieldErrorPresent === false, "validation-field-error-missing: expected missing email field error marker");
+  });
+
+  await runCase("invalid-token-mismatch", { invalidTokenCode: "WRONG_AUTH_INVALID_TOKEN" }, ({ result, report }) => {
+    expect(
+      result.code === 1,
+      `invalid-token-mismatch: expected exit 1, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+    );
+    expect(report?.passed === false, "invalid-token-mismatch: expected passed=false");
+    expect(report?.checks?.invalidToken?.ok === false, "invalid-token-mismatch: expected invalidToken check to fail");
   });
 
   console.log("verify-api-error-contract self-test PASSED");
