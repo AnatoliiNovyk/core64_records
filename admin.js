@@ -239,7 +239,7 @@ const ADMIN_I18N = {
         settingsHeaderLogoPlaceholder: "/images/logo-header.png",
         settingsFooterLogoLabel: "Лого футера (URL/шлях)",
         settingsFooterLogoPlaceholder: "/images/logo-footer.png",
-        settingsBrandLogosHint: "Можна вказати URL/шлях або завантажити файл з комп'ютера. Формати: JPG, PNG, WEBP, GIF. Максимум: 500KB.",
+        settingsBrandLogosHint: "Можна вказати URL/шлях або завантажити файл з комп'ютера. Формати: JPG, PNG, WEBP, GIF. Максимум: 2MB.",
         settingsLogoUploadButton: "Файл",
         settingsHeroLinksTitle: "Соцпосилання Hero-блоку",
         settingsHeroLinksHint: "Якщо поле порожнє, буде використано символ #.",
@@ -276,6 +276,7 @@ const ADMIN_I18N = {
         settingsSaveMissingAdapter: "Не вдалося зберегти налаштування: відсутній метод adapter.",
         settingsSaveSuccess: "Налаштування збережено",
         settingsSaveFailed: "Не вдалося зберегти налаштування",
+        settingsSaveTooLarge: "Не вдалося зберегти: логотипи завеликі для одного запиту. Зменште розмір файлів або стискніть зображення.",
         activitySettingsUpdated: "Оновлено налаштування сайту",
         activitySectionSettingsUpdated: "Оновлено заголовки секцій, назви меню, порядок і видимість",
         sectionReleasesLabel: "Релізи",
@@ -305,7 +306,7 @@ const ADMIN_I18N = {
         activityContactsExported: "Експортовано {count} звернень у CSV",
         uploadSizeDetectFailed: "Не вдалося визначити розмір файлу.",
         uploadUnsupportedFormat: "Непідтримуваний формат. Дозволено JPG, PNG, WEBP, GIF.",
-        uploadTooLarge: "Файл занадто великий. Максимальний розмір: 500KB",
+        uploadTooLarge: "Файл занадто великий. Максимальний розмір: 2MB",
         uploadReadError: "Помилка читання файлу",
         modalEditPrefix: "Редагувати",
         modalAddPrefix: "Додати",
@@ -542,7 +543,7 @@ const ADMIN_I18N = {
         settingsHeaderLogoPlaceholder: "/images/logo-header.png",
         settingsFooterLogoLabel: "Footer logo (URL/path)",
         settingsFooterLogoPlaceholder: "/images/logo-footer.png",
-        settingsBrandLogosHint: "You can provide a URL/path or upload a file from your computer. Formats: JPG, PNG, WEBP, GIF. Maximum: 500KB.",
+        settingsBrandLogosHint: "You can provide a URL/path or upload a file from your computer. Formats: JPG, PNG, WEBP, GIF. Maximum: 2MB.",
         settingsLogoUploadButton: "File",
         settingsHeroLinksTitle: "Hero social links",
         settingsHeroLinksHint: "If a field is empty, symbol # will be used.",
@@ -579,6 +580,7 @@ const ADMIN_I18N = {
         settingsSaveMissingAdapter: "Failed to save settings: adapter method is missing.",
         settingsSaveSuccess: "Settings saved",
         settingsSaveFailed: "Failed to save settings",
+        settingsSaveTooLarge: "Failed to save: logos are too large for one request. Reduce file size or compress images.",
         activitySettingsUpdated: "Site settings updated",
         activitySectionSettingsUpdated: "Section titles, menu labels, order, and visibility updated",
         sectionReleasesLabel: "Releases",
@@ -608,7 +610,7 @@ const ADMIN_I18N = {
         activityContactsExported: "Exported {count} requests to CSV",
         uploadSizeDetectFailed: "Failed to detect file size.",
         uploadUnsupportedFormat: "Unsupported format. Allowed: JPG, PNG, WEBP, GIF.",
-        uploadTooLarge: "File is too large. Maximum size: 500KB",
+        uploadTooLarge: "File is too large. Maximum size: 2MB",
         uploadReadError: "File read error",
         modalEditPrefix: "Edit",
         modalAddPrefix: "Add",
@@ -752,6 +754,12 @@ function isDatabaseUnavailableError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
     return code === "DB_UNAVAILABLE" || status === 503;
+}
+
+function isPayloadTooLargeError(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
+    return code === "PAYLOAD_TOO_LARGE" || status === 413;
 }
 
 function resolveCrudSaveErrorMessage(error) {
@@ -5088,7 +5096,7 @@ function closeModal() {
     editingType = null;
 }
 
-const MAX_UPLOAD_IMAGE_BYTES = 500 * 1024;
+const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
 
@@ -5996,7 +6004,10 @@ async function saveSettings(options = {}) {
         if (currentSection !== "settings") return false;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return false;
-        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("settingsSaveFailed"));
+        const errorMessage = isDatabaseUnavailableError(error)
+            ? tAdmin("databaseTemporarilyUnavailable")
+            : (isPayloadTooLargeError(error) ? tAdmin("settingsSaveTooLarge") : tAdmin("settingsSaveFailed"));
+        alert(errorMessage);
         return false;
     }
 }

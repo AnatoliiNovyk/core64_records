@@ -30,7 +30,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(applySecurityHeaders);
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(requestLoggingMiddleware);
 app.use("/api", securityRoutes);
 
@@ -72,6 +72,16 @@ app.use((error, req, res, _next) => {
   if (error instanceof ZodError) {
     logger.warn("http.request.validation_error", errorContext);
     return res.status(400).json(fromZodError(error));
+  }
+
+  const errorStatus = Number(error && (error.status || error.statusCode));
+  if (errorStatus === 413 || (error && error.type === "entity.too.large")) {
+    logger.warn("http.request.payload_too_large", errorContext);
+    return sendApiError(res, {
+      status: 413,
+      code: "PAYLOAD_TOO_LARGE",
+      error: "Request payload is too large"
+    });
   }
 
   if (isDatabaseConnectivityError(error)) {
