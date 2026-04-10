@@ -321,14 +321,28 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsHeaderLogoLabel">Лого хедера (URL/шлях)</label>
-                                <input type="text" id="setting-header-logo-url" class="form-input w-full p-3 rounded" data-i18n-title="settingsHeaderLogoLabel" data-i18n-placeholder="settingsHeaderLogoPlaceholder" title="Лого хедера (URL/шлях)" placeholder="/images/logo-header.png">
+                                <div class="flex gap-2">
+                                    <input type="text" id="setting-header-logo-url" class="form-input flex-1 p-3 rounded" data-i18n-title="settingsHeaderLogoLabel" data-i18n-placeholder="settingsHeaderLogoPlaceholder" title="Лого хедера (URL/шлях)" placeholder="/images/logo-header.png" oninput="updateSettingsLogoPreview('header')">
+                                    <button type="button" onclick="triggerSettingsLogoUpload('header')" class="btn-cyan px-4 py-2 rounded text-xs uppercase tracking-wider" data-i18n="settingsLogoUploadButton">Файл</button>
+                                    <input type="file" id="setting-header-logo-file" class="hidden" accept="image/jpeg,image/png,image/webp,image/gif" title="Файл логотипа хедера" aria-label="Файл логотипа хедера" onchange="handleSettingsLogoUpload('header', this)">
+                                </div>
+                                <div class="mt-2 h-20 border border-cyan-500/20 rounded bg-black/20 grid place-items-center p-2">
+                                    <img id="setting-header-logo-preview" src="" alt="Header logo preview" class="max-h-full max-w-full object-contain hidden">
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-gray-400 mb-2 uppercase text-xs" data-i18n="settingsFooterLogoLabel">Лого футера (URL/шлях)</label>
-                                <input type="text" id="setting-footer-logo-url" class="form-input w-full p-3 rounded" data-i18n-title="settingsFooterLogoLabel" data-i18n-placeholder="settingsFooterLogoPlaceholder" title="Лого футера (URL/шлях)" placeholder="/images/logo-footer.png">
+                                <div class="flex gap-2">
+                                    <input type="text" id="setting-footer-logo-url" class="form-input flex-1 p-3 rounded" data-i18n-title="settingsFooterLogoLabel" data-i18n-placeholder="settingsFooterLogoPlaceholder" title="Лого футера (URL/шлях)" placeholder="/images/logo-footer.png" oninput="updateSettingsLogoPreview('footer')">
+                                    <button type="button" onclick="triggerSettingsLogoUpload('footer')" class="btn-cyan px-4 py-2 rounded text-xs uppercase tracking-wider" data-i18n="settingsLogoUploadButton">Файл</button>
+                                    <input type="file" id="setting-footer-logo-file" class="hidden" accept="image/jpeg,image/png,image/webp,image/gif" title="Файл логотипа футера" aria-label="Файл логотипа футера" onchange="handleSettingsLogoUpload('footer', this)">
+                                </div>
+                                <div class="mt-2 h-20 border border-cyan-500/20 rounded bg-black/20 grid place-items-center p-2">
+                                    <img id="setting-footer-logo-preview" src="" alt="Footer logo preview" class="max-h-full max-w-full object-contain hidden">
+                                </div>
                             </div>
                         </div>
-                        <p class="mt-2 text-xs text-gray-500" data-i18n="settingsBrandLogosHint">Підтримуються https:// URL та відносні шляхи (наприклад /images/logo.png).</p>
+                        <p class="mt-2 text-xs text-gray-500" data-i18n="settingsBrandLogosHint">Можна вказати URL/шлях або завантажити файл з комп'ютера. Формати: JPG, PNG, WEBP, GIF. Максимум: 500KB.</p>
                     </div>
                     <div class="pt-2 border-t border-cyan-500/20">
                         <h3 class="text-sm uppercase tracking-wider text-cyan-300 mb-3" data-i18n="settingsHeroLinksTitle">Соцпосилання Hero-блоку</h3>

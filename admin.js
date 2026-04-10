@@ -239,7 +239,8 @@ const ADMIN_I18N = {
         settingsHeaderLogoPlaceholder: "/images/logo-header.png",
         settingsFooterLogoLabel: "Лого футера (URL/шлях)",
         settingsFooterLogoPlaceholder: "/images/logo-footer.png",
-        settingsBrandLogosHint: "Підтримуються https:// URL та відносні шляхи (наприклад /images/logo.png).",
+        settingsBrandLogosHint: "Можна вказати URL/шлях або завантажити файл з комп'ютера. Формати: JPG, PNG, WEBP, GIF. Максимум: 500KB.",
+        settingsLogoUploadButton: "Файл",
         settingsHeroLinksTitle: "Соцпосилання Hero-блоку",
         settingsHeroLinksHint: "Якщо поле порожнє, буде використано символ #.",
         settingsAuditThresholdsTitle: "Пороги latency для аудиту",
@@ -541,7 +542,8 @@ const ADMIN_I18N = {
         settingsHeaderLogoPlaceholder: "/images/logo-header.png",
         settingsFooterLogoLabel: "Footer logo (URL/path)",
         settingsFooterLogoPlaceholder: "/images/logo-footer.png",
-        settingsBrandLogosHint: "Supports https:// URLs and relative paths (for example /images/logo.png).",
+        settingsBrandLogosHint: "You can provide a URL/path or upload a file from your computer. Formats: JPG, PNG, WEBP, GIF. Maximum: 500KB.",
+        settingsLogoUploadButton: "File",
         settingsHeroLinksTitle: "Hero social links",
         settingsHeroLinksHint: "If a field is empty, symbol # will be used.",
         settingsAuditThresholdsTitle: "Audit latency thresholds",
@@ -3035,6 +3037,54 @@ function normalizeSettingsHostname(value) {
     return /^[a-z0-9.-]+$/i.test(normalized) ? normalized : "";
 }
 
+function resolveSettingsLogoElements(logoType) {
+    const normalizedType = String(logoType || "").trim().toLowerCase();
+    if (normalizedType === "header") {
+        return {
+            inputEl: document.getElementById("setting-header-logo-url"),
+            fileEl: document.getElementById("setting-header-logo-file"),
+            previewEl: document.getElementById("setting-header-logo-preview")
+        };
+    }
+    if (normalizedType === "footer") {
+        return {
+            inputEl: document.getElementById("setting-footer-logo-url"),
+            fileEl: document.getElementById("setting-footer-logo-file"),
+            previewEl: document.getElementById("setting-footer-logo-preview")
+        };
+    }
+    return {
+        inputEl: null,
+        fileEl: null,
+        previewEl: null
+    };
+}
+
+function updateSettingsLogoPreview(logoType) {
+    const { inputEl, previewEl } = resolveSettingsLogoElements(logoType);
+    if (!inputEl || !previewEl || !inputEl.isConnected || !previewEl.isConnected) return;
+
+    const source = normalizeSettingsPlainText(inputEl.value, "");
+    if (!source || source === "#") {
+        previewEl.classList.add("hidden");
+        previewEl.removeAttribute("src");
+        return;
+    }
+
+    previewEl.onerror = () => {
+        if (!previewEl.isConnected) return;
+        previewEl.classList.add("hidden");
+    };
+    previewEl.src = source;
+    previewEl.classList.remove("hidden");
+}
+
+function triggerSettingsLogoUpload(logoType) {
+    const { fileEl } = resolveSettingsLogoElements(logoType);
+    if (!fileEl || !fileEl.isConnected) return;
+    fileEl.click();
+}
+
 const SECTION_SETTINGS_DEFAULTS = [
     {
         sectionKey: "releases",
@@ -3633,6 +3683,8 @@ async function loadSettings() {
     if (footerLogoInputEl && footerLogoInputEl.isConnected) {
         footerLogoInputEl.value = decodeHtmlEntities(cache.settings.footerLogoUrl || "");
     }
+    updateSettingsLogoPreview("header");
+    updateSettingsLogoPreview("footer");
     if (instagramInputEl && instagramInputEl.isConnected) {
         instagramInputEl.value = decodeHtmlEntities(cache.settings.instagramUrl || "");
     }
@@ -5056,6 +5108,68 @@ function hasSupportedUploadImageExtension(file) {
 
 function isSupportedUploadImage(file) {
     return hasSupportedUploadImageType(file) || hasSupportedUploadImageExtension(file);
+}
+
+function handleSettingsLogoUpload(logoType, fileInputEl) {
+    if (!fileInputEl || fileInputEl.isConnected === false) return;
+    const sectionAtUpload = currentSection;
+    if (currentSection !== "settings") return;
+    const settingsSectionEl = document.getElementById("section-settings");
+    if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
+
+    const file = fileInputEl.files && fileInputEl.files[0];
+    if (!file) return;
+
+    if (typeof file.size !== "number" || !Number.isFinite(file.size) || file.size < 0) {
+        if (currentSection === sectionAtUpload && settingsSectionEl.isConnected) {
+            alert(tAdmin("uploadSizeDetectFailed"));
+        }
+        if (fileInputEl.isConnected) fileInputEl.value = "";
+        return;
+    }
+
+    if (!isSupportedUploadImage(file)) {
+        if (currentSection === sectionAtUpload && settingsSectionEl.isConnected) {
+            alert(tAdmin("uploadUnsupportedFormat"));
+        }
+        if (fileInputEl.isConnected) fileInputEl.value = "";
+        return;
+    }
+
+    if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+        if (currentSection === sectionAtUpload && settingsSectionEl.isConnected) {
+            alert(tAdmin("uploadTooLarge"));
+        }
+        if (fileInputEl.isConnected) fileInputEl.value = "";
+        return;
+    }
+
+    const { inputEl } = resolveSettingsLogoElements(logoType);
+    if (!inputEl || !inputEl.isConnected) {
+        if (fileInputEl.isConnected) fileInputEl.value = "";
+        return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = function (event) {
+        if (currentSection !== sectionAtUpload) return;
+        if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
+        if (!inputEl || !inputEl.isConnected) return;
+        const loadTarget = event && event.target;
+        if (!loadTarget || typeof loadTarget.result !== "string") return;
+        inputEl.value = loadTarget.result;
+        updateSettingsLogoPreview(logoType);
+        if (fileInputEl && fileInputEl.isConnected) fileInputEl.value = "";
+    };
+
+    reader.onerror = function () {
+        if (currentSection !== sectionAtUpload) return;
+        if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
+        alert(tAdmin("uploadReadError"));
+        if (fileInputEl && fileInputEl.isConnected) fileInputEl.value = "";
+    };
+
+    reader.readAsDataURL(file);
 }
 
 function handleFileUpload(input) {

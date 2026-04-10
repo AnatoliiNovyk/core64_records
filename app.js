@@ -1162,8 +1162,13 @@ function normalizeBrandLogoUrl(value) {
     if (!decodedValue || decodedValue === "#") return "";
 
     const lowered = decodedValue.toLowerCase();
-    if (lowered.startsWith("javascript:") || lowered.startsWith("data:")) {
+    if (lowered.startsWith("javascript:")) {
         return "";
+    }
+
+    if (lowered.startsWith("data:")) {
+        const isAllowedImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(decodedValue);
+        return isAllowedImageDataUrl ? decodedValue : "";
     }
 
     try {
