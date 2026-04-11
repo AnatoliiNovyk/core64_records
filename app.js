@@ -760,16 +760,43 @@ function applyPublicSectionSettings(sectionSettings) {
 
         const aboutLinkEl = containerEl.querySelector('a[href="#about"]');
         const aboutParentEl = aboutLinkEl && aboutLinkEl.parentElement === containerEl ? aboutLinkEl : null;
-        normalized.forEach((section) => {
+        const linkAnchorEl = containerEl.querySelector("div");
+
+        normalized
+            .filter((section) => section.sectionKey !== "contact")
+            .forEach((section) => {
             const linkEl = containerEl.querySelector(`a[href="#${section.sectionKey}"]`);
             if (!linkEl) return;
             linkEl.textContent = section.menuTitle;
             if (aboutParentEl) {
                 containerEl.insertBefore(linkEl, aboutParentEl);
             } else {
-                containerEl.appendChild(linkEl);
+                if (linkAnchorEl && linkAnchorEl.parentElement === containerEl) {
+                    containerEl.insertBefore(linkEl, linkAnchorEl);
+                } else {
+                    containerEl.appendChild(linkEl);
+                }
             }
-        });
+            });
+
+        const contactSection = normalized.find((section) => section.sectionKey === "contact");
+        if (!contactSection) return;
+
+        const contactLinkEl = containerEl.querySelector('a[href="#contact"]');
+        if (!contactLinkEl) return;
+
+        contactLinkEl.textContent = contactSection.menuTitle;
+        if (aboutParentEl) {
+            containerEl.insertBefore(contactLinkEl, aboutParentEl.nextSibling);
+            return;
+        }
+
+        if (linkAnchorEl && linkAnchorEl.parentElement === containerEl) {
+            containerEl.insertBefore(contactLinkEl, linkAnchorEl);
+            return;
+        }
+
+        containerEl.appendChild(contactLinkEl);
     });
 
     const releasesSectionEl = document.getElementById("releases");
