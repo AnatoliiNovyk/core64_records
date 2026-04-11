@@ -15,6 +15,9 @@ param(
     [bool]$Core64SmokeRateLimitCheck = $true,
 
     [Parameter(Mandatory = $false)]
+    [bool]$Core64ContractSkipAuthRateLimitCheck = $false,
+
+    [Parameter(Mandatory = $false)]
     [int]$Core64SmokeRateLimitAttempts = 25,
 
     [Parameter(Mandatory = $false)]
@@ -47,6 +50,9 @@ param(
     [Parameter(Mandatory = $false)]
     [ValidateSet("any", "true", "false")]
     [string]$ExpectedConversationResolution = "any",
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipBranchProtectionCheck,
 
     [Parameter(Mandatory = $false)]
     [string]$Token
@@ -188,8 +194,12 @@ if ([string]::IsNullOrWhiteSpace($Token)) {
     $Token = $env:GITHUB_TOKEN
 }
 
-if ([string]::IsNullOrWhiteSpace($Token)) {
+if (-not $SkipBranchProtectionCheck -and [string]::IsNullOrWhiteSpace($Token)) {
     throw "GitHub token is missing. Set GITHUB_TOKEN env var or pass -Token for branch protection verification."
+}
+
+if ($SkipBranchProtectionCheck) {
+    Write-Warning "Branch protection verification is skipped by -SkipBranchProtectionCheck."
 }
 
 if ([string]::IsNullOrWhiteSpace($Core64ApiBase) -or ($Core64ApiBase -notmatch '^https?://')) {
@@ -337,9 +347,26 @@ Write-Host "[18/22] Running API error contract check..."
 $env:CORE64_API_BASE = $Core64ApiBase
 $env:CORE64_ADMIN_PASSWORD = $resolvedCore64AdminPassword
 $env:CORE64_CONTRACT_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
-node scripts/verify-api-error-contract.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "API error contract check failed."
+$env:CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK = if ($Core64ContractSkipAuthRateLimitCheck) { "true" } else { "false" }
+$contractOutputPath = [System.IO.Path]::GetTempFileName()
+try {
+    node scripts/verify-api-error-contract.mjs *> $contractOutputPath
+    $contractExitCode = $LASTEXITCODE
+    $contractOutput = Get-Content -LiteralPath $contractOutputPath -Raw
+    if (-not [string]::IsNullOrWhiteSpace($contractOutput)) {
+        Write-Host ($contractOutput.TrimEnd())
+    }
+
+    if ($contractExitCode -ne 0) {
+        $isAuthRateLimited = $contractOutput -match 'AUTH_RATE_LIMITED' -or $contractOutput -match 'failed with 429'
+        if ($Core64ContractSkipAuthRateLimitCheck -and $isAuthRateLimited) {
+            Write-Warning "API error contract check hit auth rate-limit and was bypassed by Core64ContractSkipAuthRateLimitCheck override."
+        } else {
+            throw "API error contract check failed."
+        }
+    }
+} finally {
+    Remove-Item -LiteralPath $contractOutputPath -ErrorAction SilentlyContinue
 }
 
 Write-Host "[19/22] Running smoke check..."
@@ -384,17 +411,21 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[22/22] Running branch protection policy verification..."
-& pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
-    -Owner $Owner `
-    -Repo $Repo `
-    -Branch $Branch `
-    -ExpectedCheckContexts $ExpectedCheckContexts `
-    -MinimumApprovals $MinimumApprovals `
-    -ExpectedConversationResolution $ExpectedConversationResolution `
-    -Token $Token
+if ($SkipBranchProtectionCheck) {
+    Write-Host "[22/22] Skipping branch protection policy verification by flag."
+} else {
+    & pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
+        -Owner $Owner `
+        -Repo $Repo `
+        -Branch $Branch `
+        -ExpectedCheckContexts $ExpectedCheckContexts `
+        -MinimumApprovals $MinimumApprovals `
+        -ExpectedConversationResolution $ExpectedConversationResolution `
+        -Token $Token
 
-if ($LASTEXITCODE -ne 0) {
-    throw "Branch protection policy verification failed."
+    if ($LASTEXITCODE -ne 0) {
+        throw "Branch protection policy verification failed."
+    }
 }
 
 if ($Core64SmokeRateLimitCheck) {
