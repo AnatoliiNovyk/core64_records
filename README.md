@@ -304,6 +304,7 @@ For contact endpoint coverage, enable smoke contact check:
 
 - CI input: `core64_smoke_contact=true`
 - Local gate: `pwsh -File scripts/pre-release-gate-local.ps1 -Core64SmokeContact $true`
+- Local tokenless/dev mode (explicit overrides): `pwsh -File scripts/pre-release-gate-local.ps1 -Core64OverrideRoleDiversity $true -SkipBranchProtectionCheck -Core64ContractSkipAuthRateLimitCheck $true`
 
 Required repository secret:
 
@@ -456,6 +457,18 @@ Run both checks locally with one command:
 $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
 ```
+
+For local tokenless/dev environments, use explicit overrides:
+
+```powershell
+pwsh -File scripts/pre-release-gate-local.ps1 -Core64OverrideRoleDiversity $true -SkipBranchProtectionCheck -Core64ContractSkipAuthRateLimitCheck $true
+```
+
+Important:
+
+- default mode remains strict and requires `GITHUB_TOKEN` for branch protection verification
+- `-SkipBranchProtectionCheck` is an explicit local bypass and should not be used for production release sign-off
+- `-Core64ContractSkipAuthRateLimitCheck` is an explicit local bypass for transient `AUTH_RATE_LIMITED` lockouts during repeated local runs
 
 This local gate runs:
 

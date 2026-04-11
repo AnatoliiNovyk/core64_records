@@ -109,6 +109,18 @@ $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
 ```
 
+Tokenless local/dev mode (explicit overrides):
+
+```powershell
+pwsh -File scripts/pre-release-gate-local.ps1 -Core64OverrideRoleDiversity $true -SkipBranchProtectionCheck -Core64ContractSkipAuthRateLimitCheck $true
+```
+
+Notes:
+
+- default mode is strict and requires `GITHUB_TOKEN` for branch protection verification
+- `-SkipBranchProtectionCheck` is local-only and must not be used for final production sign-off
+- `-Core64ContractSkipAuthRateLimitCheck` is local-only and bypasses transient `AUTH_RATE_LIMITED` lockout on API contract step during repeated local reruns
+
 Local gate also performs mandatory changelog coverage + changelog format verification for `HEAD~1..HEAD` by default, plus changelog format helper self-test, changelog coverage helper self-test, log sanitizer helper self-test, runtime console usage helper self-test, API error contract helper self-test, settings i18n consistency helper self-test, smoke-check helper self-test, and API error contract check.
 
 UI smoke is intentionally CI-only in pre-release defaults (Playwright + Chromium install path). Use manual `npm run ui-smoke` locally when browser-level validation is needed outside CI.
