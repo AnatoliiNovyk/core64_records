@@ -118,6 +118,44 @@
             transition: opacity 0.3s;
             z-index: 50;
         }
+
+        .floating-scroll-top {
+            position: fixed;
+            right: 86px;
+            bottom: 20px;
+            z-index: 50;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 12px;
+            border: 1px solid rgba(0, 240, 255, 0.4);
+            background: rgba(5, 5, 8, 0.9);
+            color: #7dd3fc;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            font-size: 11px;
+            transition: all 0.25s ease;
+        }
+
+        .floating-scroll-top:hover {
+            color: #67e8f9;
+            box-shadow: 0 0 14px rgba(0, 240, 255, 0.35);
+            border-color: rgba(0, 240, 255, 0.7);
+        }
+
+        @media (max-width: 640px) {
+            .floating-scroll-top {
+                right: 74px;
+                bottom: 16px;
+                padding: 9px 10px;
+                font-size: 10px;
+            }
+
+            .admin-link {
+                right: 16px;
+                bottom: 16px;
+            }
+        }
         
         .admin-link:hover {
             opacity: 1;
@@ -447,16 +485,6 @@
                 © 2024 CORE64 Records. All rights reserved.
             </div>
             <div class="flex gap-4 items-center">
-                <button
-                    type="button"
-                    onclick="scrollToSection('hero')"
-                    class="text-gray-400 hover:text-cyan-300 text-sm transition-colors inline-flex items-center gap-1 uppercase tracking-wider"
-                    data-i18n-aria-label="footerBackToTopAria"
-                    data-i18n-title="footerBackToTopAria"
-                >
-                    <i data-lucide="arrow-up" class="w-4 h-4" aria-hidden="true"></i>
-                    <span data-i18n="footerBackToTop">Наверх</span>
-                </button>
                 <a href="admin.html" class="text-gray-600 hover:text-cyan-400 text-sm transition-colors">
                     <i data-lucide="lock" class="w-4 h-4 inline mr-1"></i>
                     Admin
@@ -464,6 +492,18 @@
             </div>
         </div>
     </footer>
+
+    <button
+        id="floating-scroll-top"
+        type="button"
+        onclick="scrollToSection('hero')"
+        class="floating-scroll-top"
+        data-i18n-aria-label="footerBackToTopAria"
+        data-i18n-title="footerBackToTopAria"
+    >
+        <i data-lucide="arrow-up" class="w-4 h-4" aria-hidden="true"></i>
+        <span data-i18n="footerBackToTop">Наверх</span>
+    </button>
 
     <!-- Hidden admin link -->
     <a href="admin.html" title="Перейти в адмін-панель" data-i18n-title="goToAdminPanel" class="admin-link bg-black/80 p-3 rounded-full border border-cyan-500/30 text-cyan-400">
