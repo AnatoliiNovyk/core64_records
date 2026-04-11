@@ -34,7 +34,21 @@ app.use(express.json({ limit: "10mb" }));
 app.use(requestLoggingMiddleware);
 app.use("/api", securityRoutes);
 
-app.use(express.static(publicDir));
+app.use(express.static(publicDir, {
+  setHeaders: (res, filePath) => {
+    const normalizedPath = String(filePath || "").toLowerCase();
+    const isHtmlEntrypoint = normalizedPath.endsWith("/index.html")
+      || normalizedPath.endsWith("\\index.html")
+      || normalizedPath.endsWith("/admin.html")
+      || normalizedPath.endsWith("\\admin.html");
+
+    if (isHtmlEntrypoint) {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+    }
+  }
+}));
 
 app.use("/api", healthRoutes);
 app.use("/api", authRoutes);
@@ -52,10 +66,16 @@ app.use("/api", (_req, res) => {
 });
 
 app.get("/", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.sendFile(path.join(publicDir, "index.html"));
 });
 
 app.get("/admin", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
   res.sendFile(path.join(publicDir, "admin.html"));
 });
 
