@@ -1,0 +1,2 @@
+ALTER TABLE IF EXISTS settings
+    ADD COLUMN IF NOT EXISTS hero_main_logo_data_url TEXT NOT NULL DEFAULT '';

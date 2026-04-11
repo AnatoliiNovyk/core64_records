@@ -137,6 +137,7 @@
             email: "demo@core64.records",
             headerLogoUrl: "",
             footerLogoUrl: "",
+            heroMainLogoDataUrl: "",
             instagramUrl: "#",
             youtubeUrl: "#",
             soundcloudUrl: "#",

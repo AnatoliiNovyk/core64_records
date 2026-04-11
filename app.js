@@ -1185,6 +1185,14 @@ function normalizeBrandLogoUrl(value) {
     }
 }
 
+function normalizeHeroMainLogoDataUrl(value) {
+    const decodedValue = decodeHtmlEntities(value).trim();
+    if (!decodedValue || decodedValue === "#") return "";
+
+    const isAllowedImageDataUrl = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i.test(decodedValue);
+    return isAllowedImageDataUrl ? decodedValue : "";
+}
+
 function applyBrandLogoElement(logoEl, fallbackIconEl, sourceUrl) {
     if (!logoEl) return;
 
@@ -1220,6 +1228,32 @@ function applyBrandLogos(settings) {
 
     applyBrandLogoElement(headerLogoEl, headerIconEl, headerLogoUrl);
     applyBrandLogoElement(footerLogoEl, footerIconEl, footerLogoUrl);
+}
+
+function applyHeroMainLogo(settings) {
+    const source = settings && typeof settings === "object" ? settings : {};
+    const heroMainLogoUrl = normalizeHeroMainLogoDataUrl(source.heroMainLogoDataUrl);
+
+    const heroMainLogoEl = document.getElementById("public-hero-main-logo");
+    const heroMainHeadingEl = document.getElementById("public-hero-main-heading");
+    if (!heroMainLogoEl || !heroMainHeadingEl) return;
+
+    if (!heroMainLogoUrl) {
+        heroMainLogoEl.classList.add("hidden");
+        heroMainLogoEl.removeAttribute("src");
+        heroMainHeadingEl.classList.remove("hidden");
+        return;
+    }
+
+    heroMainLogoEl.onerror = () => {
+        if (!heroMainLogoEl.isConnected || !heroMainHeadingEl.isConnected) return;
+        heroMainLogoEl.classList.add("hidden");
+        heroMainHeadingEl.classList.remove("hidden");
+    };
+
+    heroMainLogoEl.src = heroMainLogoUrl;
+    heroMainLogoEl.classList.remove("hidden");
+    heroMainHeadingEl.classList.add("hidden");
 }
 
 function applyHeroSocialLinks(settings) {
@@ -1448,6 +1482,7 @@ async function bootstrap() {
         loadAbout(data.settings || {});
         applyHeroSocialLinks(data.settings || {});
         applyBrandLogos(data.settings || {});
+        applyHeroMainLogo(data.settings || {});
     } catch (error) {
         console.error("Failed to load site data", error);
         if (requireApi) {
@@ -1465,6 +1500,7 @@ async function bootstrap() {
         loadAbout(fallback.settings);
         applyHeroSocialLinks(fallback.settings);
         applyBrandLogos(fallback.settings || {});
+        applyHeroMainLogo(fallback.settings || {});
     }
 
     initContactForm();

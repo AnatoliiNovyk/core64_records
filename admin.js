@@ -234,6 +234,9 @@ const ADMIN_I18N = {
         settingsMissionPlaceholder: "Наша місія — підтримувати андерграунд сцену...",
         settingsLabelEmail: "Контактний Email",
         settingsEmailPlaceholder: "hello@core64.records",
+        settingsHeroMainLogoTitle: "Головне лого Home-секції",
+        settingsHeroMainLogoLabel: "Лого Hero (тільки файл з комп'ютера)",
+        settingsHeroMainLogoHint: "Зміна доступна тільки через завантаження файла з вашого комп'ютера. Посилання (URL) не підтримуються.",
         settingsBrandLogosTitle: "Логотипи бренду",
         settingsHeaderLogoLabel: "Лого хедера (URL/шлях)",
         settingsHeaderLogoPlaceholder: "/images/logo-header.png",
@@ -273,6 +276,7 @@ const ADMIN_I18N = {
         settingsSaveButton: "Зберегти",
         settingsResetAllButton: "Скинути всі дані",
         settingsThresholdAdjusted: "Поріг 'Помірно до' має бути більшим за поріг 'Добре до'. Значення скориговано автоматично.",
+        settingsHeroMainLogoUploadOnly: "Головне лого Hero можна змінити тільки завантаженням файла з комп'ютера.",
         settingsSaveMissingAdapter: "Не вдалося зберегти налаштування: відсутній метод adapter.",
         settingsSaveSuccess: "Налаштування збережено",
         settingsSaveFailed: "Не вдалося зберегти налаштування",
@@ -538,6 +542,9 @@ const ADMIN_I18N = {
         settingsMissionPlaceholder: "Our mission is to support the underground scene...",
         settingsLabelEmail: "Contact email",
         settingsEmailPlaceholder: "hello@core64.records",
+        settingsHeroMainLogoTitle: "Home section main logo",
+        settingsHeroMainLogoLabel: "Hero logo (file upload only)",
+        settingsHeroMainLogoHint: "This logo can be changed only by uploading a file from your computer. URL links are not supported.",
         settingsBrandLogosTitle: "Brand logos",
         settingsHeaderLogoLabel: "Header logo (URL/path)",
         settingsHeaderLogoPlaceholder: "/images/logo-header.png",
@@ -577,6 +584,7 @@ const ADMIN_I18N = {
         settingsSaveButton: "Save",
         settingsResetAllButton: "Reset all data",
         settingsThresholdAdjusted: "'Warn up to' threshold must be greater than 'Good up to'. Value was adjusted automatically.",
+        settingsHeroMainLogoUploadOnly: "Hero main logo can be changed only by uploading a file from your computer.",
         settingsSaveMissingAdapter: "Failed to save settings: adapter method is missing.",
         settingsSaveSuccess: "Settings saved",
         settingsSaveFailed: "Failed to save settings",
@@ -3047,6 +3055,13 @@ function normalizeSettingsHostname(value) {
 
 function resolveSettingsLogoElements(logoType) {
     const normalizedType = String(logoType || "").trim().toLowerCase();
+    if (normalizedType === "hero-main") {
+        return {
+            inputEl: document.getElementById("setting-hero-main-logo-data-url"),
+            fileEl: document.getElementById("setting-hero-main-logo-file"),
+            previewEl: document.getElementById("setting-hero-main-logo-preview")
+        };
+    }
     if (normalizedType === "header") {
         return {
             inputEl: document.getElementById("setting-header-logo-url"),
@@ -3069,11 +3084,16 @@ function resolveSettingsLogoElements(logoType) {
 }
 
 function updateSettingsLogoPreview(logoType) {
+    const normalizedType = String(logoType || "").trim().toLowerCase();
     const { inputEl, previewEl } = resolveSettingsLogoElements(logoType);
     if (!inputEl || !previewEl || !inputEl.isConnected || !previewEl.isConnected) return;
 
     const source = normalizeSettingsPlainText(inputEl.value, "");
-    if (!source || source === "#") {
+    const sourceAllowed = normalizedType === "hero-main"
+        ? isSettingsImageDataUrl(source)
+        : !!source && source !== "#";
+
+    if (!sourceAllowed) {
         previewEl.classList.add("hidden");
         previewEl.removeAttribute("src");
         return;
@@ -3651,6 +3671,7 @@ async function loadSettings() {
     const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
     const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
+    const heroMainLogoInputEl = document.getElementById("setting-hero-main-logo-data-url");
     const headerLogoInputEl = document.getElementById("setting-header-logo-url");
     const footerLogoInputEl = document.getElementById("setting-footer-logo-url");
     const instagramInputEl = document.getElementById("setting-social-instagram");
@@ -3685,12 +3706,16 @@ async function loadSettings() {
     if (emailInputEl && emailInputEl.isConnected) {
         emailInputEl.value = decodeHtmlEntities(cache.settings.email || "");
     }
+    if (heroMainLogoInputEl && heroMainLogoInputEl.isConnected) {
+        heroMainLogoInputEl.value = decodeHtmlEntities(cache.settings.heroMainLogoDataUrl || "");
+    }
     if (headerLogoInputEl && headerLogoInputEl.isConnected) {
         headerLogoInputEl.value = decodeHtmlEntities(cache.settings.headerLogoUrl || "");
     }
     if (footerLogoInputEl && footerLogoInputEl.isConnected) {
         footerLogoInputEl.value = decodeHtmlEntities(cache.settings.footerLogoUrl || "");
     }
+    updateSettingsLogoPreview("hero-main");
     updateSettingsLogoPreview("header");
     updateSettingsLogoPreview("footer");
     if (instagramInputEl && instagramInputEl.isConnected) {
@@ -5099,6 +5124,13 @@ function closeModal() {
 const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
+const SETTINGS_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
+
+function isSettingsImageDataUrl(value) {
+    const normalized = String(value || "").trim();
+    if (!normalized) return false;
+    return SETTINGS_IMAGE_DATA_URL_PATTERN.test(normalized);
+}
 
 function hasSupportedUploadImageType(file) {
     if (!file || typeof file.type !== "string") return false;
@@ -5831,6 +5863,7 @@ async function saveSettings(options = {}) {
     const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
     const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
+    const heroMainLogoInputEl = document.getElementById("setting-hero-main-logo-data-url");
     const headerLogoInputEl = document.getElementById("setting-header-logo-url");
     const footerLogoInputEl = document.getElementById("setting-footer-logo-url");
     const instagramInputEl = document.getElementById("setting-social-instagram");
@@ -5847,8 +5880,8 @@ async function saveSettings(options = {}) {
     const captchaErrorMessageEl = document.getElementById("setting-captcha-error-message");
     const captchaMissingTokenMessageEl = document.getElementById("setting-captcha-missing-token-message");
     const captchaInvalidDomainMessageEl = document.getElementById("setting-captcha-invalid-domain-message");
-    if (!headerLogoInputEl || !footerLogoInputEl || !headerLogoInputEl.isConnected || !footerLogoInputEl.isConnected) {
-        console.warn("Brand logo inputs are unavailable during settings save");
+    if (!heroMainLogoInputEl || !headerLogoInputEl || !footerLogoInputEl || !heroMainLogoInputEl.isConnected || !headerLogoInputEl.isConnected || !footerLogoInputEl.isConnected) {
+        console.warn("Logo inputs are unavailable during settings save");
         return false;
     }
     if (!titleInputEl || !aboutInputEl || !missionInputEl || !heroSubtitleUkInputEl || !heroSubtitleEnInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !captchaEnabledEl || !captchaProviderEl || !captchaDomainEl || !hcaptchaSiteKeyEl || !hcaptchaSecretKeyEl || !recaptchaSiteKeyEl || !recaptchaSecretKeyEl || !captchaErrorMessageEl || !captchaMissingTokenMessageEl || !captchaInvalidDomainMessageEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !heroSubtitleUkInputEl.isConnected || !heroSubtitleEnInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected || !captchaEnabledEl.isConnected || !captchaProviderEl.isConnected || !captchaDomainEl.isConnected || !hcaptchaSiteKeyEl.isConnected || !hcaptchaSecretKeyEl.isConnected || !recaptchaSiteKeyEl.isConnected || !recaptchaSecretKeyEl.isConnected || !captchaErrorMessageEl.isConnected || !captchaMissingTokenMessageEl.isConnected || !captchaInvalidDomainMessageEl.isConnected) {
@@ -5904,6 +5937,12 @@ async function saveSettings(options = {}) {
         }
     }
 
+    const heroMainLogoDataUrl = normalizeSettingsPlainText(heroMainLogoInputEl.value, "");
+    if (heroMainLogoDataUrl && !isSettingsImageDataUrl(heroMainLogoDataUrl)) {
+        alert(tAdmin("settingsHeroMainLogoUploadOnly"));
+        return false;
+    }
+
     const settings = {
         title: normalizeSettingsPlainText(titleInputEl.value, ""),
         about: normalizeSettingsPlainText(aboutInputEl.value, ""),
@@ -5911,6 +5950,7 @@ async function saveSettings(options = {}) {
         heroSubtitleUk: normalizeSettingsPlainText(heroSubtitleUkInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         heroSubtitleEn: normalizeSettingsPlainText(heroSubtitleEnInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         email: normalizeSettingsPlainText(emailInputEl.value, ""),
+        heroMainLogoDataUrl,
         headerLogoUrl: normalizeSettingsPlainText(headerLogoInputEl.value, ""),
         footerLogoUrl: normalizeSettingsPlainText(footerLogoInputEl.value, ""),
         instagramUrl: normalizeSettingsUrlInput(instagramInputEl.value, { platform: "instagram" }),

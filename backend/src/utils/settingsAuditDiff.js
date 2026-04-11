@@ -12,6 +12,7 @@ const SETTINGS_TRACKED_FIELDS = [
   "email",
   "headerLogoUrl",
   "footerLogoUrl",
+  "heroMainLogoDataUrl",
   "instagramUrl",
   "youtubeUrl",
   "soundcloudUrl",

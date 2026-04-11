@@ -27,6 +27,14 @@ const sponsorTranslationSchema = z.object({
   short_description: z.string().trim().max(120).optional()
 });
 
+const brandImageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
+
+function isBrandImageDataUrlOrEmpty(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return true;
+  return brandImageDataUrlPattern.test(normalized);
+}
+
 export const releaseSchema = z.object({
   id: z.union([z.number(), z.string()]).optional(),
   title: z.string().min(1),
@@ -89,6 +97,9 @@ export const settingsSchema = z.object({
   email: z.string().email(),
   headerLogoUrl: z.string().trim().max(4000000).optional().default(""),
   footerLogoUrl: z.string().trim().max(4000000).optional().default(""),
+  heroMainLogoDataUrl: z.string().trim().max(4000000).optional().default("").refine(isBrandImageDataUrlOrEmpty, {
+    message: "Hero main logo must be uploaded from local computer (image data URL only)"
+  }),
   instagramUrl: z.string().optional().default("#"),
   youtubeUrl: z.string().optional().default("#"),
   soundcloudUrl: z.string().optional().default("#"),
