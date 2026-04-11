@@ -18,6 +18,12 @@ param(
     [bool]$Core64ContractSkipAuthRateLimitCheck = $false,
 
     [Parameter(Mandatory = $false)]
+    [int]$Core64ContractRetries = 3,
+
+    [Parameter(Mandatory = $false)]
+    [int]$Core64ContractRetryDelayMs = 2000,
+
+    [Parameter(Mandatory = $false)]
     [int]$Core64SmokeRateLimitAttempts = 25,
 
     [Parameter(Mandatory = $false)]
@@ -190,6 +196,44 @@ function Invoke-SmokeCheck {
     }
 }
 
+function Invoke-ApiErrorContractCheck {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ApiBase,
+
+        [Parameter(Mandatory = $true)]
+        [string]$AdminPassword,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ContractTimeoutMs,
+
+        [Parameter(Mandatory = $true)]
+        [bool]$SkipAuthRateLimitCheck
+    )
+
+    $env:CORE64_API_BASE = $ApiBase
+    $env:CORE64_ADMIN_PASSWORD = $AdminPassword
+    $env:CORE64_CONTRACT_TIMEOUT_MS = [string]$ContractTimeoutMs
+    $env:CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK = if ($SkipAuthRateLimitCheck) { "true" } else { "false" }
+
+    $contractOutputPath = [System.IO.Path]::GetTempFileName()
+    try {
+        node scripts/verify-api-error-contract.mjs *> $contractOutputPath
+        $exitCode = $LASTEXITCODE
+        $output = Get-Content -LiteralPath $contractOutputPath -Raw
+        if (-not [string]::IsNullOrWhiteSpace($output)) {
+            Write-Host ($output.TrimEnd())
+        }
+
+        return @{
+            ExitCode = $exitCode
+            Output = $output
+        }
+    } finally {
+        Remove-Item -LiteralPath $contractOutputPath -ErrorAction SilentlyContinue
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($Token)) {
     $Token = $env:GITHUB_TOKEN
 }
@@ -216,6 +260,14 @@ if ($Core64SmokeRateLimitAttempts -lt 2) {
 
 if ($Core64SmokeRateLimitCollectionsAttempts -lt 2) {
     throw "Core64SmokeRateLimitCollectionsAttempts must be >= 2."
+}
+
+if ($Core64ContractRetries -lt 1) {
+    throw "Core64ContractRetries must be >= 1."
+}
+
+if ($Core64ContractRetryDelayMs -lt 0) {
+    throw "Core64ContractRetryDelayMs must be >= 0."
 }
 
 if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
@@ -344,29 +396,55 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[18/22] Running API error contract check..."
-$env:CORE64_API_BASE = $Core64ApiBase
-$env:CORE64_ADMIN_PASSWORD = $resolvedCore64AdminPassword
-$env:CORE64_CONTRACT_TIMEOUT_MS = [string]$Core64SmokeTimeoutMs
-$env:CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK = if ($Core64ContractSkipAuthRateLimitCheck) { "true" } else { "false" }
-$contractOutputPath = [System.IO.Path]::GetTempFileName()
-try {
-    node scripts/verify-api-error-contract.mjs *> $contractOutputPath
-    $contractExitCode = $LASTEXITCODE
-    $contractOutput = Get-Content -LiteralPath $contractOutputPath -Raw
-    if (-not [string]::IsNullOrWhiteSpace($contractOutput)) {
-        Write-Host ($contractOutput.TrimEnd())
+$contractApiBase = $Core64ApiBase
+$contractResult = Invoke-ApiErrorContractCheck `
+    -ApiBase $contractApiBase `
+    -AdminPassword $resolvedCore64AdminPassword `
+    -ContractTimeoutMs $Core64SmokeTimeoutMs `
+    -SkipAuthRateLimitCheck $Core64ContractSkipAuthRateLimitCheck
+
+if ($contractResult.ExitCode -ne 0) {
+    $isFetchFailed = $contractResult.Output -match 'fetch failed'
+    if ($isFetchFailed -and ($contractApiBase -match '^https?://localhost(:\d+)?(/.*)?$')) {
+        $fallbackApiBase = $contractApiBase -replace '://localhost', '://127.0.0.1'
+        Write-Host "API error contract check failed using localhost fetch path. Retrying with $fallbackApiBase ..."
+        $contractApiBase = $fallbackApiBase
+        $contractResult = Invoke-ApiErrorContractCheck `
+            -ApiBase $contractApiBase `
+            -AdminPassword $resolvedCore64AdminPassword `
+            -ContractTimeoutMs $Core64SmokeTimeoutMs `
+            -SkipAuthRateLimitCheck $Core64ContractSkipAuthRateLimitCheck
+    }
+}
+
+for ($attempt = 2; $attempt -le $Core64ContractRetries -and $contractResult.ExitCode -ne 0; $attempt++) {
+    $isTransient429 = $contractResult.Output -match 'AUTH_RATE_LIMITED' -or $contractResult.Output -match 'failed with 429'
+    $isTransientFetch = $contractResult.Output -match 'fetch failed'
+    if (-not $isTransient429 -and -not $isTransientFetch) {
+        break
     }
 
-    if ($contractExitCode -ne 0) {
-        $isAuthRateLimited = $contractOutput -match 'AUTH_RATE_LIMITED' -or $contractOutput -match 'failed with 429'
-        if ($Core64ContractSkipAuthRateLimitCheck -and $isAuthRateLimited) {
-            Write-Warning "API error contract check hit auth rate-limit and was bypassed by Core64ContractSkipAuthRateLimitCheck override."
-        } else {
-            throw "API error contract check failed."
-        }
+    if ($Core64ContractRetryDelayMs -gt 0) {
+        Write-Host "API error contract check attempt $attempt/$Core64ContractRetries in ${Core64ContractRetryDelayMs}ms ..."
+        [System.Threading.Thread]::Sleep($Core64ContractRetryDelayMs)
+    } else {
+        Write-Host "API error contract check attempt $attempt/$Core64ContractRetries ..."
     }
-} finally {
-    Remove-Item -LiteralPath $contractOutputPath -ErrorAction SilentlyContinue
+
+    $contractResult = Invoke-ApiErrorContractCheck `
+        -ApiBase $contractApiBase `
+        -AdminPassword $resolvedCore64AdminPassword `
+        -ContractTimeoutMs $Core64SmokeTimeoutMs `
+        -SkipAuthRateLimitCheck $Core64ContractSkipAuthRateLimitCheck
+}
+
+if ($contractResult.ExitCode -ne 0) {
+    $isAuthRateLimited = $contractResult.Output -match 'AUTH_RATE_LIMITED' -or $contractResult.Output -match 'failed with 429'
+    if ($Core64ContractSkipAuthRateLimitCheck -and $isAuthRateLimited) {
+        Write-Warning "API error contract check hit auth rate-limit and was bypassed by Core64ContractSkipAuthRateLimitCheck override."
+    } else {
+        throw "API error contract check failed."
+    }
 }
 
 Write-Host "[19/22] Running smoke check..."

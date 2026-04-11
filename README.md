@@ -469,6 +469,7 @@ Important:
 - default mode remains strict and requires `GITHUB_TOKEN` for branch protection verification
 - `-SkipBranchProtectionCheck` is an explicit local bypass and should not be used for production release sign-off
 - `-Core64ContractSkipAuthRateLimitCheck` is an explicit local bypass for transient `AUTH_RATE_LIMITED` lockouts during repeated local runs
+- local API contract retries are configurable via `-Core64ContractRetries` (default `3`) and `-Core64ContractRetryDelayMs` (default `2000`)
 
 This local gate runs:
 

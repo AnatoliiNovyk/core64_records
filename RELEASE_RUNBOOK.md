@@ -120,6 +120,7 @@ Notes:
 - default mode is strict and requires `GITHUB_TOKEN` for branch protection verification
 - `-SkipBranchProtectionCheck` is local-only and must not be used for final production sign-off
 - `-Core64ContractSkipAuthRateLimitCheck` is local-only and bypasses transient `AUTH_RATE_LIMITED` lockout on API contract step during repeated local reruns
+- API contract retry/cooldown in local gate is configurable: `-Core64ContractRetries` (default `3`) and `-Core64ContractRetryDelayMs` (default `2000`)
 
 Local gate also performs mandatory changelog coverage + changelog format verification for `HEAD~1..HEAD` by default, plus changelog format helper self-test, changelog coverage helper self-test, log sanitizer helper self-test, runtime console usage helper self-test, API error contract helper self-test, settings i18n consistency helper self-test, smoke-check helper self-test, and API error contract check.
 
