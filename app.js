@@ -5,6 +5,7 @@ let sponsorCarouselAutoplayTimer = null;
 let sponsorCarouselVisibilityListenerBound = false;
 let contactRuntimeSettings = {};
 let releaseInteractionsBound = false;
+let floatingScrollTopResizeListenerBound = false;
 const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
 const PUBLIC_SECTION_DEFAULTS = [
     { sectionKey: "releases", sortOrder: 1, i18nKey: "sectionLatestReleases", navI18nKey: "navReleases" },
@@ -1353,6 +1354,65 @@ function toggleMobileMenu() {
     if (menu) menu.classList.toggle("hidden");
 }
 
+function applyFloatingScrollTopRuntimeStyles(button) {
+    if (!button || !button.isConnected) return;
+
+    const isMobile = typeof window.matchMedia === "function"
+        && window.matchMedia("(max-width: 640px)").matches;
+
+    button.style.position = "fixed";
+    button.style.right = isMobile ? "74px" : "86px";
+    button.style.bottom = isMobile ? "16px" : "20px";
+    button.style.zIndex = "50";
+    button.style.display = "inline-flex";
+    button.style.alignItems = "center";
+    button.style.gap = "6px";
+    button.style.padding = isMobile ? "9px 10px" : "10px 12px";
+    button.style.border = "1px solid rgba(0, 240, 255, 0.4)";
+    button.style.background = "rgba(5, 5, 8, 0.9)";
+    button.style.color = "#7dd3fc";
+    button.style.textTransform = "uppercase";
+    button.style.letterSpacing = "0.08em";
+    button.style.fontSize = isMobile ? "10px" : "11px";
+}
+
+function ensureFloatingScrollTopButton() {
+    let button = document.getElementById("floating-scroll-top");
+
+    if (!button) {
+        const legacyLabel = document.querySelector("[data-i18n='footerBackToTop']");
+        const legacyButton = legacyLabel ? legacyLabel.closest("button") : null;
+        if (legacyButton) button = legacyButton;
+    }
+
+    if (!button) {
+        button = document.createElement("button");
+        button.innerHTML = "<i data-lucide='arrow-up' class='w-4 h-4' aria-hidden='true'></i><span data-i18n='footerBackToTop'>Back to top</span>";
+        document.body.appendChild(button);
+    }
+
+    if (button.closest("footer")) {
+        document.body.appendChild(button);
+    }
+
+    button.id = "floating-scroll-top";
+    button.type = "button";
+    button.classList.add("floating-scroll-top");
+    button.setAttribute("data-i18n-aria-label", "footerBackToTopAria");
+    button.setAttribute("data-i18n-title", "footerBackToTopAria");
+    button.onclick = () => scrollToSection("hero");
+
+    applyFloatingScrollTopRuntimeStyles(button);
+
+    if (!floatingScrollTopResizeListenerBound) {
+        window.addEventListener("resize", () => {
+            const current = document.getElementById("floating-scroll-top");
+            applyFloatingScrollTopRuntimeStyles(current);
+        });
+        floatingScrollTopResizeListenerBound = true;
+    }
+}
+
 function scrollToSection(id) {
     const element = document.getElementById(id);
     if (element) {
@@ -1364,6 +1424,7 @@ function scrollToSection(id) {
 }
 
 async function bootstrap() {
+    ensureFloatingScrollTopButton();
     applyLanguageFromQuery();
     document.documentElement.setAttribute("lang", getActiveLanguage());
     applyStaticTranslations();
