@@ -12,6 +12,7 @@ import {
 import { buildSettingsDiff, buildSectionSettingsDiff } from "../utils/settingsAuditDiff.js";
 import { config } from "../config.js";
 import { createRateLimiter } from "../middleware/security.js";
+import { resolveLanguage } from "../i18n/language.js";
 
 const router = Router();
 const settingsMutationRateLimiter = createRateLimiter({
@@ -49,7 +50,8 @@ async function writeSettingsAuditEntry({ action, actor, source, settingsDiff = n
 
 router.get("/settings", requireAuth, async (_req, res, next) => {
   try {
-    const data = await getAdminSettings();
+    const language = resolveLanguage(_req.query.lang);
+    const data = await getAdminSettings(language);
     res.json({ data });
   } catch (error) {
     next(error);
@@ -58,10 +60,11 @@ router.get("/settings", requireAuth, async (_req, res, next) => {
 
 router.put("/settings", requireAuth, settingsMutationRateLimiter, async (req, res, next) => {
   try {
+    const language = resolveLanguage(req.query.lang);
     const payload = req.body.data || req.body;
     const validated = settingsSchema.parse(payload);
-    const beforeSettings = await getAdminSettings();
-    const data = await saveSettings(validated);
+    const beforeSettings = await getAdminSettings(language);
+    const data = await saveSettings(validated, language);
 
     const settingsDiff = buildSettingsDiff(beforeSettings, data);
     await writeSettingsAuditEntry({
@@ -79,16 +82,17 @@ router.put("/settings", requireAuth, settingsMutationRateLimiter, async (req, re
 
 router.put("/settings/bundle", requireAuth, settingsMutationRateLimiter, async (req, res, next) => {
   try {
+    const language = resolveLanguage(req.query.lang);
     const payload = req.body.data || req.body;
     const settings = settingsSchema.parse(payload.settings || {});
     const sectionPayload = sectionSettingsSchema.parse({ sections: payload.sections || [] });
 
     const [beforeSettings, beforeSections] = await Promise.all([
-      getAdminSettings(),
+      getAdminSettings(language),
       getAdminSectionSettings()
     ]);
 
-    const data = await saveSettingsBundle({ settings, sections: sectionPayload.sections });
+    const data = await saveSettingsBundle({ settings, sections: sectionPayload.sections }, language);
 
     const settingsDiff = buildSettingsDiff(beforeSettings, data.settings);
     const sectionsDiff = buildSectionSettingsDiff(beforeSections, data.sections);

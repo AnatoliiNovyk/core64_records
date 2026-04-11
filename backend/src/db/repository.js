@@ -136,21 +136,90 @@ async function verifySettingsI18nLanguages(queryable, settingsId, languages = []
   }
 }
 
-async function upsertSettingsHeroSubtitles(queryable, payload) {
+async function upsertSettingsHeroSubtitles(queryable, payload, requestedLanguage = config.defaultLanguage) {
   const settingsIdResult = await queryable.query("SELECT id FROM settings ORDER BY id ASC LIMIT 1");
   const settingsId = settingsIdResult.rows[0] && settingsIdResult.rows[0].id;
   if (!settingsId) return;
 
+  const activeLanguage = resolveLanguage(requestedLanguage);
+
   const heroSubtitleUk = String(payload.heroSubtitleUk || HERO_SUBTITLE_DEFAULT).trim() || HERO_SUBTITLE_DEFAULT;
   const heroSubtitleEn = String(payload.heroSubtitleEn || HERO_SUBTITLE_DEFAULT).trim() || HERO_SUBTITLE_DEFAULT;
-  const title = String(payload.title || "").trim();
-  const about = String(payload.about || "").trim();
-  const mission = String(payload.mission || "").trim();
-  const captchaErrorMessage = String(payload.contactCaptchaErrorMessage || "").trim();
-  const captchaMissingTokenMessage = String(payload.contactCaptchaMissingTokenMessage || "").trim();
-  const captchaInvalidDomainMessage = String(payload.contactCaptchaInvalidDomainMessage || "").trim();
+  const localizedFromPayload = {
+    title: String(payload.title || "").trim(),
+    about: String(payload.about || "").trim(),
+    mission: String(payload.mission || "").trim(),
+    contactCaptchaErrorMessage: String(payload.contactCaptchaErrorMessage || "").trim(),
+    contactCaptchaMissingTokenMessage: String(payload.contactCaptchaMissingTokenMessage || "").trim(),
+    contactCaptchaInvalidDomainMessage: String(payload.contactCaptchaInvalidDomainMessage || "").trim()
+  };
+
+  const existingI18nResult = await queryable.query(
+    `SELECT
+      language_code AS "languageCode",
+      title,
+      about,
+      mission,
+      contact_captcha_error_message AS "contactCaptchaErrorMessage",
+      contact_captcha_missing_token_message AS "contactCaptchaMissingTokenMessage",
+      contact_captcha_invalid_domain_message AS "contactCaptchaInvalidDomainMessage"
+    FROM settings_i18n
+    WHERE settings_id = $1
+      AND language_code IN ('uk', 'en')`,
+    [settingsId]
+  );
+
+  const existingByLanguage = (existingI18nResult.rows || []).reduce((acc, row) => {
+    const languageCode = String(row.languageCode || "").trim().toLowerCase();
+    if (!languageCode) return acc;
+    acc[languageCode] = {
+      title: String(row.title || "").trim(),
+      about: String(row.about || "").trim(),
+      mission: String(row.mission || "").trim(),
+      contactCaptchaErrorMessage: String(row.contactCaptchaErrorMessage || "").trim(),
+      contactCaptchaMissingTokenMessage: String(row.contactCaptchaMissingTokenMessage || "").trim(),
+      contactCaptchaInvalidDomainMessage: String(row.contactCaptchaInvalidDomainMessage || "").trim()
+    };
+    return acc;
+  }, {});
+
+  const resolveLocalizedField = (languageCode, fieldName) => {
+    if (languageCode === activeLanguage) {
+      return localizedFromPayload[fieldName];
+    }
+
+    const existing = existingByLanguage[languageCode];
+    if (existing && Object.prototype.hasOwnProperty.call(existing, fieldName)) {
+      return existing[fieldName];
+    }
+
+    return localizedFromPayload[fieldName];
+  };
+
+  const localizedByLanguage = {
+    uk: {
+      title: resolveLocalizedField("uk", "title"),
+      about: resolveLocalizedField("uk", "about"),
+      mission: resolveLocalizedField("uk", "mission"),
+      contactCaptchaErrorMessage: resolveLocalizedField("uk", "contactCaptchaErrorMessage"),
+      contactCaptchaMissingTokenMessage: resolveLocalizedField("uk", "contactCaptchaMissingTokenMessage"),
+      contactCaptchaInvalidDomainMessage: resolveLocalizedField("uk", "contactCaptchaInvalidDomainMessage"),
+      heroSubtitle: heroSubtitleUk
+    },
+    en: {
+      title: resolveLocalizedField("en", "title"),
+      about: resolveLocalizedField("en", "about"),
+      mission: resolveLocalizedField("en", "mission"),
+      contactCaptchaErrorMessage: resolveLocalizedField("en", "contactCaptchaErrorMessage"),
+      contactCaptchaMissingTokenMessage: resolveLocalizedField("en", "contactCaptchaMissingTokenMessage"),
+      contactCaptchaInvalidDomainMessage: resolveLocalizedField("en", "contactCaptchaInvalidDomainMessage"),
+      heroSubtitle: heroSubtitleEn
+    }
+  };
 
   const upsertByLanguage = async (languageCode, heroSubtitle, includeHeroSubtitle = true) => {
+    const localized = localizedByLanguage[languageCode] || localizedByLanguage.uk;
+
     if (includeHeroSubtitle) {
       await queryable.query(
         `INSERT INTO settings_i18n (
@@ -178,12 +247,12 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
         [
           settingsId,
           languageCode,
-          title,
-          about,
-          mission,
-          captchaErrorMessage,
-          captchaMissingTokenMessage,
-          captchaInvalidDomainMessage,
+          localized.title,
+          localized.about,
+          localized.mission,
+          localized.contactCaptchaErrorMessage,
+          localized.contactCaptchaMissingTokenMessage,
+          localized.contactCaptchaInvalidDomainMessage,
           heroSubtitle
         ]
       );
@@ -214,12 +283,12 @@ async function upsertSettingsHeroSubtitles(queryable, payload) {
       [
         settingsId,
         languageCode,
-        title,
-        about,
-        mission,
-        captchaErrorMessage,
-        captchaMissingTokenMessage,
-        captchaInvalidDomainMessage
+        localized.title,
+        localized.about,
+        localized.mission,
+        localized.contactCaptchaErrorMessage,
+        localized.contactCaptchaMissingTokenMessage,
+        localized.contactCaptchaInvalidDomainMessage
       ]
     );
   };
@@ -321,7 +390,7 @@ function withDefaultAuditLatencySettings(row) {
   };
 }
 
-async function upsertAdminSettings(queryable, payload) {
+async function upsertAdminSettings(queryable, payload, requestedLanguage = config.defaultLanguage) {
   const existing = await queryAdminSettings(queryable);
   if (!existing) {
     try {
@@ -433,7 +502,7 @@ async function upsertAdminSettings(queryable, payload) {
         ]
       );
     }
-    await upsertSettingsHeroSubtitles(queryable, payload);
+    await upsertSettingsHeroSubtitles(queryable, payload, requestedLanguage);
     return;
   }
 
@@ -542,7 +611,7 @@ async function upsertAdminSettings(queryable, payload) {
     );
   }
 
-  await upsertSettingsHeroSubtitles(queryable, payload);
+  await upsertSettingsHeroSubtitles(queryable, payload, requestedLanguage);
 }
 
 async function upsertSectionSettings(queryable, sectionsPayload) {
@@ -902,6 +971,74 @@ const PUBLIC_SETTINGS_SELECT = `
   LIMIT 1
 `;
 
+const ADMIN_SETTINGS_SELECT_LOCALIZED = `
+  SELECT
+    COALESCE(s_i18n_lang.title, s_i18n_default.title, s.title) AS title,
+    COALESCE(s_i18n_lang.about, s_i18n_default.about, s.about) AS about,
+    COALESCE(s_i18n_lang.mission, s_i18n_default.mission, s.mission) AS mission,
+    email,
+    header_logo_url AS "headerLogoUrl",
+    footer_logo_url AS "footerLogoUrl",
+    instagram_url AS "instagramUrl",
+    youtube_url AS "youtubeUrl",
+    soundcloud_url AS "soundcloudUrl",
+    radio_url AS "radioUrl",
+    contact_captcha_enabled AS "contactCaptchaEnabled",
+    contact_captcha_active_provider AS "contactCaptchaActiveProvider",
+    contact_captcha_hcaptcha_site_key AS "contactCaptchaHcaptchaSiteKey",
+    contact_captcha_hcaptcha_secret_key AS "contactCaptchaHcaptchaSecretKey",
+    contact_captcha_recaptcha_site_key AS "contactCaptchaRecaptchaSiteKey",
+    contact_captcha_recaptcha_secret_key AS "contactCaptchaRecaptchaSecretKey",
+    COALESCE(s_i18n_lang.contact_captcha_error_message, s_i18n_default.contact_captcha_error_message, s.contact_captcha_error_message) AS "contactCaptchaErrorMessage",
+    COALESCE(s_i18n_lang.contact_captcha_missing_token_message, s_i18n_default.contact_captcha_missing_token_message, s.contact_captcha_missing_token_message) AS "contactCaptchaMissingTokenMessage",
+    COALESCE(s_i18n_lang.contact_captcha_invalid_domain_message, s_i18n_default.contact_captcha_invalid_domain_message, s.contact_captcha_invalid_domain_message) AS "contactCaptchaInvalidDomainMessage",
+    contact_captcha_allowed_domain AS "contactCaptchaAllowedDomain",
+    audit_latency_good_max_ms AS "auditLatencyGoodMaxMs",
+    audit_latency_warn_max_ms AS "auditLatencyWarnMaxMs"
+  FROM settings AS s
+  LEFT JOIN settings_i18n AS s_i18n_lang
+    ON s_i18n_lang.settings_id = s.id
+    AND s_i18n_lang.language_code = $1
+  LEFT JOIN settings_i18n AS s_i18n_default
+    ON s_i18n_default.settings_id = s.id
+    AND s_i18n_default.language_code = $2
+  ORDER BY s.id ASC
+  LIMIT 1
+`;
+
+const LEGACY_ADMIN_SETTINGS_SELECT_LOCALIZED = `
+  SELECT
+    COALESCE(s_i18n_lang.title, s_i18n_default.title, s.title) AS title,
+    COALESCE(s_i18n_lang.about, s_i18n_default.about, s.about) AS about,
+    COALESCE(s_i18n_lang.mission, s_i18n_default.mission, s.mission) AS mission,
+    email,
+    header_logo_url AS "headerLogoUrl",
+    footer_logo_url AS "footerLogoUrl",
+    instagram_url AS "instagramUrl",
+    youtube_url AS "youtubeUrl",
+    soundcloud_url AS "soundcloudUrl",
+    radio_url AS "radioUrl",
+    contact_captcha_enabled AS "contactCaptchaEnabled",
+    contact_captcha_active_provider AS "contactCaptchaActiveProvider",
+    contact_captcha_hcaptcha_site_key AS "contactCaptchaHcaptchaSiteKey",
+    contact_captcha_hcaptcha_secret_key AS "contactCaptchaHcaptchaSecretKey",
+    contact_captcha_recaptcha_site_key AS "contactCaptchaRecaptchaSiteKey",
+    contact_captcha_recaptcha_secret_key AS "contactCaptchaRecaptchaSecretKey",
+    COALESCE(s_i18n_lang.contact_captcha_error_message, s_i18n_default.contact_captcha_error_message, s.contact_captcha_error_message) AS "contactCaptchaErrorMessage",
+    COALESCE(s_i18n_lang.contact_captcha_missing_token_message, s_i18n_default.contact_captcha_missing_token_message, s.contact_captcha_missing_token_message) AS "contactCaptchaMissingTokenMessage",
+    COALESCE(s_i18n_lang.contact_captcha_invalid_domain_message, s_i18n_default.contact_captcha_invalid_domain_message, s.contact_captcha_invalid_domain_message) AS "contactCaptchaInvalidDomainMessage",
+    contact_captcha_allowed_domain AS "contactCaptchaAllowedDomain"
+  FROM settings AS s
+  LEFT JOIN settings_i18n AS s_i18n_lang
+    ON s_i18n_lang.settings_id = s.id
+    AND s_i18n_lang.language_code = $1
+  LEFT JOIN settings_i18n AS s_i18n_default
+    ON s_i18n_default.settings_id = s.id
+    AND s_i18n_default.language_code = $2
+  ORDER BY s.id ASC
+  LIMIT 1
+`;
+
 const ADMIN_SETTINGS_SELECT = `
   SELECT
     title,
@@ -958,14 +1095,41 @@ const LEGACY_ADMIN_SETTINGS_SELECT = `
   LIMIT 1
 `;
 
-async function queryAdminSettings(queryable) {
+async function queryAdminSettings(queryable, requestedLanguage = config.defaultLanguage) {
+  const language = resolveLanguage(requestedLanguage);
+  const defaultLanguage = resolveLanguage(config.defaultLanguage);
+
+  const isI18nUnavailable = (error) => {
+    const code = String(error && error.code ? error.code : "").trim();
+    const message = String(error && error.message ? error.message : "").toLowerCase();
+    if (code === "42P01" && message.includes("settings_i18n")) return true;
+    if (code === "42703" && message.includes("s_i18n_")) return true;
+    return false;
+  };
+
   try {
-    const result = await queryable.query(ADMIN_SETTINGS_SELECT);
+    const result = await queryable.query(ADMIN_SETTINGS_SELECT_LOCALIZED, [language, defaultLanguage]);
     return withDefaultAuditLatencySettings(result.rows[0] || null);
   } catch (error) {
-    if (!isMissingAuditLatencyColumnsError(error)) throw error;
-    const result = await queryable.query(LEGACY_ADMIN_SETTINGS_SELECT);
-    return withDefaultAuditLatencySettings(result.rows[0] || null);
+    if (isMissingAuditLatencyColumnsError(error)) {
+      try {
+        const localizedLegacyResult = await queryable.query(LEGACY_ADMIN_SETTINGS_SELECT_LOCALIZED, [language, defaultLanguage]);
+        return withDefaultAuditLatencySettings(localizedLegacyResult.rows[0] || null);
+      } catch (localizedLegacyError) {
+        if (!isI18nUnavailable(localizedLegacyError)) throw localizedLegacyError;
+      }
+    } else if (!isI18nUnavailable(error)) {
+      throw error;
+    }
+
+    try {
+      const result = await queryable.query(ADMIN_SETTINGS_SELECT);
+      return withDefaultAuditLatencySettings(result.rows[0] || null);
+    } catch (legacyError) {
+      if (!isMissingAuditLatencyColumnsError(legacyError)) throw legacyError;
+      const result = await queryable.query(LEGACY_ADMIN_SETTINGS_SELECT);
+      return withDefaultAuditLatencySettings(result.rows[0] || null);
+    }
   }
 }
 
@@ -1033,17 +1197,17 @@ export async function saveSectionSettings(sectionsPayload) {
   }
 }
 
-export async function saveSettingsBundle(payload) {
+export async function saveSettingsBundle(payload, requestedLanguage = config.defaultLanguage) {
   const client = await pool.connect();
 
   await client.query("BEGIN");
   try {
-    await upsertAdminSettings(client, payload.settings);
+    await upsertAdminSettings(client, payload.settings, requestedLanguage);
     await upsertSectionSettings(client, payload.sections);
     await client.query("COMMIT");
 
     return {
-      settings: await getAdminSettings(),
+      settings: await getAdminSettings(requestedLanguage),
       sections: await getAdminSectionSettings()
     };
   } catch (error) {
@@ -1054,8 +1218,8 @@ export async function saveSettingsBundle(payload) {
   }
 }
 
-export async function getAdminSettings() {
-  const baseSettings = await queryAdminSettings(pool);
+export async function getAdminSettings(requestedLanguage = config.defaultLanguage) {
+  const baseSettings = await queryAdminSettings(pool, requestedLanguage);
   if (!baseSettings) return null;
   const heroSubtitles = await getSettingsHeroSubtitles(pool);
   return {
@@ -1064,12 +1228,12 @@ export async function getAdminSettings() {
   };
 }
 
-export async function saveSettings(payload) {
+export async function saveSettings(payload, requestedLanguage = config.defaultLanguage) {
   const client = await pool.connect();
 
   await client.query("BEGIN");
   try {
-    await upsertAdminSettings(client, payload);
+    await upsertAdminSettings(client, payload, requestedLanguage);
     await client.query("COMMIT");
   } catch (error) {
     await client.query("ROLLBACK");
@@ -1078,7 +1242,7 @@ export async function saveSettings(payload) {
     client.release();
   }
 
-  return await getAdminSettings();
+  return await getAdminSettings(requestedLanguage);
 }
 
 export async function createContactRequest(payload) {

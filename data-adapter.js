@@ -671,10 +671,11 @@
         async saveSettingsBundle(payload) {
             const settings = payload && payload.settings && typeof payload.settings === "object" ? payload.settings : {};
             const sections = payload && Array.isArray(payload.sections) ? payload.sections : [];
+            const language = getCurrentLanguage();
 
             if (await shouldUseApi()) {
                 try {
-                    const response = await apiRequest("/settings/bundle", {
+                    const response = await apiRequest(buildPathWithLang("/settings/bundle", language), {
                         method: "PUT",
                         body: { data: { settings, sections } }
                     });
@@ -683,7 +684,7 @@
                     const status = Number(error && error.status);
                     if (status !== 404 && status !== 405) throw error;
 
-                    const settingsResponse = await apiRequest("/settings", {
+                    const settingsResponse = await apiRequest(buildPathWithLang("/settings", language), {
                         method: "PUT",
                         body: { data: settings }
                     });
@@ -711,7 +712,9 @@
         async saveCollection(type, payload) {
             const collection = normalizeCollectionName(type);
             if (await shouldUseApi()) {
-                const endpoint = collection === "settings" ? "/settings" : `/${collection}`;
+                const endpoint = collection === "settings"
+                    ? buildPathWithLang("/settings", getCurrentLanguage())
+                    : `/${collection}`;
                 const response = await apiRequest(endpoint, { method: "PUT", body: { data: payload } });
                 return response.data;
             }
