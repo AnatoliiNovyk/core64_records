@@ -133,18 +133,24 @@ async function run() {
 
   const authHeaders = { authorization: `Bearer ${token}` };
 
-  const [adminSettingsResult, publicUkResult, publicEnResult] = await Promise.all([
-    requestJson("/settings", { headers: authHeaders }),
+  const [adminUkSettingsResult, adminEnSettingsResult, publicUkResult, publicEnResult] = await Promise.all([
+    requestJson("/settings?lang=uk", { headers: authHeaders }),
+    requestJson("/settings?lang=en", { headers: authHeaders }),
     requestJson("/public?lang=uk"),
     requestJson("/public?lang=en")
   ]);
 
-  ensureOk(adminSettingsResult, "GET /settings");
+  ensureOk(adminUkSettingsResult, "GET /settings?lang=uk");
+  ensureOk(adminEnSettingsResult, "GET /settings?lang=en");
   ensureOk(publicUkResult, "GET /public?lang=uk");
   ensureOk(publicEnResult, "GET /public?lang=en");
 
-  const adminSettings = adminSettingsResult.json?.data && typeof adminSettingsResult.json.data === "object"
-    ? adminSettingsResult.json.data
+  const adminUkSettings = adminUkSettingsResult.json?.data && typeof adminUkSettingsResult.json.data === "object"
+    ? adminUkSettingsResult.json.data
+    : {};
+
+  const adminEnSettings = adminEnSettingsResult.json?.data && typeof adminEnSettingsResult.json.data === "object"
+    ? adminEnSettingsResult.json.data
     : {};
 
   const publicUkSettings = publicUkResult.json?.data?.settings && typeof publicUkResult.json.data.settings === "object"
@@ -155,17 +161,30 @@ async function run() {
     ? publicEnResult.json.data.settings
     : {};
 
-  report.checks.expected = {
-    title: normalizeText(adminSettings.title),
-    about: normalizeText(adminSettings.about),
-    mission: normalizeText(adminSettings.mission),
-    headerLogoUrl: normalizeText(adminSettings.headerLogoUrl),
-    footerLogoUrl: normalizeText(adminSettings.footerLogoUrl),
-    contactCaptchaErrorMessage: normalizeText(adminSettings.contactCaptchaErrorMessage),
-    contactCaptchaMissingTokenMessage: normalizeText(adminSettings.contactCaptchaMissingTokenMessage),
-    contactCaptchaInvalidDomainMessage: normalizeText(adminSettings.contactCaptchaInvalidDomainMessage),
-    heroSubtitleUk: normalizeText(adminSettings.heroSubtitleUk),
-    heroSubtitleEn: normalizeText(adminSettings.heroSubtitleEn)
+  report.checks.expectedUk = {
+    title: normalizeText(adminUkSettings.title),
+    about: normalizeText(adminUkSettings.about),
+    mission: normalizeText(adminUkSettings.mission),
+    headerLogoUrl: normalizeText(adminUkSettings.headerLogoUrl),
+    footerLogoUrl: normalizeText(adminUkSettings.footerLogoUrl),
+    contactCaptchaErrorMessage: normalizeText(adminUkSettings.contactCaptchaErrorMessage),
+    contactCaptchaMissingTokenMessage: normalizeText(adminUkSettings.contactCaptchaMissingTokenMessage),
+    contactCaptchaInvalidDomainMessage: normalizeText(adminUkSettings.contactCaptchaInvalidDomainMessage),
+    heroSubtitleUk: normalizeText(adminUkSettings.heroSubtitleUk),
+    heroSubtitleEn: normalizeText(adminUkSettings.heroSubtitleEn)
+  };
+
+  report.checks.expectedEn = {
+    title: normalizeText(adminEnSettings.title),
+    about: normalizeText(adminEnSettings.about),
+    mission: normalizeText(adminEnSettings.mission),
+    headerLogoUrl: normalizeText(adminEnSettings.headerLogoUrl),
+    footerLogoUrl: normalizeText(adminEnSettings.footerLogoUrl),
+    contactCaptchaErrorMessage: normalizeText(adminEnSettings.contactCaptchaErrorMessage),
+    contactCaptchaMissingTokenMessage: normalizeText(adminEnSettings.contactCaptchaMissingTokenMessage),
+    contactCaptchaInvalidDomainMessage: normalizeText(adminEnSettings.contactCaptchaInvalidDomainMessage),
+    heroSubtitleUk: normalizeText(adminEnSettings.heroSubtitleUk),
+    heroSubtitleEn: normalizeText(adminEnSettings.heroSubtitleEn)
   };
 
   report.checks.publicUk = {
@@ -204,12 +223,12 @@ async function run() {
   ];
 
   for (const field of mirroredFields) {
-    compare(report, "adminSettings", "publicUkSettings", field, adminSettings[field], publicUkSettings[field]);
-    compare(report, "adminSettings", "publicEnSettings", field, adminSettings[field], publicEnSettings[field]);
+    compare(report, "adminUkSettings", "publicUkSettings", field, adminUkSettings[field], publicUkSettings[field]);
+    compare(report, "adminEnSettings", "publicEnSettings", field, adminEnSettings[field], publicEnSettings[field]);
   }
 
-  compare(report, "adminSettings.heroSubtitleUk", "publicUkSettings.heroSubtitle", "heroSubtitle", adminSettings.heroSubtitleUk, publicUkSettings.heroSubtitle);
-  compare(report, "adminSettings.heroSubtitleEn", "publicEnSettings.heroSubtitle", "heroSubtitle", adminSettings.heroSubtitleEn, publicEnSettings.heroSubtitle);
+  compare(report, "adminUkSettings.heroSubtitleUk", "publicUkSettings.heroSubtitle", "heroSubtitle", adminUkSettings.heroSubtitleUk, publicUkSettings.heroSubtitle);
+  compare(report, "adminEnSettings.heroSubtitleEn", "publicEnSettings.heroSubtitle", "heroSubtitle", adminEnSettings.heroSubtitleEn, publicEnSettings.heroSubtitle);
 
   console.log(JSON.stringify(report, null, 2));
   if (!report.passed) {

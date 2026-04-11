@@ -37,10 +37,7 @@ async function createMockServer(options = {}) {
   const adminPassword = "test-admin-password";
   const authToken = "test-token";
 
-  const adminSettings = {
-    title: "CORE64 Title",
-    about: "CORE64 About",
-    mission: "CORE64 Mission",
+  const sharedAdminSettings = {
     headerLogoUrl: "https://cdn.example.com/header-logo.png",
     footerLogoUrl: "/images/footer-logo.png",
     contactCaptchaErrorMessage: "Captcha error",
@@ -50,29 +47,43 @@ async function createMockServer(options = {}) {
     heroSubtitleEn: "EN subtitle"
   };
 
+  const adminUkSettings = {
+    ...sharedAdminSettings,
+    title: "CORE64 Title UK",
+    about: "CORE64 About UK",
+    mission: "CORE64 Mission UK"
+  };
+
+  const adminEnSettings = {
+    ...sharedAdminSettings,
+    title: "CORE64 Title EN",
+    about: "CORE64 About EN",
+    mission: "CORE64 Mission EN"
+  };
+
   const publicUkSettings = {
-    title: adminSettings.title,
-    about: adminSettings.about,
-    mission: adminSettings.mission,
-    headerLogoUrl: adminSettings.headerLogoUrl,
-    footerLogoUrl: adminSettings.footerLogoUrl,
-    contactCaptchaErrorMessage: adminSettings.contactCaptchaErrorMessage,
-    contactCaptchaMissingTokenMessage: adminSettings.contactCaptchaMissingTokenMessage,
-    contactCaptchaInvalidDomainMessage: adminSettings.contactCaptchaInvalidDomainMessage,
-    heroSubtitle: adminSettings.heroSubtitleUk,
+    title: adminUkSettings.title,
+    about: adminUkSettings.about,
+    mission: adminUkSettings.mission,
+    headerLogoUrl: adminUkSettings.headerLogoUrl,
+    footerLogoUrl: adminUkSettings.footerLogoUrl,
+    contactCaptchaErrorMessage: adminUkSettings.contactCaptchaErrorMessage,
+    contactCaptchaMissingTokenMessage: adminUkSettings.contactCaptchaMissingTokenMessage,
+    contactCaptchaInvalidDomainMessage: adminUkSettings.contactCaptchaInvalidDomainMessage,
+    heroSubtitle: adminUkSettings.heroSubtitleUk,
     ...publicUkOverrides
   };
 
   const publicEnSettings = {
-    title: adminSettings.title,
-    about: adminSettings.about,
-    mission: adminSettings.mission,
-    headerLogoUrl: adminSettings.headerLogoUrl,
-    footerLogoUrl: adminSettings.footerLogoUrl,
-    contactCaptchaErrorMessage: adminSettings.contactCaptchaErrorMessage,
-    contactCaptchaMissingTokenMessage: adminSettings.contactCaptchaMissingTokenMessage,
-    contactCaptchaInvalidDomainMessage: adminSettings.contactCaptchaInvalidDomainMessage,
-    heroSubtitle: adminSettings.heroSubtitleEn,
+    title: adminEnSettings.title,
+    about: adminEnSettings.about,
+    mission: adminEnSettings.mission,
+    headerLogoUrl: adminEnSettings.headerLogoUrl,
+    footerLogoUrl: adminEnSettings.footerLogoUrl,
+    contactCaptchaErrorMessage: adminEnSettings.contactCaptchaErrorMessage,
+    contactCaptchaMissingTokenMessage: adminEnSettings.contactCaptchaMissingTokenMessage,
+    contactCaptchaInvalidDomainMessage: adminEnSettings.contactCaptchaInvalidDomainMessage,
+    heroSubtitle: adminEnSettings.heroSubtitleEn,
     ...publicEnOverrides
   };
 
@@ -121,8 +132,11 @@ async function createMockServer(options = {}) {
         return;
       }
 
+      const lang = String(url.searchParams.get("lang") || "uk").trim().toLowerCase();
+      const settings = lang === "en" ? adminEnSettings : adminUkSettings;
+
       writeJson(res, 200, {
-        data: adminSettings
+        data: settings
       });
       return;
     }
@@ -239,19 +253,19 @@ async function main() {
     expect(hasHeroMismatch, "hero-subtitle-mismatch: expected heroSubtitle mismatch entry");
   });
 
-  await runCase("mirrored-title-mismatch", {
-    publicUkOverrides: {
-      title: "WRONG TITLE"
+  await runCase("cross-language-title-bleed", {
+    publicEnOverrides: {
+      title: "CORE64 Title UK"
     }
   }, ({ result, report }) => {
     expect(
       result.code === 1,
-      `mirrored-title-mismatch: expected exit 1, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
+      `cross-language-title-bleed: expected exit 1, got ${result.code}; stderr=${result.stderr}; stdout=${result.stdout}`
     );
-    expect(report?.passed === false, "mirrored-title-mismatch: expected passed=false");
+    expect(report?.passed === false, "cross-language-title-bleed: expected passed=false");
     const hasTitleMismatch = Array.isArray(report?.mismatches)
-      && report.mismatches.some((entry) => entry.field === "title");
-    expect(hasTitleMismatch, "mirrored-title-mismatch: expected title mismatch entry");
+      && report.mismatches.some((entry) => entry.field === "title" && entry.actual === "CORE64 Title UK");
+    expect(hasTitleMismatch, "cross-language-title-bleed: expected title mismatch entry with UK bleed value");
   });
 
   console.log("check-settings-i18n-consistency self-test PASSED");
