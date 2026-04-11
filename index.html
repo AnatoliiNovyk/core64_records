@@ -213,7 +213,7 @@
     </nav>
 
     <!-- Hero Section -->
-    <section class="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
+    <section id="hero" class="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
         <div class="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-transparent"></div>
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--primary)_0%,_transparent_70%)] opacity-20"></div>
         
@@ -446,7 +446,17 @@
             <div class="text-gray-500 text-sm" data-i18n="footerRights">
                 © 2024 CORE64 Records. All rights reserved.
             </div>
-            <div class="flex gap-4">
+            <div class="flex gap-4 items-center">
+                <button
+                    type="button"
+                    onclick="scrollToSection('hero')"
+                    class="text-gray-400 hover:text-cyan-300 text-sm transition-colors inline-flex items-center gap-1 uppercase tracking-wider"
+                    data-i18n-aria-label="footerBackToTopAria"
+                    data-i18n-title="footerBackToTopAria"
+                >
+                    <i data-lucide="arrow-up" class="w-4 h-4" aria-hidden="true"></i>
+                    <span data-i18n="footerBackToTop">Наверх</span>
+                </button>
                 <a href="admin.html" class="text-gray-600 hover:text-cyan-400 text-sm transition-colors">
                     <i data-lucide="lock" class="w-4 h-4 inline mr-1"></i>
                     Admin
