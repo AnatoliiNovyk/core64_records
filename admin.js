@@ -339,7 +339,7 @@ const ADMIN_I18N = {
         releaseTrackUploadButton: "Файл треку",
         releaseTrackAddButton: "Додати трек",
         releaseTrackUnsupportedFormat: "Непідтримуваний аудіоформат. Дозволено MP3 або WAV.",
-        releaseTrackUploadTooLarge: "Аудіофайл занадто великий. Максимум: 6MB.",
+        releaseTrackUploadTooLarge: "Аудіофайл занадто великий. Максимум: 20MB.",
         releaseTrackReadError: "Не вдалося прочитати аудіофайл.",
         releaseTrackInvalidDataUrl: "Трек має бути локальним завантаженням у форматі MP3/WAV.",
         releaseTrackMissingTitle: "Кожен трек повинен мати назву.",
@@ -666,7 +666,7 @@ const ADMIN_I18N = {
         releaseTrackUploadButton: "Track file",
         releaseTrackAddButton: "Add track",
         releaseTrackUnsupportedFormat: "Unsupported audio format. Allowed: MP3 or WAV.",
-        releaseTrackUploadTooLarge: "Audio file is too large. Maximum: 6MB.",
+        releaseTrackUploadTooLarge: "Audio file is too large. Maximum: 20MB.",
         releaseTrackReadError: "Failed to read audio file.",
         releaseTrackInvalidDataUrl: "Track must be uploaded from local computer in MP3/WAV format.",
         releaseTrackMissingTitle: "Each track must have a title.",
@@ -5191,7 +5191,7 @@ const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
 const SETTINGS_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
-const MAX_UPLOAD_AUDIO_BYTES = 6 * 1024 * 1024;
+const MAX_UPLOAD_AUDIO_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_UPLOAD_AUDIO_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave"];
 const SUPPORTED_UPLOAD_AUDIO_EXTENSIONS = ["mp3", "wav"];
 const RELEASE_TRACK_AUDIO_DATA_URL_PATTERN = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;

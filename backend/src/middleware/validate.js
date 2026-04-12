@@ -59,7 +59,7 @@ export const releaseSchema = z.object({
 export const releaseTrackSchema = z.object({
   id: z.union([z.number(), z.string()]).optional(),
   title: z.string().trim().min(1).max(140),
-  audioDataUrl: z.string().trim().max(12000000).refine(isReleaseTrackAudioDataUrl, {
+  audioDataUrl: z.string().trim().max(30000000).refine(isReleaseTrackAudioDataUrl, {
     message: "Track must be uploaded from local computer (MP3/WAV data URL only)"
   }),
   durationSeconds: z.number().int().min(0).max(86400).optional().default(0),
