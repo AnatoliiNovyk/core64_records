@@ -28,11 +28,18 @@ const sponsorTranslationSchema = z.object({
 });
 
 const brandImageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
+const releaseTrackAudioDataUrlPattern = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
 
 function isBrandImageDataUrlOrEmpty(value) {
   const normalized = String(value || "").trim();
   if (!normalized) return true;
   return brandImageDataUrlPattern.test(normalized);
+}
+
+function isReleaseTrackAudioDataUrl(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return false;
+  return releaseTrackAudioDataUrlPattern.test(normalized);
 }
 
 export const releaseSchema = z.object({
@@ -47,6 +54,20 @@ export const releaseSchema = z.object({
   link: z.string().optional().default("#"),
   ticketLink: z.string().optional().default(""),
   i18n: z.record(languageCodeSchema, releaseTranslationSchema).optional().default({})
+});
+
+export const releaseTrackSchema = z.object({
+  id: z.union([z.number(), z.string()]).optional(),
+  title: z.string().trim().min(1).max(140),
+  audioDataUrl: z.string().trim().max(12000000).refine(isReleaseTrackAudioDataUrl, {
+    message: "Track must be uploaded from local computer (MP3/WAV data URL only)"
+  }),
+  durationSeconds: z.number().int().min(0).max(86400).optional().default(0),
+  sortOrder: z.number().int().min(0).max(9999).optional().default(0)
+});
+
+export const releaseTracksUpdateSchema = z.object({
+  tracks: z.array(releaseTrackSchema).max(30)
 });
 
 export const artistSchema = z.object({

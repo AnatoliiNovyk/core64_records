@@ -10,6 +10,7 @@ import collectionRoutes from "./routes/collections.js";
 import settingsRoutes from "./routes/settings.js";
 import contactRoutes from "./routes/contactRequests.js";
 import publicRoutes from "./routes/public.js";
+import releaseTracksRoutes from "./routes/releaseTracks.js";
 import auditRoutes from "./routes/auditLogs.js";
 import securityRoutes from "./routes/security.js";
 import { isDatabaseConnectivityError } from "./utils/dbError.js";
@@ -53,6 +54,7 @@ app.use(express.static(publicDir, {
 app.use("/api", healthRoutes);
 app.use("/api", authRoutes);
 app.use("/api", publicRoutes);
+app.use("/api", releaseTracksRoutes);
 app.use("/api", collectionRoutes);
 app.use("/api", settingsRoutes);
 app.use("/api", contactRoutes);

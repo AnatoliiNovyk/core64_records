@@ -128,6 +128,7 @@
                 sortOrder: 3
             }
         ],
+        releaseTracks: [],
         settings: {
             title: "CORE64 Records",
             about: "CORE64 Records — незалежний музичний лейбл, заснований у 2024 році. Ми спеціалізуємося на найважчих жанрах електронної музики: Neurofunk, Techstep, Darkstep та Breakbeat.",
@@ -416,6 +417,7 @@
                 artists: parsed.artists || [],
                 events: parsed.events || [],
                 sponsors: parsed.sponsors || [],
+                releaseTracks: Array.isArray(parsed.releaseTracks) ? parsed.releaseTracks : [],
                 settings: {
                     ...deepClone(DEFAULT_DATA.settings),
                     ...(parsed.settings || {})
@@ -531,6 +533,26 @@
         if (type === "settings") return "settings";
         if (type.endsWith("s")) return type;
         return `${type}s`;
+    }
+
+    function normalizeReleaseId(value) {
+        const numeric = Number(value);
+        if (!Number.isFinite(numeric) || numeric <= 0) return null;
+        return Math.round(numeric);
+    }
+
+    function normalizeReleaseTrackPayload(track, index = 0) {
+        const source = track && typeof track === "object" ? track : {};
+        const durationNumeric = Number(source.durationSeconds ?? source.duration_seconds);
+        const sortNumeric = Number(source.sortOrder ?? source.sort_order);
+        return {
+            id: source.id,
+            releaseId: normalizeReleaseId(source.releaseId ?? source.release_id),
+            title: String(source.title || "").trim(),
+            audioDataUrl: String(source.audioDataUrl || source.audio_data_url || "").trim(),
+            durationSeconds: Number.isFinite(durationNumeric) ? Math.max(0, Math.round(durationNumeric)) : 0,
+            sortOrder: Number.isFinite(sortNumeric) ? Math.max(0, Math.round(sortNumeric)) : (index + 1)
+        };
     }
 
     function sanitizeText(input) {
@@ -724,6 +746,105 @@
             data[collection] = payload;
             saveLocalData(data);
             return payload;
+        },
+
+        async getReleaseTracks(releaseId) {
+            const normalizedReleaseId = normalizeReleaseId(releaseId);
+            if (!normalizedReleaseId) return [];
+
+            if (await shouldUseApi()) {
+                const response = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
+                const tracks = response && response.data && Array.isArray(response.data.tracks)
+                    ? response.data.tracks
+                    : [];
+
+                return tracks
+                    .map((track, index) => normalizeReleaseTrackPayload(track, index))
+                    .filter((track) => track.releaseId === normalizedReleaseId)
+                    .sort((left, right) => {
+                        if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+                        return Number(left.id || 0) - Number(right.id || 0);
+                    });
+            }
+
+            const data = getLocalData();
+            return (Array.isArray(data.releaseTracks) ? data.releaseTracks : [])
+                .map((track, index) => normalizeReleaseTrackPayload(track, index))
+                .filter((track) => track.releaseId === normalizedReleaseId)
+                .sort((left, right) => {
+                    if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+                    return Number(left.id || 0) - Number(right.id || 0);
+                });
+        },
+
+        async saveReleaseTracks(releaseId, tracksPayload) {
+            const normalizedReleaseId = normalizeReleaseId(releaseId);
+            if (!normalizedReleaseId) throw new Error("Invalid release id for tracks save");
+
+            const tracks = (Array.isArray(tracksPayload) ? tracksPayload : [])
+                .map((track, index) => {
+                    const normalized = normalizeReleaseTrackPayload(track, index);
+                    return {
+                        ...normalized,
+                        releaseId: normalizedReleaseId,
+                        sortOrder: index + 1
+                    };
+                });
+
+            if (await shouldUseApi()) {
+                const response = await apiRequest(`/release-tracks/${normalizedReleaseId}`, {
+                    method: "PUT",
+                    body: {
+                        tracks: tracks.map((track) => ({
+                            title: track.title,
+                            audioDataUrl: track.audioDataUrl,
+                            durationSeconds: track.durationSeconds,
+                            sortOrder: track.sortOrder
+                        }))
+                    }
+                });
+
+                const savedTracks = response && response.data && Array.isArray(response.data.tracks)
+                    ? response.data.tracks
+                    : [];
+
+                return savedTracks
+                    .map((track, index) => normalizeReleaseTrackPayload(track, index))
+                    .filter((track) => track.releaseId === normalizedReleaseId)
+                    .sort((left, right) => {
+                        if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+                        return Number(left.id || 0) - Number(right.id || 0);
+                    });
+            }
+
+            const data = getLocalData();
+            const existingTracks = Array.isArray(data.releaseTracks) ? data.releaseTracks : [];
+            const nextTrackSeed = existingTracks.reduce((maxId, track) => {
+                const trackId = Number(track && track.id);
+                if (!Number.isFinite(trackId)) return maxId;
+                return Math.max(maxId, Math.round(trackId));
+            }, 0);
+
+            let generatedId = nextTrackSeed;
+            const normalizedTracks = tracks.map((track, index) => {
+                generatedId += 1;
+                return {
+                    id: Number.isFinite(Number(track.id)) ? Number(track.id) : generatedId,
+                    releaseId: normalizedReleaseId,
+                    title: track.title,
+                    audioDataUrl: track.audioDataUrl,
+                    durationSeconds: track.durationSeconds,
+                    sortOrder: index + 1
+                };
+            });
+
+            data.releaseTracks = existingTracks
+                .map((track, index) => normalizeReleaseTrackPayload(track, index))
+                .filter((track) => track.releaseId !== normalizedReleaseId)
+                .concat(normalizedTracks);
+            saveLocalData(data);
+
+            return normalizedTracks;
         },
 
         async createItem(type, item) {

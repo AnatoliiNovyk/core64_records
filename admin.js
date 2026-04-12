@@ -7,6 +7,8 @@ let logoutInProgress = false;
 let resetDataInProgress = false;
 let editingId = null;
 let editingType = null;
+let releaseModalTracks = [];
+let releaseTrackTempSeq = 0;
 let cache = {
     releases: [],
     artists: [],
@@ -324,6 +326,25 @@ const ADMIN_I18N = {
         releaseTypeSingleLabel: "Сингл",
         releaseTypeEpLabel: "EP",
         releaseTypeAlbumLabel: "Альбом",
+        releaseTracksTitle: "Треки релізу",
+        releaseTracksHint: "Додавайте треки тільки файлом з вашого комп'ютера. Доступні формати: MP3, WAV.",
+        releaseTrackListLabel: "Список треків",
+        releaseTrackEmpty: "Поки немає треків. Натисніть «Додати трек».",
+        releaseTrackTitleLabel: "Назва треку",
+        releaseTrackTitlePlaceholder: "Наприклад: Intro",
+        releaseTrackDurationLabel: "Тривалість",
+        releaseTrackMoveUp: "Вгору",
+        releaseTrackMoveDown: "Вниз",
+        releaseTrackRemove: "Видалити",
+        releaseTrackUploadButton: "Файл треку",
+        releaseTrackAddButton: "Додати трек",
+        releaseTrackUnsupportedFormat: "Непідтримуваний аудіоформат. Дозволено MP3 або WAV.",
+        releaseTrackUploadTooLarge: "Аудіофайл занадто великий. Максимум: 6MB.",
+        releaseTrackReadError: "Не вдалося прочитати аудіофайл.",
+        releaseTrackInvalidDataUrl: "Трек має бути локальним завантаженням у форматі MP3/WAV.",
+        releaseTrackMissingTitle: "Кожен трек повинен мати назву.",
+        releaseTrackMissingAudio: "Кожен трек повинен містити аудіофайл MP3/WAV.",
+        releaseTracksLoadFailed: "Не вдалося завантажити треки релізу.",
         languageLabelUk: "Укр",
         languageLabelEn: "Eng",
         apiMissingMethod: "API недоступний. Відсутній метод перевірки у adapter.",
@@ -632,6 +653,25 @@ const ADMIN_I18N = {
         releaseTypeSingleLabel: "Single",
         releaseTypeEpLabel: "EP",
         releaseTypeAlbumLabel: "Album",
+        releaseTracksTitle: "Release tracks",
+        releaseTracksHint: "Add tracks only by uploading files from your computer. Allowed formats: MP3, WAV.",
+        releaseTrackListLabel: "Track list",
+        releaseTrackEmpty: "No tracks yet. Click 'Add track'.",
+        releaseTrackTitleLabel: "Track title",
+        releaseTrackTitlePlaceholder: "For example: Intro",
+        releaseTrackDurationLabel: "Duration",
+        releaseTrackMoveUp: "Up",
+        releaseTrackMoveDown: "Down",
+        releaseTrackRemove: "Remove",
+        releaseTrackUploadButton: "Track file",
+        releaseTrackAddButton: "Add track",
+        releaseTrackUnsupportedFormat: "Unsupported audio format. Allowed: MP3 or WAV.",
+        releaseTrackUploadTooLarge: "Audio file is too large. Maximum: 6MB.",
+        releaseTrackReadError: "Failed to read audio file.",
+        releaseTrackInvalidDataUrl: "Track must be uploaded from local computer in MP3/WAV format.",
+        releaseTrackMissingTitle: "Each track must have a title.",
+        releaseTrackMissingAudio: "Each track must include an MP3/WAV file.",
+        releaseTracksLoadFailed: "Failed to load release tracks.",
         languageLabelUk: "Ukr",
         languageLabelEn: "Eng",
         apiMissingMethod: "API unavailable. Missing health-check method in adapter.",
@@ -5073,12 +5113,15 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
     }
 }
 
-function openModal(type, id) {
+async function openModal(type, id) {
     if (!isSupportedEntityType(type)) return;
+    const sectionAtOpen = currentSection;
+    const navigationSeqAtOpen = sectionNavigationSeq;
     const normalizedId = normalizeEntityId(id);
     if (hasDefinedEntityId(normalizedId) && !hasUsableEntityId(normalizedId)) return;
     editingId = normalizedId ?? null;
     editingType = type;
+    releaseModalTracks = [];
 
     const modal = document.getElementById("modal");
     const title = document.getElementById("modal-title");
@@ -5099,6 +5142,25 @@ function openModal(type, id) {
         });
         if (!matchedItem) return;
         item = matchedItem;
+
+        if (type === "release") {
+            const getReleaseTracksMethod = getAdapterMethod("getReleaseTracks");
+            if (getReleaseTracksMethod) {
+                try {
+                    const tracks = await getReleaseTracksMethod.call(adapter, matchedItem.id);
+                    if (sectionNavigationSeq !== navigationSeqAtOpen) return;
+                    if (currentSection !== sectionAtOpen) return;
+                    releaseModalTracks = normalizeReleaseTracksForEditor(tracks);
+                } catch (error) {
+                    console.error("Failed to load release tracks", error);
+                    if (sectionNavigationSeq !== navigationSeqAtOpen) return;
+                    if (currentSection !== sectionAtOpen) return;
+                    alert(tAdmin("releaseTracksLoadFailed"));
+                    releaseModalTracks = [];
+                }
+            }
+        }
+
         title.textContent = `${tAdmin("modalEditPrefix")} ${getTypeName(type)}`;
     } else {
         title.textContent = `${tAdmin("modalAddPrefix")} ${getTypeName(type)}`;
@@ -5109,6 +5171,9 @@ function openModal(type, id) {
 
     if (!modal.isConnected) return;
     modal.classList.remove("hidden");
+    if (type === "release") {
+        renderReleaseTracksEditor();
+    }
     if (window.lucide) lucide.createIcons();
 }
 
@@ -5119,18 +5184,300 @@ function closeModal() {
     }
     editingId = null;
     editingType = null;
+    releaseModalTracks = [];
 }
 
 const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
 const SETTINGS_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
+const MAX_UPLOAD_AUDIO_BYTES = 6 * 1024 * 1024;
+const SUPPORTED_UPLOAD_AUDIO_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave"];
+const SUPPORTED_UPLOAD_AUDIO_EXTENSIONS = ["mp3", "wav"];
+const RELEASE_TRACK_AUDIO_DATA_URL_PATTERN = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
 
 function isSettingsImageDataUrl(value) {
     const normalized = String(value || "").trim();
     if (!normalized) return false;
     return SETTINGS_IMAGE_DATA_URL_PATTERN.test(normalized);
 }
+
+function hasSupportedUploadAudioType(file) {
+    if (!file || typeof file.type !== "string") return false;
+    const normalizedType = file.type.toLowerCase();
+    return SUPPORTED_UPLOAD_AUDIO_TYPES.includes(normalizedType);
+}
+
+function hasSupportedUploadAudioExtension(file) {
+    if (!file || typeof file.name !== "string") return false;
+    const normalizedName = file.name.trim().toLowerCase();
+    if (!normalizedName) return false;
+    const ext = normalizedName.split(".").pop();
+    return !!ext && SUPPORTED_UPLOAD_AUDIO_EXTENSIONS.includes(ext);
+}
+
+function isSupportedUploadAudio(file) {
+    return hasSupportedUploadAudioType(file) || hasSupportedUploadAudioExtension(file);
+}
+
+function nextReleaseTrackTempId() {
+    releaseTrackTempSeq += 1;
+    return `rt_${Date.now()}_${releaseTrackTempSeq}`;
+}
+
+function normalizeReleaseTrackEditorItem(track, index = 0) {
+    const source = track && typeof track === "object" ? track : {};
+    const idValue = Number(source.id);
+    const durationValue = Number(source.durationSeconds ?? source.duration_seconds);
+    const sortValue = Number(source.sortOrder ?? source.sort_order);
+    return {
+        id: Number.isFinite(idValue) ? Math.round(idValue) : null,
+        tempId: String(source.tempId || nextReleaseTrackTempId()),
+        title: String(source.title || "").trim(),
+        audioDataUrl: String(source.audioDataUrl || source.audio_data_url || "").trim(),
+        durationSeconds: Number.isFinite(durationValue) ? Math.max(0, Math.round(durationValue)) : 0,
+        sortOrder: Number.isFinite(sortValue) ? Math.max(0, Math.round(sortValue)) : (index + 1)
+    };
+}
+
+function normalizeReleaseTracksForEditor(tracks) {
+    const source = Array.isArray(tracks) ? tracks : [];
+    return source
+        .map((track, index) => normalizeReleaseTrackEditorItem(track, index))
+        .sort((left, right) => {
+            if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+            return String(left.tempId).localeCompare(String(right.tempId));
+        })
+        .map((track, index) => ({
+            ...track,
+            sortOrder: index + 1
+        }));
+}
+
+function formatTrackDurationLabel(seconds) {
+    const numeric = Number(seconds);
+    if (!Number.isFinite(numeric) || numeric <= 0) return "--:--";
+    const safeSeconds = Math.max(0, Math.round(numeric));
+    const minutes = Math.floor(safeSeconds / 60);
+    const restSeconds = safeSeconds % 60;
+    return `${minutes}:${String(restSeconds).padStart(2, "0")}`;
+}
+
+function findReleaseTrackIndexByTempId(tempId) {
+    const normalizedTempId = String(tempId || "").trim();
+    if (!normalizedTempId) return -1;
+    return releaseModalTracks.findIndex((track) => String(track.tempId || "") === normalizedTempId);
+}
+
+function renderReleaseTracksEditor() {
+    if (editingType !== "release") return;
+    const listEl = document.getElementById("release-track-list");
+    if (!listEl || !listEl.isConnected) return;
+
+    const tracks = normalizeReleaseTracksForEditor(releaseModalTracks);
+    releaseModalTracks = tracks;
+
+    if (!tracks.length) {
+        listEl.innerHTML = `<p class="text-xs text-gray-500">${sanitizeInput(tAdmin("releaseTrackEmpty"))}</p>`;
+        return;
+    }
+
+    listEl.innerHTML = tracks.map((track, index) => {
+        const safeTempId = sanitizeInput(track.tempId);
+        const safeTitle = sanitizeInput(track.title || "");
+        const safeAudioDataUrl = sanitizeInput(track.audioDataUrl || "");
+        const canMoveUp = index > 0;
+        const canMoveDown = index < tracks.length - 1;
+        return `
+            <div class="border border-cyan-500/20 rounded p-3 bg-black/25" data-release-track-id="${safeTempId}">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <p class="text-xs uppercase tracking-wide text-cyan-300">#${index + 1} • ${sanitizeInput(formatTrackDurationLabel(track.durationSeconds))}</p>
+                    <div class="flex items-center gap-1">
+                        <button type="button" onclick="moveReleaseTrackItem('${safeTempId}', -1)" class="px-2 py-1 text-xs rounded border border-gray-500/40 text-gray-200 hover:bg-gray-700/40 disabled:opacity-40" ${canMoveUp ? "" : "disabled"}>${sanitizeInput(tAdmin("releaseTrackMoveUp"))}</button>
+                        <button type="button" onclick="moveReleaseTrackItem('${safeTempId}', 1)" class="px-2 py-1 text-xs rounded border border-gray-500/40 text-gray-200 hover:bg-gray-700/40 disabled:opacity-40" ${canMoveDown ? "" : "disabled"}>${sanitizeInput(tAdmin("releaseTrackMoveDown"))}</button>
+                        <button type="button" onclick="removeReleaseTrackItem('${safeTempId}')" class="px-2 py-1 text-xs rounded border border-red-500/40 text-red-300 hover:bg-red-500/15">${sanitizeInput(tAdmin("releaseTrackRemove"))}</button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">${sanitizeInput(tAdmin("releaseTrackTitleLabel"))}</label>
+                        <input type="text" value="${safeTitle}" oninput="updateReleaseTrackTitle('${safeTempId}', this.value)" class="form-input w-full p-2 rounded" placeholder="${sanitizeInput(tAdmin("releaseTrackTitlePlaceholder"))}">
+                    </div>
+                    <div>
+                        <label class="block text-gray-400 mb-1 uppercase text-xs">${sanitizeInput(tAdmin("releaseTrackUploadButton"))}</label>
+                        <div class="flex gap-2 items-center">
+                            <label class="btn-cyan px-3 py-2 rounded cursor-pointer flex items-center gap-2 whitespace-nowrap">
+                                <i data-lucide="upload" class="w-4 h-4"></i>
+                                <span>${sanitizeInput(tAdmin("modalFileButton"))}</span>
+                                <input type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav" data-release-track-id="${safeTempId}" class="hidden" onchange="handleReleaseTrackUpload(this)">
+                            </label>
+                            <span class="text-xs text-gray-500 truncate">${safeAudioDataUrl ? "MP3/WAV" : "-"}</span>
+                        </div>
+                    </div>
+                </div>
+                ${safeAudioDataUrl ? `<audio controls preload="metadata" class="w-full mt-3"><source src="${safeAudioDataUrl}"></audio>` : ""}
+            </div>
+        `;
+    }).join("");
+
+    if (window.lucide) lucide.createIcons();
+}
+
+function updateReleaseTrackTitle(tempId, value) {
+    const trackIndex = findReleaseTrackIndexByTempId(tempId);
+    if (trackIndex < 0) return;
+    releaseModalTracks[trackIndex] = {
+        ...releaseModalTracks[trackIndex],
+        title: String(value || "").trim()
+    };
+}
+
+function addReleaseTrackItem() {
+    releaseModalTracks = normalizeReleaseTracksForEditor(releaseModalTracks);
+    releaseModalTracks.push(normalizeReleaseTrackEditorItem({
+        tempId: nextReleaseTrackTempId(),
+        title: "",
+        audioDataUrl: "",
+        durationSeconds: 0,
+        sortOrder: releaseModalTracks.length + 1
+    }, releaseModalTracks.length));
+    renderReleaseTracksEditor();
+}
+
+function removeReleaseTrackItem(tempId) {
+    const trackIndex = findReleaseTrackIndexByTempId(tempId);
+    if (trackIndex < 0) return;
+    releaseModalTracks.splice(trackIndex, 1);
+    releaseModalTracks = normalizeReleaseTracksForEditor(releaseModalTracks);
+    renderReleaseTracksEditor();
+}
+
+function moveReleaseTrackItem(tempId, direction) {
+    const trackIndex = findReleaseTrackIndexByTempId(tempId);
+    if (trackIndex < 0) return;
+    const directionValue = Number(direction);
+    if (!Number.isFinite(directionValue) || directionValue === 0) return;
+    const targetIndex = trackIndex + (directionValue < 0 ? -1 : 1);
+    if (targetIndex < 0 || targetIndex >= releaseModalTracks.length) return;
+    const items = [...releaseModalTracks];
+    [items[trackIndex], items[targetIndex]] = [items[targetIndex], items[trackIndex]];
+    releaseModalTracks = normalizeReleaseTracksForEditor(items);
+    renderReleaseTracksEditor();
+}
+
+async function readReleaseTrackDurationSeconds(audioDataUrl) {
+    return new Promise((resolve) => {
+        const audioEl = document.createElement("audio");
+        audioEl.preload = "metadata";
+        let settled = false;
+
+        const finalize = (value) => {
+            if (settled) return;
+            settled = true;
+            resolve(Number.isFinite(Number(value)) ? Math.max(0, Math.round(Number(value))) : 0);
+        };
+
+        audioEl.onloadedmetadata = () => finalize(audioEl.duration);
+        audioEl.onerror = () => finalize(0);
+        audioEl.src = audioDataUrl;
+    });
+}
+
+async function handleReleaseTrackUpload(inputEl) {
+    if (!inputEl || inputEl.isConnected === false) return;
+    if (editingType !== "release") return;
+
+    const files = inputEl.files;
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    if (!file) return;
+
+    if (!isSupportedUploadAudio(file)) {
+        alert(tAdmin("releaseTrackUnsupportedFormat"));
+        inputEl.value = "";
+        return;
+    }
+
+    if (!Number.isFinite(Number(file.size)) || Number(file.size) <= 0 || Number(file.size) > MAX_UPLOAD_AUDIO_BYTES) {
+        alert(tAdmin("releaseTrackUploadTooLarge"));
+        inputEl.value = "";
+        return;
+    }
+
+    const trackTempId = String(inputEl.getAttribute("data-release-track-id") || "").trim();
+    const trackIndex = findReleaseTrackIndexByTempId(trackTempId);
+    if (trackIndex < 0) {
+        inputEl.value = "";
+        return;
+    }
+
+    const dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const target = event && event.target;
+            if (!target || typeof target.result !== "string") {
+                reject(new Error("Invalid file reader result"));
+                return;
+            }
+            resolve(target.result);
+        };
+        reader.onerror = () => reject(new Error("Failed to read file"));
+        reader.readAsDataURL(file);
+    }).catch(() => "");
+
+    if (!dataUrl) {
+        alert(tAdmin("releaseTrackReadError"));
+        inputEl.value = "";
+        return;
+    }
+
+    if (!RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(String(dataUrl || ""))) {
+        alert(tAdmin("releaseTrackInvalidDataUrl"));
+        inputEl.value = "";
+        return;
+    }
+
+    const durationSeconds = await readReleaseTrackDurationSeconds(dataUrl);
+    const currentTrack = releaseModalTracks[trackIndex] || {};
+    const fallbackTitle = String(file.name || "").replace(/\.[^.]+$/, "").trim();
+    releaseModalTracks[trackIndex] = {
+        ...currentTrack,
+        audioDataUrl: String(dataUrl),
+        durationSeconds,
+        title: String(currentTrack.title || "").trim() || fallbackTitle
+    };
+
+    inputEl.value = "";
+    renderReleaseTracksEditor();
+}
+
+function getValidatedReleaseTracksPayload() {
+    const tracks = normalizeReleaseTracksForEditor(releaseModalTracks)
+        .map((track, index) => ({
+            id: track.id,
+            title: String(track.title || "").trim(),
+            audioDataUrl: String(track.audioDataUrl || "").trim(),
+            durationSeconds: Number.isFinite(Number(track.durationSeconds)) ? Math.max(0, Math.round(Number(track.durationSeconds))) : 0,
+            sortOrder: index + 1
+        }));
+
+    for (const track of tracks) {
+        if (!track.title) {
+            throw new Error(tAdmin("releaseTrackMissingTitle"));
+        }
+        if (!track.audioDataUrl || !RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(track.audioDataUrl)) {
+            throw new Error(tAdmin("releaseTrackMissingAudio"));
+        }
+    }
+
+    return tracks;
+}
+
+window.addReleaseTrackItem = addReleaseTrackItem;
+window.removeReleaseTrackItem = removeReleaseTrackItem;
+window.moveReleaseTrackItem = moveReleaseTrackItem;
+window.updateReleaseTrackTitle = updateReleaseTrackTitle;
+window.handleReleaseTrackUpload = handleReleaseTrackUpload;
 
 function hasSupportedUploadImageType(file) {
     if (!file || typeof file.type !== "string") return false;
@@ -5449,6 +5796,15 @@ function generateFields(type, item) {
                 ${imagePreview}
                 <p class="text-xs text-gray-500 mt-1">${sanitizeInput(modalLocale.uploadHintRelease)}</p>
             </div>
+            <div class="border border-cyan-500/20 rounded p-3 bg-black/20">
+                <div class="flex items-center justify-between gap-3 mb-2">
+                    <p class="text-sm uppercase tracking-widest text-cyan-300">${sanitizeInput(tAdmin("releaseTracksTitle"))}</p>
+                    <button type="button" onclick="addReleaseTrackItem()" class="btn-cyan px-3 py-2 rounded text-xs uppercase tracking-wide">${sanitizeInput(tAdmin("releaseTrackAddButton"))}</button>
+                </div>
+                <p class="text-xs text-gray-500 mb-3">${sanitizeInput(tAdmin("releaseTracksHint"))}</p>
+                <p class="text-xs uppercase tracking-wider text-gray-400 mb-2">${sanitizeInput(tAdmin("releaseTrackListLabel"))}</p>
+                <div id="release-track-list" class="space-y-3"></div>
+            </div>
         `,
         artist: `
             <div>
@@ -5735,6 +6091,16 @@ if (modalFormEl && modalFormEl.isConnected) {
             id: isEditMode ? editingIdAtSubmit : Date.now()
         });
 
+        let releaseTracksPayload = [];
+        if (editingTypeAtSubmit === "release") {
+            try {
+                releaseTracksPayload = getValidatedReleaseTracksPayload();
+            } catch (validationError) {
+                alert(normalizeUiErrorDetails(validationError && validationError.message ? validationError.message : tAdmin("releaseTrackMissingAudio")));
+                return;
+            }
+        }
+
         if (editingTypeAtSubmit === "sponsor") {
             const shortDescriptionText = String(item.shortDescription || "").trim();
             const wordsCount = shortDescriptionText ? shortDescriptionText.split(/\s+/).filter(Boolean).length : 0;
@@ -5761,10 +6127,25 @@ if (modalFormEl && modalFormEl.isConnected) {
         }
 
         try {
+            let savedEntity = null;
             if (isEditMode) {
-                await updateItemMethod.call(adapter, editingTypeAtSubmit, editingIdAtSubmit, item);
+                savedEntity = await updateItemMethod.call(adapter, editingTypeAtSubmit, editingIdAtSubmit, item);
             } else {
-                await createItemMethod.call(adapter, editingTypeAtSubmit, item);
+                savedEntity = await createItemMethod.call(adapter, editingTypeAtSubmit, item);
+            }
+
+            if (editingTypeAtSubmit === "release") {
+                const saveReleaseTracksMethod = getAdapterMethod("saveReleaseTracks");
+                if (!saveReleaseTracksMethod) {
+                    throw new Error(tAdmin("saveMissingAdapter"));
+                }
+
+                const releaseIdForTracks = Number((savedEntity && savedEntity.id) || item.id || editingIdAtSubmit);
+                if (!Number.isFinite(releaseIdForTracks) || releaseIdForTracks <= 0) {
+                    throw new Error(tAdmin("saveRecordFailed"));
+                }
+
+                await saveReleaseTracksMethod.call(adapter, releaseIdForTracks, releaseTracksPayload);
             }
 
             if (sectionNavigationSeq !== navigationSeqAtSubmit) return;

@@ -851,6 +851,26 @@ function toDbValue(key, value) {
   return [key, value];
 }
 
+function toBoundedInteger(value, fallback, min, max) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  const normalized = Math.round(numeric);
+  if (normalized < min) return min;
+  if (normalized > max) return max;
+  return normalized;
+}
+
+function fromDbReleaseTrackRow(row) {
+  return {
+    id: row.id,
+    releaseId: row.release_id,
+    title: row.title,
+    audioDataUrl: row.audio_data_url,
+    durationSeconds: toBoundedInteger(row.duration_seconds, 0, 0, 86400),
+    sortOrder: toBoundedInteger(row.sort_order, 0, 0, 9999)
+  };
+}
+
 export async function listByType(type, requestedLanguage = config.defaultLanguage) {
   const entityConfig = tableConfig[type];
   const i18nConfig = i18nReadConfig[type];
@@ -946,6 +966,83 @@ export async function updateByType(type, id, payload) {
 export async function deleteByType(type, id) {
   const config = tableConfig[type];
   await pool.query(`DELETE FROM ${config.table} WHERE id = $1`, [id]);
+}
+
+export async function getReleaseById(releaseId) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId) return null;
+  const result = await pool.query("SELECT id FROM releases WHERE id = $1", [normalizedReleaseId]);
+  return result.rows[0] || null;
+}
+
+export async function listReleaseTracksByReleaseId(releaseId) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId) return [];
+
+  const result = await pool.query(
+    `SELECT
+      id,
+      release_id,
+      title,
+      audio_data_url,
+      duration_seconds,
+      sort_order
+    FROM release_tracks
+    WHERE release_id = $1
+    ORDER BY sort_order ASC, id ASC`,
+    [normalizedReleaseId]
+  );
+
+  return (result.rows || []).map((row) => fromDbReleaseTrackRow(row));
+}
+
+export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload = []) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId) return [];
+
+  const tracks = Array.isArray(tracksPayload) ? tracksPayload : [];
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+    await client.query("DELETE FROM release_tracks WHERE release_id = $1", [normalizedReleaseId]);
+
+    const createdRows = [];
+    for (let index = 0; index < tracks.length; index += 1) {
+      const track = tracks[index] && typeof tracks[index] === "object" ? tracks[index] : {};
+      const title = String(track.title || "").trim();
+      const audioDataUrl = String(track.audioDataUrl || track.audio_data_url || "").trim();
+      const durationSeconds = toBoundedInteger(track.durationSeconds ?? track.duration_seconds, 0, 0, 86400);
+      const sortOrder = toBoundedInteger(track.sortOrder ?? track.sort_order, index + 1, 0, 9999);
+
+      const insertResult = await client.query(
+        `INSERT INTO release_tracks (
+          release_id,
+          title,
+          audio_data_url,
+          duration_seconds,
+          sort_order
+        )
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, release_id, title, audio_data_url, duration_seconds, sort_order`,
+        [normalizedReleaseId, title, audioDataUrl, durationSeconds, sortOrder]
+      );
+
+      if (insertResult.rows[0]) {
+        createdRows.push(fromDbReleaseTrackRow(insertResult.rows[0]));
+      }
+    }
+
+    await client.query("COMMIT");
+    return createdRows.sort((left, right) => {
+      if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+      return left.id - right.id;
+    });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 const PUBLIC_SETTINGS_SELECT = `

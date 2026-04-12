@@ -6,7 +6,16 @@ let sponsorCarouselVisibilityListenerBound = false;
 let contactRuntimeSettings = {};
 let releaseInteractionsBound = false;
 let floatingScrollTopResizeListenerBound = false;
+let compactReleasePlayerControlsBound = false;
+let compactReleasePlayerState = {
+    releaseId: null,
+    tracks: [],
+    activeTrackIndex: -1,
+    loading: false
+};
+const releaseIndexById = new Map();
 const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
+const RELEASE_TRACK_AUDIO_DATA_URL_PATTERN = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
 const PUBLIC_SECTION_DEFAULTS = [
     { sectionKey: "releases", sortOrder: 1, i18nKey: "sectionLatestReleases", navI18nKey: "navReleases" },
     { sectionKey: "artists", sortOrder: 2, i18nKey: "sectionLabelArtists", navI18nKey: "navArtists" },
@@ -26,6 +35,13 @@ const PUBLIC_I18N = {
         heroListenReleases: "Слухати Релізи",
         heroOurArtists: "Наші Артисти",
         sectionLatestReleases: "ОСТАННІ РЕЛІЗИ",
+        releasePlayerTitle: "Плеєр релізу",
+        releasePlayerTrackList: "Список треків",
+        releasePlayerLoading: "Завантаження треків...",
+        releasePlayerNoTracks: "Для цього релізу ще не додано треків.",
+        releasePlayerClose: "Закрити плеєр",
+        releasePlayerAutoplayBlocked: "Автовідтворення заблоковано браузером. Натисніть Play у плеєрі.",
+        releasePlayAria: "Відкрити плеєр релізу",
         sectionLabelArtists: "АРТИСТИ ЛЕЙБЛУ",
         sectionEvents: "АФІША ПОДІЙ",
         sectionSponsors: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
@@ -96,6 +112,13 @@ const PUBLIC_I18N = {
         heroListenReleases: "Listen to Releases",
         heroOurArtists: "Our Artists",
         sectionLatestReleases: "LATEST RELEASES",
+        releasePlayerTitle: "Release player",
+        releasePlayerTrackList: "Track list",
+        releasePlayerLoading: "Loading tracks...",
+        releasePlayerNoTracks: "No tracks have been added for this release yet.",
+        releasePlayerClose: "Close player",
+        releasePlayerAutoplayBlocked: "Autoplay was blocked by the browser. Press Play in the player.",
+        releasePlayAria: "Open release player",
         sectionLabelArtists: "LABEL ARTISTS",
         sectionEvents: "EVENT SCHEDULE",
         sectionSponsors: "SPONSORS, PARTNERS AND FRIENDS",
@@ -632,18 +655,209 @@ function buildReleaseFallbackUrl(releaseTitle, releaseArtist) {
     return `https://soundcloud.com/search?q=${encodeURIComponent(query)}`;
 }
 
-function openReleaseLink(releaseLink, releaseTitle, releaseArtist) {
-    const normalizedUrl = normalizeReleaseOutboundUrl(releaseLink);
-    const targetUrl = normalizedUrl || buildReleaseFallbackUrl(releaseTitle, releaseArtist);
-    const openedWindow = window.open(targetUrl, "_blank");
-    if (openedWindow) {
-        // Explicitly detach opener for security without relying on feature-string behavior.
-        openedWindow.opener = null;
+function normalizeReleaseId(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric) || numeric <= 0) return null;
+    return Math.round(numeric);
+}
+
+function normalizeReleaseTrack(track, releaseId, index = 0) {
+    const source = track && typeof track === "object" ? track : {};
+    const title = String(source.title || "").trim();
+    const audioDataUrl = String(source.audioDataUrl || source.audio_data_url || "").trim();
+    if (!title || !audioDataUrl || !RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(audioDataUrl)) return null;
+
+    const durationSecondsRaw = Number(source.durationSeconds ?? source.duration_seconds);
+    const sortOrderRaw = Number(source.sortOrder ?? source.sort_order);
+    return {
+        id: source.id,
+        releaseId,
+        title,
+        audioDataUrl,
+        durationSeconds: Number.isFinite(durationSecondsRaw) ? Math.max(0, Math.round(durationSecondsRaw)) : 0,
+        sortOrder: Number.isFinite(sortOrderRaw) ? Math.max(0, Math.round(sortOrderRaw)) : (index + 1)
+    };
+}
+
+function formatDurationLabel(seconds) {
+    const numeric = Number(seconds);
+    if (!Number.isFinite(numeric) || numeric <= 0) return "--:--";
+    const safe = Math.max(0, Math.round(numeric));
+    const minutes = Math.floor(safe / 60);
+    const restSeconds = safe % 60;
+    return `${minutes}:${String(restSeconds).padStart(2, "0")}`;
+}
+
+function getCompactReleasePlayerElements() {
+    return {
+        root: document.getElementById("release-compact-player"),
+        title: document.getElementById("release-compact-player-title"),
+        artist: document.getElementById("release-compact-player-artist"),
+        cover: document.getElementById("release-compact-player-cover"),
+        audio: document.getElementById("release-compact-player-audio"),
+        list: document.getElementById("release-compact-player-track-list"),
+        status: document.getElementById("release-compact-player-status")
+    };
+}
+
+function resetCompactReleasePlayerAudio() {
+    const { audio } = getCompactReleasePlayerElements();
+    if (!audio) return;
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+}
+
+function hideCompactReleasePlayer() {
+    const { root, status, list } = getCompactReleasePlayerElements();
+    if (!root) return;
+    root.classList.add("hidden");
+    compactReleasePlayerState = {
+        releaseId: null,
+        tracks: [],
+        activeTrackIndex: -1,
+        loading: false
+    };
+    resetCompactReleasePlayerAudio();
+    if (status) status.textContent = "";
+    if (list) list.innerHTML = "";
+}
+
+function renderCompactReleaseTrackList() {
+    const { list } = getCompactReleasePlayerElements();
+    if (!list) return;
+
+    const tracks = Array.isArray(compactReleasePlayerState.tracks) ? compactReleasePlayerState.tracks : [];
+    list.innerHTML = tracks.map((track, index) => {
+        const isActive = index === compactReleasePlayerState.activeTrackIndex;
+        const safeTitle = escapeHtmlAttribute(track.title || `Track ${index + 1}`);
+        return `
+            <button
+                type="button"
+                class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded border ${isActive ? "border-cyan-400 bg-cyan-500/10 text-cyan-300" : "border-cyan-500/20 bg-black/20 text-gray-200 hover:border-cyan-500/50"} transition-colors"
+                data-release-track-index="${index}"
+            >
+                <span class="truncate text-left">${safeTitle}</span>
+                <span class="text-xs text-gray-400">${formatDurationLabel(track.durationSeconds)}</span>
+            </button>
+        `;
+    }).join("");
+}
+
+async function playCompactReleaseTrack(trackIndex, shouldAutoplay = true) {
+    const { audio, status } = getCompactReleasePlayerElements();
+    if (!audio) return;
+    const tracks = Array.isArray(compactReleasePlayerState.tracks) ? compactReleasePlayerState.tracks : [];
+    const index = Number(trackIndex);
+    if (!Number.isFinite(index) || index < 0 || index >= tracks.length) return;
+
+    const track = tracks[index];
+    compactReleasePlayerState.activeTrackIndex = index;
+    audio.src = track.audioDataUrl;
+    audio.load();
+    renderCompactReleaseTrackList();
+
+    if (!shouldAutoplay) return;
+
+    try {
+        await audio.play();
+        if (status) status.textContent = "";
+    } catch (_error) {
+        if (status) status.textContent = tPublic("releasePlayerAutoplayBlocked");
+    }
+}
+
+async function openCompactReleasePlayer(releaseId) {
+    const normalizedReleaseId = normalizeReleaseId(releaseId);
+    if (!normalizedReleaseId) return;
+
+    const release = releaseIndexById.get(normalizedReleaseId);
+    if (!release) return;
+
+    const { root, title, artist, cover, list, status } = getCompactReleasePlayerElements();
+    if (!root || !title || !artist || !cover || !list || !status) return;
+
+    root.classList.remove("hidden");
+    title.textContent = String(release.title || "Release");
+    artist.textContent = String(release.artist || "");
+    cover.src = String(release.image || "").trim() || RELEASE_IMAGE_FALLBACK;
+
+    compactReleasePlayerState.loading = true;
+    compactReleasePlayerState.releaseId = normalizedReleaseId;
+    compactReleasePlayerState.activeTrackIndex = -1;
+    compactReleasePlayerState.tracks = [];
+    list.innerHTML = "";
+    status.textContent = tPublic("releasePlayerLoading");
+
+    const getReleaseTracksMethod = getAdapterMethod("getReleaseTracks");
+    if (!getReleaseTracksMethod) {
+        compactReleasePlayerState.loading = false;
+        status.textContent = tPublic("releasePlayerNoTracks");
         return;
     }
 
-    // Fallback when popup blockers prevent opening a new tab.
-    window.location.assign(targetUrl);
+    try {
+        const tracksResponse = await getReleaseTracksMethod.call(adapter, normalizedReleaseId);
+        const normalizedTracks = (Array.isArray(tracksResponse) ? tracksResponse : [])
+            .map((track, index) => normalizeReleaseTrack(track, normalizedReleaseId, index))
+            .filter(Boolean)
+            .sort((left, right) => {
+                if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+                return Number(left.id || 0) - Number(right.id || 0);
+            });
+
+        compactReleasePlayerState.loading = false;
+        compactReleasePlayerState.tracks = normalizedTracks;
+
+        if (!normalizedTracks.length) {
+            status.textContent = tPublic("releasePlayerNoTracks");
+            renderCompactReleaseTrackList();
+            resetCompactReleasePlayerAudio();
+            return;
+        }
+
+        status.textContent = "";
+        renderCompactReleaseTrackList();
+        await playCompactReleaseTrack(0, true);
+    } catch (error) {
+        console.error("Failed to load release tracks", error);
+        compactReleasePlayerState.loading = false;
+        compactReleasePlayerState.tracks = [];
+        compactReleasePlayerState.activeTrackIndex = -1;
+        status.textContent = tPublic("releasePlayerNoTracks");
+        resetCompactReleasePlayerAudio();
+    }
+}
+
+function bindCompactReleasePlayerControls() {
+    if (compactReleasePlayerControlsBound) return;
+
+    const { root, list, audio } = getCompactReleasePlayerElements();
+    const closeBtn = document.getElementById("release-compact-player-close");
+    if (!root || !list || !audio || !closeBtn) return;
+
+    closeBtn.addEventListener("click", () => hideCompactReleasePlayer());
+
+    list.addEventListener("click", async (event) => {
+        const target = event.target instanceof Element
+            ? event.target.closest("[data-release-track-index]")
+            : null;
+        if (!target) return;
+
+        const trackIndex = Number(target.getAttribute("data-release-track-index"));
+        if (!Number.isFinite(trackIndex)) return;
+        await playCompactReleaseTrack(trackIndex, true);
+    });
+
+    audio.addEventListener("ended", async () => {
+        const tracks = Array.isArray(compactReleasePlayerState.tracks) ? compactReleasePlayerState.tracks : [];
+        if (!tracks.length) return;
+        const nextIndex = compactReleasePlayerState.activeTrackIndex + 1;
+        if (nextIndex >= tracks.length) return;
+        await playCompactReleaseTrack(nextIndex, true);
+    });
+
+    compactReleasePlayerControlsBound = true;
 }
 
 function attachImageFallback(container, selector, fallbackSrc) {
@@ -662,28 +876,24 @@ function bindReleaseInteractions() {
     const grid = document.getElementById("releases-grid");
     if (!grid) return;
 
-    grid.addEventListener("click", (event) => {
+    grid.addEventListener("click", async (event) => {
         const playButton = event.target instanceof Element
             ? event.target.closest('[data-release-action="play"]')
             : null;
 
         if (playButton) {
-            const releaseLink = playButton.getAttribute("data-release-link") || "";
-            const releaseTitle = playButton.getAttribute("data-release-title") || "";
-            const releaseArtist = playButton.getAttribute("data-release-artist") || "";
-            openReleaseLink(releaseLink, releaseTitle, releaseArtist);
+            const releaseId = playButton.getAttribute("data-release-id") || "";
+            await openCompactReleasePlayer(releaseId);
             return;
         }
 
         const card = event.target instanceof Element ? event.target.closest(".release-card") : null;
         if (!card) return;
-        const releaseLink = card.getAttribute("data-release-link") || "";
-        const releaseTitle = card.getAttribute("data-release-title") || "";
-        const releaseArtist = card.getAttribute("data-release-artist") || "";
-        openReleaseLink(releaseLink, releaseTitle, releaseArtist);
+        const releaseId = card.getAttribute("data-release-id") || "";
+        await openCompactReleasePlayer(releaseId);
     });
 
-    grid.addEventListener("keydown", (event) => {
+    grid.addEventListener("keydown", async (event) => {
         if (!(event instanceof KeyboardEvent)) return;
         if (event.defaultPrevented) return;
         if (event.isComposing) return;
@@ -700,10 +910,8 @@ function bindReleaseInteractions() {
         if (!card) return;
 
         event.preventDefault();
-        const releaseLink = card.getAttribute("data-release-link") || "";
-        const releaseTitle = card.getAttribute("data-release-title") || "";
-        const releaseArtist = card.getAttribute("data-release-artist") || "";
-        openReleaseLink(releaseLink, releaseTitle, releaseArtist);
+        const releaseId = card.getAttribute("data-release-id") || "";
+        await openCompactReleasePlayer(releaseId);
     });
 
     releaseInteractionsBound = true;
@@ -847,24 +1055,31 @@ function renderReleases(data) {
     const grid = document.getElementById("releases-grid");
     if (!grid) return;
 
+    releaseIndexById.clear();
+
     grid.innerHTML = (data.releases || []).map((release) => {
         const releaseTypeLabel = getReleaseTypeLabel(release.releaseType || release.release_type);
         const releaseDateLabel = formatReleaseDateLabel(release);
         const releaseTitle = String(release.title || "Реліз");
-        const releaseLink = normalizeReleaseOutboundUrl(release.link || release.releaseLink || "");
         const releaseImage = String(release.image || "").trim() || RELEASE_IMAGE_FALLBACK;
         const releaseArtist = String(release.artist || "");
+        const releaseId = normalizeReleaseId(release.id);
+        if (releaseId) {
+            releaseIndexById.set(releaseId, release);
+        }
+
+        const releaseIdAttr = escapeHtmlAttribute(releaseId || "");
         const safeReleaseTitle = escapeHtmlAttribute(releaseTitle);
-        const safeReleaseLink = escapeHtmlAttribute(releaseLink);
         const safeImage = escapeHtmlAttribute(releaseImage);
         const safeReleaseArtist = escapeHtmlAttribute(releaseArtist);
+        const safeCardAria = escapeHtmlAttribute(`${tPublic("releasePlayAria")}: ${releaseTitle}`);
 
         return `
-        <article class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}" aria-label="Відкрити реліз ${safeReleaseTitle}" role="button" tabindex="0">
+        <article class="release-card border border-cyan-500/20 rounded-lg overflow-hidden group cursor-pointer" data-release-id="${releaseIdAttr}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}" aria-label="${safeCardAria}" role="button" tabindex="0">
             <div class="relative aspect-square overflow-hidden bg-gray-900">
                 <img src="${safeImage}" alt="${safeReleaseTitle}" class="w-full h-full object-cover vinyl-spin" data-release-image="1" loading="lazy">
                 <div class="absolute inset-0 bg-black/35 md:bg-black/60 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity flex items-center justify-center gap-4">
-                    <button class="p-3 bg-cyan-400 rounded-full text-black hover:scale-110 transition-transform" aria-label="Play release" data-release-action="play" data-release-link="${safeReleaseLink}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}">
+                    <button class="p-3 bg-cyan-400 rounded-full text-black hover:scale-110 transition-transform" aria-label="${escapeHtmlAttribute(tPublic("releasePlayAria"))}" data-release-action="play" data-release-id="${releaseIdAttr}" data-release-title="${safeReleaseTitle}" data-release-artist="${safeReleaseArtist}">
                         <i data-lucide="play" class="w-6 h-6 fill-current"></i>
                     </button>
                 </div>
@@ -1492,6 +1707,7 @@ async function bootstrap() {
     bindLanguageSwitcher();
     adapter.ensureLocalDefaults();
     bindReleaseInteractions();
+    bindCompactReleasePlayerControls();
     const isProdHost = !["localhost", "127.0.0.1"].includes(window.location.hostname);
     const requireApi = (window.CORE64_CONFIG && typeof window.CORE64_CONFIG.requireApiOnPublic === "boolean")
         ? window.CORE64_CONFIG.requireApiOnPublic

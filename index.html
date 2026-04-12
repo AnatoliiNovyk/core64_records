@@ -335,6 +335,32 @@
             <div id="releases-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Releases will be loaded here -->
             </div>
+
+            <div id="release-compact-player" class="hidden mt-8 border border-cyan-500/30 rounded-xl bg-black/45 backdrop-blur-sm p-4 md:p-6">
+                <div class="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                        <p class="text-xs uppercase tracking-widest text-cyan-300" data-i18n="releasePlayerTitle">Плеєр релізу</p>
+                        <h3 id="release-compact-player-title" class="text-2xl font-bold text-white mt-1">-</h3>
+                        <p id="release-compact-player-artist" class="text-sm text-gray-400 mt-1"></p>
+                    </div>
+                    <button id="release-compact-player-close" type="button" class="px-3 py-2 text-xs uppercase tracking-wider border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 transition-colors" data-i18n="releasePlayerClose">Закрити плеєр</button>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                    <div class="lg:col-span-4">
+                        <div class="aspect-square overflow-hidden rounded border border-cyan-500/25 bg-black/30">
+                            <img id="release-compact-player-cover" src="" alt="Release cover" class="w-full h-full object-cover" loading="lazy">
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-8">
+                        <audio id="release-compact-player-audio" controls preload="metadata" class="w-full mb-3"></audio>
+                        <p id="release-compact-player-status" class="text-sm text-cyan-300 mb-3"></p>
+                        <p class="text-xs uppercase tracking-widest text-gray-400 mb-2" data-i18n="releasePlayerTrackList">Список треків</p>
+                        <div id="release-compact-player-track-list" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
