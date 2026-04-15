@@ -216,6 +216,9 @@ const ADMIN_I18N = {
         saveRecordFailedDetails: "Не вдалося зберегти запис: {details}",
         saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
         saveRecordDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте зберегти запис пізніше.",
+        saveRecordSessionExpired: "Сесія адміна завершилась. Увійдіть повторно.",
+        saveRecordRateLimited: "Забагато змін підряд. Зачекайте кілька секунд і спробуйте знову.",
+        saveRecordPayloadTooLarge: "Дані завеликі для збереження. Зменште розмір завантажених файлів.",
         databaseTemporarilyUnavailable: "База даних тимчасово недоступна. Спробуйте ще раз пізніше.",
         activityUpdated: "Оновлено {type}: {name}",
         activityAdded: "Додано {type}: {name}",
@@ -544,6 +547,9 @@ const ADMIN_I18N = {
         saveRecordFailedDetails: "Failed to save record: {details}",
         saveRecordFailed: "Failed to save record. Check data and try again.",
         saveRecordDatabaseUnavailable: "Database is temporarily unavailable. Please try to save again later.",
+        saveRecordSessionExpired: "Admin session expired. Please sign in again.",
+        saveRecordRateLimited: "Too many updates in a short time. Wait a few seconds and try again.",
+        saveRecordPayloadTooLarge: "Payload is too large to save. Reduce uploaded file size and try again.",
         databaseTemporarilyUnavailable: "Database is temporarily unavailable. Please try again later.",
         activityUpdated: "Updated {type}: {name}",
         activityAdded: "Added {type}: {name}",
@@ -741,7 +747,11 @@ function isUnauthorizedApiError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
     if (status === 401) return true;
-    return code === "AUTH_TOKEN_MISSING" || code === "AUTH_TOKEN_INVALID" || code === "AUTH_UNAUTHORIZED";
+    return code === "AUTH_REQUIRED"
+        || code === "AUTH_INVALID_TOKEN"
+        || code === "AUTH_TOKEN_MISSING"
+        || code === "AUTH_TOKEN_INVALID"
+        || code === "AUTH_UNAUTHORIZED";
 }
 
 function handleUnauthorizedSessionError() {
@@ -840,6 +850,19 @@ function isPayloadTooLargeError(error) {
 function resolveCrudSaveErrorMessage(error) {
     const details = normalizeUiErrorDetails(error && error.message ? error.message : "");
     const status = Number(error && error.status);
+    const code = String(error && error.code ? error.code : "").trim();
+
+    if (isUnauthorizedApiError(error)) {
+        return tAdmin("saveRecordSessionExpired");
+    }
+
+    if (isPayloadTooLargeError(error)) {
+        return tAdmin("saveRecordPayloadTooLarge");
+    }
+
+    if (status === 429 || /_RATE_LIMITED$/i.test(code)) {
+        return tAdmin("saveRecordRateLimited");
+    }
 
     if (isDatabaseUnavailableError(error)) {
         return tAdmin("saveRecordDatabaseUnavailable");
@@ -6113,18 +6136,38 @@ if (modalFormEl && modalFormEl.isConnected) {
         modalFormEl.dataset.submitListenerBound = "1";
         modalFormEl.addEventListener("submit", async (e) => {
         e.preventDefault();
-        if (!editingType) return;
+        if (!editingType) {
+            console.warn("Modal submit ignored: missing editing type");
+            alert(tAdmin("saveRecordFailed"));
+            return;
+        }
         const sectionAtSubmit = currentSection;
         const navigationSeqAtSubmit = sectionNavigationSeq;
         const editingTypeAtSubmit = editingType;
-        if (!isSupportedEntityType(editingTypeAtSubmit)) return;
+        if (!isSupportedEntityType(editingTypeAtSubmit)) {
+            console.warn("Modal submit ignored: unsupported editing type", { editingTypeAtSubmit });
+            alert(tAdmin("saveRecordFailed"));
+            return;
+        }
         const editingIdAtSubmit = normalizeEntityId(editingId);
-        if (hasDefinedEntityId(editingIdAtSubmit) && !hasUsableEntityId(editingIdAtSubmit)) return;
+        if (hasDefinedEntityId(editingIdAtSubmit) && !hasUsableEntityId(editingIdAtSubmit)) {
+            console.warn("Modal submit ignored: invalid editing id", { editingIdAtSubmit });
+            alert(tAdmin("saveRecordFailed"));
+            return;
+        }
         const isEditMode = hasUsableEntityId(editingIdAtSubmit);
 
         const formEl = e.target;
-        if (!formEl || formEl.isConnected === false) return;
-        if (typeof formEl.tagName !== "string" || formEl.tagName.toUpperCase() !== "FORM") return;
+        if (!formEl || formEl.isConnected === false) {
+            console.warn("Modal submit ignored: form is missing or disconnected");
+            alert(tAdmin("saveRecordFailed"));
+            return;
+        }
+        if (typeof formEl.tagName !== "string" || formEl.tagName.toUpperCase() !== "FORM") {
+            console.warn("Modal submit ignored: invalid submit target", { tagName: formEl.tagName });
+            alert(tAdmin("saveRecordFailed"));
+            return;
+        }
         const formData = new FormData(formEl);
         const item = buildCrudItemFromFormData(editingTypeAtSubmit, formData, {
             id: isEditMode ? editingIdAtSubmit : Date.now()
@@ -6187,12 +6230,12 @@ if (modalFormEl && modalFormEl.isConnected) {
                 await saveReleaseTracksMethod.call(adapter, releaseIdForTracks, releaseTracksPayload);
             }
 
+            closeModal();
+
             if (sectionNavigationSeq !== navigationSeqAtSubmit) return;
             if (currentSection !== sectionAtSubmit) return;
             const sectionEl = document.getElementById(`section-${sectionAtSubmit}`);
             if (!sectionEl || !sectionEl.isConnected) return;
-
-            closeModal();
             await showSection(sectionAtSubmit);
             if (sectionNavigationSeq !== navigationSeqAtSubmit) return;
             if (currentSection !== sectionAtSubmit) return;
@@ -6206,13 +6249,19 @@ if (modalFormEl && modalFormEl.isConnected) {
                 name: item.title || item.name || "-"
             }));
         } catch (error) {
-            if (sectionNavigationSeq !== navigationSeqAtSubmit) return;
             console.error("Save failed", error);
-            if (currentSection !== sectionAtSubmit) return;
+            if (isUnauthorizedApiError(error)) {
+                handleUnauthorizedSessionError();
+                return;
+            }
+
+            const modalEl = document.getElementById("modal");
+            const isModalVisible = !!(modalEl && modalEl.isConnected && !modalEl.classList.contains("hidden"));
             const sectionEl = document.getElementById(`section-${sectionAtSubmit}`);
-            if (!sectionEl || !sectionEl.isConnected) return;
             const message = resolveCrudSaveErrorMessage(error);
-            alert(message);
+            if (isModalVisible || (sectionEl && sectionEl.isConnected)) {
+                alert(message);
+            }
         }
         });
     }
