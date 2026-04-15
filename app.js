@@ -7,6 +7,8 @@ let contactRuntimeSettings = {};
 let releaseInteractionsBound = false;
 let floatingScrollTopResizeListenerBound = false;
 let compactReleasePlayerControlsBound = false;
+let compactReleasePlayerOffsetSyncBound = false;
+let compactReleasePlayerOffsetSyncFrame = 0;
 let compactReleasePlayerState = {
     releaseId: null,
     tracks: [],
@@ -743,6 +745,47 @@ function resetCompactReleasePlayerAudio() {
     audio.load();
 }
 
+function syncCompactReleasePlayerOffset() {
+    const { root } = getCompactReleasePlayerElements();
+    let offset = 0;
+
+    if (root && !root.classList.contains("hidden") && root.classList.contains("release-player-floating")) {
+        offset = Math.max(0, Math.ceil(root.getBoundingClientRect().height) + 20);
+    }
+
+    document.documentElement.style.setProperty("--release-player-offset", `${offset}px`);
+}
+
+function scheduleCompactReleasePlayerOffsetSync() {
+    if (compactReleasePlayerOffsetSyncFrame) {
+        cancelAnimationFrame(compactReleasePlayerOffsetSyncFrame);
+    }
+
+    compactReleasePlayerOffsetSyncFrame = requestAnimationFrame(() => {
+        compactReleasePlayerOffsetSyncFrame = 0;
+        syncCompactReleasePlayerOffset();
+    });
+}
+
+function bindCompactReleasePlayerOffsetSync() {
+    if (compactReleasePlayerOffsetSyncBound) return;
+
+    window.addEventListener("resize", () => {
+        scheduleCompactReleasePlayerOffsetSync();
+    });
+    compactReleasePlayerOffsetSyncBound = true;
+}
+
+function setFloatingCompactReleasePlayerEnabled(enabled) {
+    const { root } = getCompactReleasePlayerElements();
+    if (!root) return;
+
+    const isEnabled = enabled === true;
+    root.classList.toggle("release-player-floating", isEnabled);
+    document.body.classList.toggle("has-floating-release-player", isEnabled);
+    scheduleCompactReleasePlayerOffsetSync();
+}
+
 function hideCompactReleasePlayer() {
     const { root, status, list } = getCompactReleasePlayerElements();
     if (!root) return;
@@ -756,6 +799,7 @@ function hideCompactReleasePlayer() {
     resetCompactReleasePlayerAudio();
     if (status) status.textContent = "";
     if (list) list.innerHTML = "";
+    setFloatingCompactReleasePlayerEnabled(false);
 }
 
 function renderCompactReleaseTrackList() {
@@ -777,6 +821,8 @@ function renderCompactReleaseTrackList() {
             </button>
         `;
     }).join("");
+
+    scheduleCompactReleasePlayerOffsetSync();
 }
 
 async function playCompactReleaseTrack(trackIndex, shouldAutoplay = true) {
@@ -821,6 +867,8 @@ async function openCompactReleasePlayer(releaseId) {
     if (!root || !title || !artist || !cover || !list || !status) return;
 
     root.classList.remove("hidden");
+    setFloatingCompactReleasePlayerEnabled(true);
+    bindCompactReleasePlayerOffsetSync();
     title.textContent = String(release.title || "Release");
     artist.textContent = String(release.artist || "");
     cover.src = String(release.image || "").trim() || RELEASE_IMAGE_FALLBACK;
@@ -865,6 +913,7 @@ async function openCompactReleasePlayer(releaseId) {
         if (firstPlayableIndex < 0) {
             status.textContent = tPublic("releasePlayerTrackUnavailable");
             resetCompactReleasePlayerAudio();
+            scheduleCompactReleasePlayerOffsetSync();
             return;
         }
 

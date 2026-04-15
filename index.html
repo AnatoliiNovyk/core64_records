@@ -14,6 +14,7 @@
             --accent: #39ff14;
             --dark: #0a0a0f;
             --darker: #050508;
+            --release-player-offset: 0px;
         }
         
         body {
@@ -112,7 +113,7 @@
         
         .admin-link {
             position: fixed;
-            bottom: 20px;
+            bottom: calc(20px + var(--release-player-offset, 0px));
             right: 20px;
             opacity: 0.3;
             transition: opacity 0.3s;
@@ -122,7 +123,7 @@
         .floating-scroll-top {
             position: fixed;
             right: 86px;
-            bottom: 20px;
+            bottom: calc(20px + var(--release-player-offset, 0px));
             z-index: 50;
             display: inline-flex;
             align-items: center;
@@ -146,14 +147,14 @@
         @media (max-width: 640px) {
             .floating-scroll-top {
                 right: 74px;
-                bottom: 16px;
+                bottom: calc(16px + var(--release-player-offset, 0px));
                 padding: 9px 10px;
                 font-size: 10px;
             }
 
             .admin-link {
                 right: 16px;
-                bottom: 16px;
+                bottom: calc(16px + var(--release-player-offset, 0px));
             }
         }
         
@@ -202,6 +203,40 @@
 
         .sponsors-track::-webkit-scrollbar-thumb:hover {
             background: rgba(250, 204, 21, 0.7);
+        }
+
+        body.has-floating-release-player {
+            padding-bottom: calc(var(--release-player-offset, 0px) + 24px);
+        }
+
+        #release-compact-player.release-player-floating {
+            position: fixed;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: max(12px, env(safe-area-inset-bottom));
+            width: min(1120px, calc(100vw - 24px));
+            z-index: 55;
+            margin-top: 0;
+            border-color: rgba(0, 240, 255, 0.45);
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.5), 0 0 24px rgba(0, 240, 255, 0.18);
+        }
+
+        #release-compact-player.release-player-floating .release-player-content {
+            max-height: min(68vh, 520px);
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+
+        @media (max-width: 768px) {
+            #release-compact-player.release-player-floating {
+                width: calc(100vw - 12px);
+                bottom: max(6px, env(safe-area-inset-bottom));
+                padding: 12px;
+            }
+
+            #release-compact-player.release-player-floating .release-player-content {
+                max-height: min(72vh, 480px);
+            }
         }
         
     </style>
@@ -346,7 +381,7 @@
                     <button id="release-compact-player-close" type="button" class="px-3 py-2 text-xs uppercase tracking-wider border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/10 transition-colors" data-i18n="releasePlayerClose">Закрити плеєр</button>
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                <div class="release-player-content grid grid-cols-1 lg:grid-cols-12 gap-4">
                     <div class="lg:col-span-4">
                         <div class="aspect-square overflow-hidden rounded border border-cyan-500/25 bg-black/30">
                             <img id="release-compact-player-cover" src="" alt="Release cover" class="w-full h-full object-cover" loading="lazy">
