@@ -1104,22 +1104,38 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
 
   const payload = trackPayload && typeof trackPayload === "object" ? trackPayload : {};
   const title = String(payload.title || "").trim();
-  const audioDataUrl = String(payload.audioDataUrl || payload.audio_data_url || "").trim();
+  const hasAudioDataUrl = Object.prototype.hasOwnProperty.call(payload, "audioDataUrl")
+    || Object.prototype.hasOwnProperty.call(payload, "audio_data_url");
+  const audioDataUrl = hasAudioDataUrl ? String(payload.audioDataUrl || payload.audio_data_url || "").trim() : null;
   const durationSeconds = toBoundedInteger(payload.durationSeconds ?? payload.duration_seconds, 0, 0, 86400);
   const sortOrder = toBoundedInteger(payload.sortOrder ?? payload.sort_order, 0, 0, 9999);
+
+  const assignments = [
+    "title = $1",
+    "duration_seconds = $2",
+    "sort_order = $3",
+    "updated_at = NOW()"
+  ];
+  const values = [title, durationSeconds, sortOrder];
+
+  if (hasAudioDataUrl) {
+    values.push(audioDataUrl);
+    assignments.push(`audio_data_url = $${values.length}`);
+  }
+
+  values.push(normalizedTrackId);
+  values.push(normalizedReleaseId);
+  const idPlaceholder = `$${values.length - 1}`;
+  const releaseIdPlaceholder = `$${values.length}`;
 
   const result = await pool.query(
     `UPDATE release_tracks
     SET
-      title = $1,
-      audio_data_url = $2,
-      duration_seconds = $3,
-      sort_order = $4,
-      updated_at = NOW()
-    WHERE id = $5
-      AND release_id = $6
+      ${assignments.join(",\n      ")}
+    WHERE id = ${idPlaceholder}
+      AND release_id = ${releaseIdPlaceholder}
     RETURNING id, release_id, title, audio_data_url, duration_seconds, sort_order`,
-    [title, audioDataUrl, durationSeconds, sortOrder, normalizedTrackId, normalizedReleaseId]
+    values
   );
 
   return result.rows[0] ? fromDbReleaseTrackRow(result.rows[0]) : null;

@@ -8,6 +8,7 @@ let resetDataInProgress = false;
 let editingId = null;
 let editingType = null;
 let releaseModalTracks = [];
+let releaseModalTracksLoadFailed = false;
 let releaseTrackTempSeq = 0;
 let cache = {
     releases: [],
@@ -347,7 +348,9 @@ const ADMIN_I18N = {
         releaseTrackInvalidDataUrl: "Трек має бути локальним завантаженням у форматі MP3/WAV.",
         releaseTrackMissingTitle: "Кожен трек повинен мати назву.",
         releaseTrackMissingAudio: "Кожен трек повинен містити аудіофайл MP3/WAV.",
+        releaseTrackAudioPreserved: "Оригінальний аудіофайл збережено",
         releaseTracksLoadFailed: "Не вдалося завантажити треки релізу.",
+        releaseTracksReloadBeforeSave: "Не вдалося завантажити треки релізу. Закрийте це вікно і відкрийте редагування релізу повторно перед збереженням.",
         languageLabelUk: "Укр",
         languageLabelEn: "Eng",
         apiMissingMethod: "API недоступний. Відсутній метод перевірки у adapter.",
@@ -678,7 +681,9 @@ const ADMIN_I18N = {
         releaseTrackInvalidDataUrl: "Track must be uploaded from local computer in MP3/WAV format.",
         releaseTrackMissingTitle: "Each track must have a title.",
         releaseTrackMissingAudio: "Each track must include an MP3/WAV file.",
+        releaseTrackAudioPreserved: "Original audio file is preserved",
         releaseTracksLoadFailed: "Failed to load release tracks.",
+        releaseTracksReloadBeforeSave: "Failed to load release tracks. Close this dialog and reopen release editing before saving.",
         languageLabelUk: "Ukr",
         languageLabelEn: "Eng",
         apiMissingMethod: "API unavailable. Missing health-check method in adapter.",
@@ -5184,6 +5189,7 @@ async function openModal(type, id) {
     editingId = normalizedId ?? null;
     editingType = type;
     releaseModalTracks = [];
+    releaseModalTracksLoadFailed = false;
 
     const modal = document.getElementById("modal");
     const title = document.getElementById("modal-title");
@@ -5206,19 +5212,28 @@ async function openModal(type, id) {
         item = matchedItem;
 
         if (type === "release") {
+            const getReleaseTracksForEditMethod = getAdapterMethod("getReleaseTracksForEdit");
             const getReleaseTracksMethod = getAdapterMethod("getReleaseTracks");
-            if (getReleaseTracksMethod) {
+            const loadReleaseTracksMethod = getReleaseTracksForEditMethod || getReleaseTracksMethod;
+            if (!loadReleaseTracksMethod) {
+                releaseModalTracksLoadFailed = true;
+                if (sectionNavigationSeq !== navigationSeqAtOpen) return;
+                if (currentSection !== sectionAtOpen) return;
+                alert(tAdmin("releaseTracksLoadFailed"));
+            } else {
                 try {
-                    const tracks = await getReleaseTracksMethod.call(adapter, matchedItem.id);
+                    const tracks = await loadReleaseTracksMethod.call(adapter, matchedItem.id);
                     if (sectionNavigationSeq !== navigationSeqAtOpen) return;
                     if (currentSection !== sectionAtOpen) return;
                     releaseModalTracks = normalizeReleaseTracksForEditor(tracks);
+                    releaseModalTracksLoadFailed = false;
                 } catch (error) {
                     console.error("Failed to load release tracks", error);
                     if (sectionNavigationSeq !== navigationSeqAtOpen) return;
                     if (currentSection !== sectionAtOpen) return;
                     alert(tAdmin("releaseTracksLoadFailed"));
                     releaseModalTracks = [];
+                    releaseModalTracksLoadFailed = true;
                 }
             }
         }
@@ -5247,6 +5262,7 @@ function closeModal() {
     editingId = null;
     editingType = null;
     releaseModalTracks = [];
+    releaseModalTracksLoadFailed = false;
 }
 
 const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
@@ -5292,11 +5308,14 @@ function normalizeReleaseTrackEditorItem(track, index = 0) {
     const idValue = Number(source.id);
     const durationValue = Number(source.durationSeconds ?? source.duration_seconds);
     const sortValue = Number(source.sortOrder ?? source.sort_order);
+    const audioDataUrl = String(source.audioDataUrl || source.audio_data_url || "").trim();
+    const hasExistingTrackId = Number.isFinite(idValue) && idValue > 0;
     return {
-        id: Number.isFinite(idValue) ? Math.round(idValue) : null,
+        id: hasExistingTrackId ? Math.round(idValue) : null,
         tempId: String(source.tempId || nextReleaseTrackTempId()),
         title: String(source.title || "").trim(),
-        audioDataUrl: String(source.audioDataUrl || source.audio_data_url || "").trim(),
+        audioDataUrl,
+        audioPreserved: source.audioPreserved === true || (hasExistingTrackId && !audioDataUrl),
         durationSeconds: Number.isFinite(durationValue) ? Math.max(0, Math.round(durationValue)) : 0,
         sortOrder: Number.isFinite(sortValue) ? Math.max(0, Math.round(sortValue)) : (index + 1)
     };
@@ -5340,7 +5359,8 @@ function renderReleaseTracksEditor() {
     releaseModalTracks = tracks;
 
     if (!tracks.length) {
-        listEl.innerHTML = `<p class="text-xs text-gray-500">${sanitizeInput(tAdmin("releaseTrackEmpty"))}</p>`;
+        const emptyMessage = releaseModalTracksLoadFailed ? tAdmin("releaseTracksReloadBeforeSave") : tAdmin("releaseTrackEmpty");
+        listEl.innerHTML = `<p class="text-xs ${releaseModalTracksLoadFailed ? "text-yellow-300" : "text-gray-500"}">${sanitizeInput(emptyMessage)}</p>`;
         return;
     }
 
@@ -5348,6 +5368,8 @@ function renderReleaseTracksEditor() {
         const safeTempId = sanitizeInput(track.tempId);
         const safeTitle = sanitizeInput(track.title || "");
         const safeAudioDataUrl = sanitizeInput(track.audioDataUrl || "");
+        const hasUploadedAudioDataUrl = !!String(track.audioDataUrl || "").trim();
+        const hasPreservedAudio = track.audioPreserved === true && !hasUploadedAudioDataUrl;
         const canMoveUp = index > 0;
         const canMoveDown = index < tracks.length - 1;
         return `
@@ -5373,7 +5395,7 @@ function renderReleaseTracksEditor() {
                                 <span>${sanitizeInput(tAdmin("modalFileButton"))}</span>
                                 <input type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav" data-release-track-id="${safeTempId}" class="hidden" onchange="handleReleaseTrackUpload(this)">
                             </label>
-                            <span class="text-xs text-gray-500 truncate">${safeAudioDataUrl ? "MP3/WAV" : "-"}</span>
+                            <span class="text-xs ${hasPreservedAudio ? "text-emerald-300" : "text-gray-500"} truncate">${hasUploadedAudioDataUrl ? "MP3/WAV" : (hasPreservedAudio ? sanitizeInput(tAdmin("releaseTrackAudioPreserved")) : "-")}</span>
                         </div>
                     </div>
                 </div>
@@ -5505,6 +5527,7 @@ async function handleReleaseTrackUpload(inputEl) {
     releaseModalTracks[trackIndex] = {
         ...currentTrack,
         audioDataUrl: String(dataUrl),
+        audioPreserved: true,
         durationSeconds,
         title: String(currentTrack.title || "").trim() || fallbackTitle
     };
@@ -5519,20 +5542,38 @@ function getValidatedReleaseTracksPayload() {
             id: track.id,
             title: String(track.title || "").trim(),
             audioDataUrl: String(track.audioDataUrl || "").trim(),
+            audioPreserved: track.audioPreserved === true,
             durationSeconds: Number.isFinite(Number(track.durationSeconds)) ? Math.max(0, Math.round(Number(track.durationSeconds))) : 0,
             sortOrder: index + 1
         }));
 
+    const payload = [];
     for (const track of tracks) {
         if (!track.title) {
             throw new Error(tAdmin("releaseTrackMissingTitle"));
         }
-        if (!track.audioDataUrl || !RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(track.audioDataUrl)) {
+
+        const hasUploadedAudio = !!track.audioDataUrl && RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(track.audioDataUrl);
+        const hasExistingTrackId = Number.isFinite(Number(track.id)) && Number(track.id) > 0;
+        const hasPreservedAudio = hasExistingTrackId && track.audioPreserved === true;
+        if (!hasUploadedAudio && !hasPreservedAudio) {
             throw new Error(tAdmin("releaseTrackMissingAudio"));
         }
+
+        const trackPayload = {
+            id: track.id,
+            title: track.title,
+            durationSeconds: track.durationSeconds,
+            sortOrder: track.sortOrder
+        };
+        if (hasUploadedAudio) {
+            trackPayload.audioDataUrl = track.audioDataUrl;
+        }
+
+        payload.push(trackPayload);
     }
 
-    return tracks;
+    return payload;
 }
 
 window.addReleaseTrackItem = addReleaseTrackItem;
@@ -6221,6 +6262,10 @@ if (modalFormEl && modalFormEl.isConnected) {
 
         let releaseTracksPayload = [];
         if (editingTypeAtSubmit === "release") {
+            if (isEditMode && releaseModalTracksLoadFailed) {
+                alert(tAdmin("releaseTracksReloadBeforeSave"));
+                return;
+            }
             try {
                 releaseTracksPayload = getValidatedReleaseTracksPayload();
             } catch (validationError) {

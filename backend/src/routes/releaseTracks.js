@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { releaseTrackSchema, releaseTracksUpdateSchema } from "../middleware/validate.js";
+import { releaseTrackSchema, releaseTrackUpdateSchema, releaseTracksUpdateSchema } from "../middleware/validate.js";
 import {
   createReleaseTrackByReleaseId,
   deleteReleaseTrackById,
@@ -216,7 +216,7 @@ router.put("/release-tracks/:releaseId/:trackId", requireAuth, releaseTracksMuta
       });
     }
 
-    const validation = releaseTrackSchema.safeParse(req.body);
+    const validation = releaseTrackUpdateSchema.safeParse(req.body);
     if (!validation.success) {
       const firstError = validation.error.issues[0];
       return sendApiError(res, {

@@ -543,13 +543,19 @@
 
     function normalizeReleaseTrackPayload(track, index = 0) {
         const source = track && typeof track === "object" ? track : {};
+        const normalizedId = normalizeReleaseId(source.id);
         const durationNumeric = Number(source.durationSeconds ?? source.duration_seconds);
         const sortNumeric = Number(source.sortOrder ?? source.sort_order);
+        const audioDataUrl = String(source.audioDataUrl || source.audio_data_url || "").trim();
+        const audioPreserved = source.audioPreserved === true
+            || source.hasAudioSource === true
+            || (normalizedId !== null && !audioDataUrl);
         return {
             id: source.id,
             releaseId: normalizeReleaseId(source.releaseId ?? source.release_id),
             title: String(source.title || "").trim(),
-            audioDataUrl: String(source.audioDataUrl || source.audio_data_url || "").trim(),
+            audioDataUrl,
+            audioPreserved,
             durationSeconds: Number.isFinite(durationNumeric) ? Math.max(0, Math.round(durationNumeric)) : 0,
             sortOrder: Number.isFinite(sortNumeric) ? Math.max(0, Math.round(sortNumeric)) : (index + 1)
         };
@@ -777,6 +783,46 @@
                 });
         },
 
+        async getReleaseTracksForEdit(releaseId) {
+            const normalizedReleaseId = normalizeReleaseId(releaseId);
+            if (!normalizedReleaseId) return [];
+
+            const normalizeForEditor = (items = []) => items
+                .map((track, index) => normalizeReleaseTrackPayload(track, index))
+                .filter((track) => track.releaseId === normalizedReleaseId)
+                .sort((left, right) => {
+                    if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
+                    return Number(left.id || 0) - Number(right.id || 0);
+                });
+
+            if (await shouldUseApi()) {
+                try {
+                    const response = await apiRequest(`/release-tracks/${normalizedReleaseId}/meta`);
+                    const tracks = response && response.data && Array.isArray(response.data.tracks)
+                        ? response.data.tracks
+                        : [];
+
+                    return normalizeForEditor(tracks).map((track) => ({
+                        ...track,
+                        audioDataUrl: "",
+                        audioPreserved: Number.isFinite(Number(track.id)) && Number(track.id) > 0
+                    }));
+                } catch (error) {
+                    const status = Number(error && error.status);
+                    const code = String(error && error.code ? error.code : "").trim();
+                    const isMetaRouteUnavailable = status === 405 || (status === 404 && code === "API_ROUTE_NOT_FOUND");
+                    if (!isMetaRouteUnavailable) throw error;
+
+                    const fullTracks = await this.getReleaseTracks(normalizedReleaseId);
+                    return normalizeForEditor(fullTracks);
+                }
+            }
+
+            const data = getLocalData();
+            const localTracks = Array.isArray(data.releaseTracks) ? data.releaseTracks : [];
+            return normalizeForEditor(localTracks);
+        },
+
         async saveReleaseTracks(releaseId, tracksPayload) {
             const normalizedReleaseId = normalizeReleaseId(releaseId);
             if (!normalizedReleaseId) throw new Error("Invalid release id for tracks save");
@@ -861,12 +907,19 @@
                         const track = tracks[index];
                         const candidateId = Number(track.id);
                         const hasTrackId = Number.isFinite(candidateId) && candidateId > 0;
+                        const hasUploadedAudioDataUrl = !!String(track.audioDataUrl || "").trim();
                         const body = {
                             title: track.title,
-                            audioDataUrl: track.audioDataUrl,
                             durationSeconds: track.durationSeconds,
                             sortOrder: index + 1
                         };
+                        if (hasUploadedAudioDataUrl) {
+                            body.audioDataUrl = track.audioDataUrl;
+                        }
+
+                        if (!hasTrackId && !hasUploadedAudioDataUrl) {
+                            throw new Error("Each new track must include an MP3/WAV file.");
+                        }
 
                         if (hasTrackId) {
                             try {
@@ -888,7 +941,8 @@
                                     id: resolvedTrackId,
                                     releaseId: normalizedReleaseId,
                                     title: track.title,
-                                    audioDataUrl: track.audioDataUrl,
+                                    audioDataUrl: hasUploadedAudioDataUrl ? track.audioDataUrl : "",
+                                    audioPreserved: hasUploadedAudioDataUrl || track.audioPreserved === true,
                                     durationSeconds: track.durationSeconds,
                                     sortOrder: index + 1
                                 });
@@ -914,7 +968,8 @@
                                     id: resolvedTrackId,
                                     releaseId: normalizedReleaseId,
                                     title: track.title,
-                                    audioDataUrl: track.audioDataUrl,
+                                    audioDataUrl: hasUploadedAudioDataUrl ? track.audioDataUrl : "",
+                                    audioPreserved: hasUploadedAudioDataUrl || track.audioPreserved === true,
                                     durationSeconds: track.durationSeconds,
                                     sortOrder: index + 1
                                 });
@@ -939,6 +994,7 @@
                             releaseId: normalizedReleaseId,
                             title: track.title,
                             audioDataUrl: track.audioDataUrl,
+                            audioPreserved: true,
                             durationSeconds: track.durationSeconds,
                             sortOrder: index + 1
                         });
