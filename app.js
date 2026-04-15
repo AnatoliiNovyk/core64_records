@@ -39,6 +39,7 @@ const PUBLIC_I18N = {
         releasePlayerTrackList: "Список треків",
         releasePlayerLoading: "Завантаження треків...",
         releasePlayerNoTracks: "Для цього релізу ще не додано треків.",
+        releasePlayerTrackUnavailable: "Аудіофайл треку тимчасово недоступний.",
         releasePlayerClose: "Закрити плеєр",
         releasePlayerAutoplayBlocked: "Автовідтворення заблоковано браузером. Натисніть Play у плеєрі.",
         releasePlayAria: "Відкрити плеєр релізу",
@@ -116,6 +117,7 @@ const PUBLIC_I18N = {
         releasePlayerTrackList: "Track list",
         releasePlayerLoading: "Loading tracks...",
         releasePlayerNoTracks: "No tracks have been added for this release yet.",
+        releasePlayerTrackUnavailable: "Track audio is temporarily unavailable.",
         releasePlayerClose: "Close player",
         releasePlayerAutoplayBlocked: "Autoplay was blocked by the browser. Press Play in the player.",
         releasePlayAria: "Open release player",
@@ -663,20 +665,40 @@ function normalizeReleaseId(value) {
 
 function normalizeReleaseTrack(track, releaseId, index = 0) {
     const source = track && typeof track === "object" ? track : {};
+    const normalizedTrackId = normalizeReleaseId(source.id);
     const title = String(source.title || "").trim();
     const audioDataUrl = String(source.audioDataUrl || source.audio_data_url || "").trim();
-    if (!title || !audioDataUrl || !RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(audioDataUrl)) return null;
+    const hasInlineAudio = !!audioDataUrl && RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(audioDataUrl);
+    const hasStreamFallback = normalizedTrackId !== null;
+    if (!title || (!hasInlineAudio && !hasStreamFallback)) return null;
 
     const durationSecondsRaw = Number(source.durationSeconds ?? source.duration_seconds);
     const sortOrderRaw = Number(source.sortOrder ?? source.sort_order);
     return {
-        id: source.id,
+        id: normalizedTrackId,
         releaseId,
         title,
-        audioDataUrl,
+        audioDataUrl: hasInlineAudio ? audioDataUrl : "",
+        audioPreserved: source.audioPreserved === true || (hasStreamFallback && !hasInlineAudio),
         durationSeconds: Number.isFinite(durationSecondsRaw) ? Math.max(0, Math.round(durationSecondsRaw)) : 0,
         sortOrder: Number.isFinite(sortOrderRaw) ? Math.max(0, Math.round(sortOrderRaw)) : (index + 1)
     };
+}
+
+function resolveReleaseTrackAudioSource(track, fallbackReleaseId = null) {
+    const sourceTrack = track && typeof track === "object" ? track : {};
+    const inlineAudioDataUrl = String(sourceTrack.audioDataUrl || sourceTrack.audio_data_url || "").trim();
+    if (inlineAudioDataUrl && RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(inlineAudioDataUrl)) {
+        return inlineAudioDataUrl;
+    }
+
+    const releaseId = normalizeReleaseId(sourceTrack.releaseId ?? fallbackReleaseId);
+    const trackId = normalizeReleaseId(sourceTrack.id);
+    if (!releaseId || !trackId) return "";
+
+    const getAudioStreamUrlMethod = getAdapterMethod("getReleaseTrackAudioStreamUrl");
+    if (!getAudioStreamUrlMethod) return "";
+    return String(getAudioStreamUrlMethod.call(adapter, releaseId, trackId) || "").trim();
 }
 
 function formatDurationLabel(seconds) {
@@ -752,10 +774,18 @@ async function playCompactReleaseTrack(trackIndex, shouldAutoplay = true) {
     if (!Number.isFinite(index) || index < 0 || index >= tracks.length) return;
 
     const track = tracks[index];
+    const audioSource = resolveReleaseTrackAudioSource(track, compactReleasePlayerState.releaseId);
     compactReleasePlayerState.activeTrackIndex = index;
-    audio.src = track.audioDataUrl;
-    audio.load();
     renderCompactReleaseTrackList();
+
+    if (!audioSource) {
+        resetCompactReleasePlayerAudio();
+        if (status) status.textContent = tPublic("releasePlayerTrackUnavailable");
+        return;
+    }
+
+    audio.src = audioSource;
+    audio.load();
 
     if (!shouldAutoplay) return;
 

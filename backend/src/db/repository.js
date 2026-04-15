@@ -1022,6 +1022,29 @@ export async function listReleaseTrackMetaByReleaseId(releaseId) {
   }));
 }
 
+export async function getReleaseTrackById(releaseId, trackId) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  const normalizedTrackId = toBoundedInteger(trackId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId || !normalizedTrackId) return null;
+
+  const result = await pool.query(
+    `SELECT
+      id,
+      release_id,
+      title,
+      audio_data_url,
+      duration_seconds,
+      sort_order
+    FROM release_tracks
+    WHERE release_id = $1
+      AND id = $2
+    LIMIT 1`,
+    [normalizedReleaseId, normalizedTrackId]
+  );
+
+  return result.rows[0] ? fromDbReleaseTrackRow(result.rows[0]) : null;
+}
+
 export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload = []) {
   const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
   if (!normalizedReleaseId) return [];

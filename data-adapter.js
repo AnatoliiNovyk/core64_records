@@ -758,29 +758,45 @@
             const normalizedReleaseId = normalizeReleaseId(releaseId);
             if (!normalizedReleaseId) return [];
 
-            if (await shouldUseApi()) {
-                const response = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
-                const tracks = response && response.data && Array.isArray(response.data.tracks)
-                    ? response.data.tracks
-                    : [];
-
-                return tracks
-                    .map((track, index) => normalizeReleaseTrackPayload(track, index))
-                    .filter((track) => track.releaseId === normalizedReleaseId)
-                    .sort((left, right) => {
-                        if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
-                        return Number(left.id || 0) - Number(right.id || 0);
-                    });
-            }
-
-            const data = getLocalData();
-            return (Array.isArray(data.releaseTracks) ? data.releaseTracks : [])
+            const normalizeTracks = (items = []) => items
                 .map((track, index) => normalizeReleaseTrackPayload(track, index))
                 .filter((track) => track.releaseId === normalizedReleaseId)
                 .sort((left, right) => {
                     if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
                     return Number(left.id || 0) - Number(right.id || 0);
                 });
+
+            if (await shouldUseApi()) {
+                try {
+                    const response = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
+                    const tracks = response && response.data && Array.isArray(response.data.tracks)
+                        ? response.data.tracks
+                        : [];
+                    return normalizeTracks(tracks);
+                } catch (error) {
+                    const status = Number(error && error.status);
+                    if (status !== 413 && status < 500) throw error;
+
+                    const metaResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}/meta`);
+                    const metaTracks = metaResponse && metaResponse.data && Array.isArray(metaResponse.data.tracks)
+                        ? metaResponse.data.tracks
+                        : [];
+                    return normalizeTracks(metaTracks);
+                }
+            }
+
+            const data = getLocalData();
+            return normalizeTracks(Array.isArray(data.releaseTracks) ? data.releaseTracks : []);
+        },
+
+        getReleaseTrackAudioStreamUrl(releaseId, trackId) {
+            const normalizedReleaseId = normalizeReleaseId(releaseId);
+            const normalizedTrackId = normalizeReleaseId(trackId);
+            if (!normalizedReleaseId || !normalizedTrackId) return "";
+
+            const mode = getDataMode();
+            if (mode === "local") return "";
+            return `${getApiBaseUrl()}/release-tracks/${normalizedReleaseId}/${normalizedTrackId}/audio`;
         },
 
         async getReleaseTracksForEdit(releaseId) {

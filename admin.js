@@ -5344,6 +5344,23 @@ function formatTrackDurationLabel(seconds) {
     return `${minutes}:${String(restSeconds).padStart(2, "0")}`;
 }
 
+function getReleaseTrackPreviewSource(track) {
+    const sourceTrack = track && typeof track === "object" ? track : {};
+    const inlineAudioDataUrl = String(sourceTrack.audioDataUrl || "").trim();
+    if (inlineAudioDataUrl && RELEASE_TRACK_AUDIO_DATA_URL_PATTERN.test(inlineAudioDataUrl)) {
+        return inlineAudioDataUrl;
+    }
+
+    const releaseId = Number(editingId);
+    const trackId = Number(sourceTrack.id);
+    if (!Number.isFinite(releaseId) || releaseId <= 0) return "";
+    if (!Number.isFinite(trackId) || trackId <= 0) return "";
+
+    const getAudioStreamUrlMethod = getAdapterMethod("getReleaseTrackAudioStreamUrl");
+    if (!getAudioStreamUrlMethod) return "";
+    return String(getAudioStreamUrlMethod.call(adapter, Math.round(releaseId), Math.round(trackId)) || "").trim();
+}
+
 function findReleaseTrackIndexByTempId(tempId) {
     const normalizedTempId = String(tempId || "").trim();
     if (!normalizedTempId) return -1;
@@ -5367,8 +5384,10 @@ function renderReleaseTracksEditor() {
     listEl.innerHTML = tracks.map((track, index) => {
         const safeTempId = sanitizeInput(track.tempId);
         const safeTitle = sanitizeInput(track.title || "");
-        const safeAudioDataUrl = sanitizeInput(track.audioDataUrl || "");
+        const previewAudioSource = getReleaseTrackPreviewSource(track);
+        const safePreviewAudioSource = sanitizeInput(previewAudioSource || "");
         const hasUploadedAudioDataUrl = !!String(track.audioDataUrl || "").trim();
+        const hasPreviewAudio = !!String(previewAudioSource || "").trim();
         const hasPreservedAudio = track.audioPreserved === true && !hasUploadedAudioDataUrl;
         const canMoveUp = index > 0;
         const canMoveDown = index < tracks.length - 1;
@@ -5395,11 +5414,11 @@ function renderReleaseTracksEditor() {
                                 <span>${sanitizeInput(tAdmin("modalFileButton"))}</span>
                                 <input type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/x-wav,.mp3,.wav" data-release-track-id="${safeTempId}" class="hidden" onchange="handleReleaseTrackUpload(this)">
                             </label>
-                            <span class="text-xs ${hasPreservedAudio ? "text-emerald-300" : "text-gray-500"} truncate">${hasUploadedAudioDataUrl ? "MP3/WAV" : (hasPreservedAudio ? sanitizeInput(tAdmin("releaseTrackAudioPreserved")) : "-")}</span>
+                            <span class="text-xs ${hasPreservedAudio ? "text-emerald-300" : "text-gray-500"} truncate">${hasPreviewAudio ? "MP3/WAV" : (hasPreservedAudio ? sanitizeInput(tAdmin("releaseTrackAudioPreserved")) : "-")}</span>
                         </div>
                     </div>
                 </div>
-                ${safeAudioDataUrl ? `<audio controls preload="metadata" class="w-full mt-3"><source src="${safeAudioDataUrl}"></audio>` : ""}
+                ${safePreviewAudioSource ? `<audio controls preload="metadata" class="w-full mt-3"><source src="${safePreviewAudioSource}"></audio>` : ""}
             </div>
         `;
     }).join("");

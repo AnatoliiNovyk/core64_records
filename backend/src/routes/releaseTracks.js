@@ -3,6 +3,7 @@ import { releaseTrackSchema, releaseTrackUpdateSchema, releaseTracksUpdateSchema
 import {
   createReleaseTrackByReleaseId,
   deleteReleaseTrackById,
+  getReleaseTrackById,
   getReleaseById,
   listReleaseTrackMetaByReleaseId,
   listReleaseTracksByReleaseId,
@@ -32,6 +33,30 @@ function parseTrackId(rawValue) {
   const numeric = Number(rawValue);
   if (!Number.isFinite(numeric) || numeric <= 0) return null;
   return Math.round(numeric);
+}
+
+function parseTrackAudioDataUrl(value) {
+  const normalized = String(value || "").trim();
+  const match = normalized.match(/^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,([a-z0-9+/=\s]+)$/i);
+  if (!match) return null;
+
+  const subtype = String(match[1] || "").toLowerCase();
+  const base64Payload = String(match[2] || "").replace(/\s+/g, "");
+  const contentType = subtype === "wav" || subtype === "x-wav" || subtype === "wave"
+    ? "audio/wav"
+    : "audio/mpeg";
+
+  if (!base64Payload) return null;
+
+  let buffer = null;
+  try {
+    buffer = Buffer.from(base64Payload, "base64");
+  } catch (_error) {
+    return null;
+  }
+
+  if (!buffer || !buffer.length) return null;
+  return { contentType, buffer };
 }
 
 router.get("/release-tracks/:releaseId", async (req, res, next) => {
@@ -95,6 +120,65 @@ router.get("/release-tracks/:releaseId/meta", async (req, res, next) => {
         tracks
       }
     });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/release-tracks/:releaseId/:trackId/audio", async (req, res, next) => {
+  try {
+    const releaseId = parseReleaseId(req.params.releaseId);
+    const trackId = parseTrackId(req.params.trackId);
+    if (!releaseId) {
+      return sendApiError(res, {
+        status: 400,
+        code: "RELEASE_TRACKS_INVALID_RELEASE_ID",
+        error: "Invalid release id"
+      });
+    }
+
+    if (!trackId) {
+      return sendApiError(res, {
+        status: 400,
+        code: "RELEASE_TRACKS_INVALID_TRACK_ID",
+        error: "Invalid track id"
+      });
+    }
+
+    const release = await getReleaseById(releaseId);
+    if (!release) {
+      return sendApiError(res, {
+        status: 404,
+        code: "RELEASE_NOT_FOUND",
+        error: "Release not found",
+        meta: { releaseId }
+      });
+    }
+
+    const track = await getReleaseTrackById(releaseId, trackId);
+    if (!track) {
+      return sendApiError(res, {
+        status: 404,
+        code: "RELEASE_TRACK_NOT_FOUND",
+        error: "Release track not found",
+        meta: { releaseId, trackId }
+      });
+    }
+
+    const parsedAudio = parseTrackAudioDataUrl(track.audioDataUrl);
+    if (!parsedAudio) {
+      return sendApiError(res, {
+        status: 404,
+        code: "RELEASE_TRACK_AUDIO_NOT_FOUND",
+        error: "Release track audio not found",
+        meta: { releaseId, trackId }
+      });
+    }
+
+    res.setHeader("Content-Type", parsedAudio.contentType);
+    res.setHeader("Content-Length", String(parsedAudio.buffer.length));
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.status(200).send(parsedAudio.buffer);
   } catch (error) {
     return next(error);
   }
