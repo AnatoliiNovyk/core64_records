@@ -6121,6 +6121,51 @@ function buildCrudItemFromFormData(entityType, formData, baseItem = {}) {
     return item;
 }
 
+const ENTITY_TRANSLATABLE_FIELDS = {
+    release: ["title", "artist", "genre"],
+    artist: ["name", "genre", "bio"],
+    event: ["title", "venue", "description"],
+    sponsor: ["name", "shortDescription"]
+};
+
+function normalizeAdminLanguageCode(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "en") return "en";
+    return "uk";
+}
+
+function withCrudItemActiveLanguageI18n(entityType, item, languageCode) {
+    const fields = ENTITY_TRANSLATABLE_FIELDS[entityType];
+    if (!Array.isArray(fields) || fields.length === 0) return item;
+    if (!item || typeof item !== "object") return item;
+
+    const normalizedLanguage = normalizeAdminLanguageCode(languageCode);
+    const translation = {};
+
+    fields.forEach((field) => {
+        if (!Object.prototype.hasOwnProperty.call(item, field)) return;
+        translation[field] = String(item[field] ?? "");
+    });
+
+    if (Object.keys(translation).length === 0) return item;
+
+    const i18nSource = item.i18n && typeof item.i18n === "object" ? item.i18n : {};
+    const languageSource = i18nSource[normalizedLanguage] && typeof i18nSource[normalizedLanguage] === "object"
+        ? i18nSource[normalizedLanguage]
+        : {};
+
+    return {
+        ...item,
+        i18n: {
+            ...i18nSource,
+            [normalizedLanguage]: {
+                ...languageSource,
+                ...translation
+            }
+        }
+    };
+}
+
 function serializeInlineEntityIdArg(id) {
     const normalizedId = normalizeEntityId(id);
     if (!hasUsableEntityId(normalizedId)) return null;
@@ -6169,9 +6214,10 @@ if (modalFormEl && modalFormEl.isConnected) {
             return;
         }
         const formData = new FormData(formEl);
-        const item = buildCrudItemFromFormData(editingTypeAtSubmit, formData, {
+        const baseItem = buildCrudItemFromFormData(editingTypeAtSubmit, formData, {
             id: isEditMode ? editingIdAtSubmit : Date.now()
         });
+        const item = withCrudItemActiveLanguageI18n(editingTypeAtSubmit, baseItem, getActiveLanguage());
 
         let releaseTracksPayload = [];
         if (editingTypeAtSubmit === "release") {
