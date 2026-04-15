@@ -358,6 +358,7 @@ const ADMIN_I18N = {
         authNetworkTimeout: "API не відповів вчасно. Перевірте доступність /api або вкажіть ?apiBaseUrl=https://<api-domain>/api у URL.",
         authServiceUnavailable: "Сервіс авторизації тимчасово недоступний. Перевірте підключення backend до бази даних.",
         authApiRejected: "Авторизацію відхилено API: {details}",
+        authSessionExpired: "Сесію завершено. Увійдіть в адмін-панель повторно.",
         settingsPendingNone: "Відкладених повідомлень немає",
         settingsPendingCount: "Відкладених повідомлень: {count}",
         settingsToastDismissHint: "Натисніть Enter, пробіл або Escape, щоб закрити",
@@ -685,6 +686,7 @@ const ADMIN_I18N = {
         authNetworkTimeout: "API did not respond in time. Verify /api or set ?apiBaseUrl=https://<api-domain>/api in URL.",
         authServiceUnavailable: "Authentication service is temporarily unavailable. Verify backend database connectivity.",
         authApiRejected: "API rejected authorization: {details}",
+        authSessionExpired: "Session expired. Please sign in again.",
         settingsPendingNone: "No queued messages",
         settingsPendingCount: "Queued messages: {count}",
         settingsToastDismissHint: "Press Enter, Space, or Escape to close",
@@ -733,6 +735,31 @@ function getAdapterMethod(methodName) {
     if (typeof methodName !== "string" || !methodName.trim()) return null;
     const method = adapter[methodName];
     return typeof method === "function" ? method : null;
+}
+
+function isUnauthorizedApiError(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
+    if (status === 401) return true;
+    return code === "AUTH_TOKEN_MISSING" || code === "AUTH_TOKEN_INVALID" || code === "AUTH_UNAUTHORIZED";
+}
+
+function handleUnauthorizedSessionError() {
+    const logoutMethod = getAdapterMethod("logout");
+    if (logoutMethod) {
+        Promise.resolve(logoutMethod.call(adapter))
+            .catch(() => {
+                // Ignore logout failures.
+            })
+            .finally(() => {
+                showApiStatus(tAdmin("authSessionExpired"));
+                location.reload();
+            });
+        return;
+    }
+
+    showApiStatus(tAdmin("authSessionExpired"));
+    location.reload();
 }
 
 function getActiveLanguage() {
@@ -2995,6 +3022,12 @@ async function showSection(section) {
         console.error("Section load failed", error);
         if (currentSection !== section) return;
         if (!targetSectionEl.isConnected) return;
+
+        if (isUnauthorizedApiError(error)) {
+            handleUnauthorizedSessionError();
+            return;
+        }
+
         showApiStatus(tAdmin("loadDataApiError"));
     }
 }
@@ -4042,6 +4075,12 @@ function handleAuditLoadError(error, fallbackMessage) {
     if (currentSection !== "audit") return;
     const auditSectionEl = document.getElementById("section-audit");
     if (!auditSectionEl || !auditSectionEl.isConnected) return;
+
+    if (isUnauthorizedApiError(error)) {
+        handleUnauthorizedSessionError();
+        return;
+    }
+
     const details = error && error.message ? String(error.message) : "";
     const message = details || fallbackMessage || tAdmin("auditUpdateFailed");
     console.error("Audit request failed", error);
