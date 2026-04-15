@@ -3,6 +3,8 @@ import { listAuditFacets, listAuditLogs } from "../db/repository.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();
+const AUDIT_LOGS_DEFAULT_LIMIT = 50;
+const AUDIT_LOGS_MAX_LIMIT = 250;
 
 function isValidDateOnly(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -25,7 +27,9 @@ router.get("/audit-logs", requireAuth, async (req, res, next) => {
   try {
     const limitRaw = Number(req.query.limit);
     const pageRaw = Number(req.query.page);
-    const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 500) : 50;
+    const limit = Number.isFinite(limitRaw) && limitRaw > 0
+      ? Math.min(limitRaw, AUDIT_LOGS_MAX_LIMIT)
+      : AUDIT_LOGS_DEFAULT_LIMIT;
     const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
     const q = String(req.query.q || "").trim();
     const action = String(req.query.action || "").trim();

@@ -1445,7 +1445,43 @@ export async function listAuditLogs({
   const offsetPlaceholder = `$${values.length}`;
 
   const query = `
-    SELECT id, entity_type, entity_id, action, actor, details, created_at
+    SELECT
+      id,
+      entity_type,
+      entity_id,
+      action,
+      actor,
+      CASE
+        WHEN details IS NULL THEN jsonb_build_object('isCompact', true)
+        WHEN jsonb_typeof(details) <> 'object' THEN jsonb_build_object(
+          'isCompact',
+          true,
+          'valuePreview',
+          left(details::text, 512)
+        )
+        ELSE jsonb_strip_nulls(jsonb_build_object(
+          'isCompact', true,
+          'source', CASE
+            WHEN jsonb_typeof(details->'source') = 'string' THEN left(details->>'source', 120)
+            ELSE NULL
+          END,
+          'hasDiff', CASE
+            WHEN details ? 'diff' THEN true
+            ELSE NULL
+          END,
+          'settingsChangedCount', CASE
+            WHEN jsonb_typeof(details->'diff'->'settings'->'changedCount') = 'number'
+              THEN (details->'diff'->'settings'->>'changedCount')::int
+            ELSE NULL
+          END,
+          'sectionsChangedRowCount', CASE
+            WHEN jsonb_typeof(details->'diff'->'sections'->'changedRowCount') = 'number'
+              THEN (details->'diff'->'sections'->>'changedRowCount')::int
+            ELSE NULL
+          END
+        ))
+      END AS details,
+      created_at
     FROM audit_logs
     ${whereClause}
     ORDER BY created_at DESC
