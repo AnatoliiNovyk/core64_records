@@ -31,7 +31,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(applySecurityHeaders);
-app.use(express.json({ limit: "60mb" }));
+app.use(express.json({ limit: "120mb" }));
 app.use(requestLoggingMiddleware);
 app.use("/api", securityRoutes);
 
