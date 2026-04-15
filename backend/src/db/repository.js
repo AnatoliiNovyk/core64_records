@@ -1034,7 +1034,8 @@ export async function getReleaseTrackById(releaseId, trackId) {
       title,
       audio_data_url,
       duration_seconds,
-      sort_order
+      sort_order,
+      updated_at
     FROM release_tracks
     WHERE release_id = $1
       AND id = $2
@@ -1042,7 +1043,13 @@ export async function getReleaseTrackById(releaseId, trackId) {
     [normalizedReleaseId, normalizedTrackId]
   );
 
-  return result.rows[0] ? fromDbReleaseTrackRow(result.rows[0]) : null;
+  if (!result.rows[0]) return null;
+
+  const normalizedTrack = fromDbReleaseTrackRow(result.rows[0]);
+  return {
+    ...normalizedTrack,
+    updatedAt: result.rows[0].updated_at ? new Date(result.rows[0].updated_at).toISOString() : ""
+  };
 }
 
 export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload = []) {

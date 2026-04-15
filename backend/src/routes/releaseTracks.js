@@ -59,6 +59,39 @@ function parseTrackAudioDataUrl(value) {
   return { contentType, buffer };
 }
 
+function parseAudioByteRange(rangeHeader, totalSize) {
+  const normalizedRange = String(rangeHeader || "").trim();
+  if (!normalizedRange) return null;
+
+  const match = normalizedRange.match(/^bytes=(\d*)-(\d*)$/i);
+  if (!match) return { error: true };
+
+  const hasStart = match[1] !== "";
+  const hasEnd = match[2] !== "";
+  if (!hasStart && !hasEnd) return { error: true };
+
+  let start = hasStart ? Number(match[1]) : null;
+  let end = hasEnd ? Number(match[2]) : null;
+
+  if (hasStart && (!Number.isFinite(start) || start < 0)) return { error: true };
+  if (hasEnd && (!Number.isFinite(end) || end < 0)) return { error: true };
+
+  if (!hasStart) {
+    const suffixLength = end;
+    if (!Number.isFinite(suffixLength) || suffixLength <= 0) return { error: true };
+    start = Math.max(totalSize - suffixLength, 0);
+    end = totalSize - 1;
+  } else {
+    if (!hasEnd || end >= totalSize) end = totalSize - 1;
+    if (start >= totalSize || end < start) return { error: true };
+  }
+
+  return {
+    start: Math.round(start),
+    end: Math.round(end)
+  };
+}
+
 router.get("/release-tracks/:releaseId", async (req, res, next) => {
   try {
     const releaseId = parseReleaseId(req.params.releaseId);
@@ -175,9 +208,35 @@ router.get("/release-tracks/:releaseId/:trackId/audio", async (req, res, next) =
       });
     }
 
+    const totalSize = parsedAudio.buffer.length;
+    const updatedAtNumeric = Number(track.updatedAt ? Date.parse(track.updatedAt) : NaN);
+    const normalizedUpdatedAt = Number.isFinite(updatedAtNumeric) ? Math.round(updatedAtNumeric) : 0;
+    const eTag = `W/"rt-${releaseId}-${trackId}-${normalizedUpdatedAt}-${totalSize}"`;
+    res.setHeader("ETag", eTag);
+    res.setHeader("Accept-Ranges", "bytes");
+    res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
+
+    const ifNoneMatch = String(req.headers["if-none-match"] || "").trim();
+    if (ifNoneMatch && ifNoneMatch === eTag) {
+      return res.status(304).send();
+    }
+
+    const parsedRange = parseAudioByteRange(req.headers.range, totalSize);
+    if (parsedRange && parsedRange.error) {
+      res.setHeader("Content-Range", `bytes */${totalSize}`);
+      return res.status(416).send();
+    }
+
+    if (parsedRange) {
+      const chunk = parsedAudio.buffer.subarray(parsedRange.start, parsedRange.end + 1);
+      res.setHeader("Content-Type", parsedAudio.contentType);
+      res.setHeader("Content-Length", String(chunk.length));
+      res.setHeader("Content-Range", `bytes ${parsedRange.start}-${parsedRange.end}/${totalSize}`);
+      return res.status(206).send(chunk);
+    }
+
     res.setHeader("Content-Type", parsedAudio.contentType);
-    res.setHeader("Content-Length", String(parsedAudio.buffer.length));
-    res.setHeader("Cache-Control", "public, max-age=3600");
+    res.setHeader("Content-Length", String(totalSize));
     return res.status(200).send(parsedAudio.buffer);
   } catch (error) {
     return next(error);

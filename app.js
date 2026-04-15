@@ -701,6 +701,19 @@ function resolveReleaseTrackAudioSource(track, fallbackReleaseId = null) {
     return String(getAudioStreamUrlMethod.call(adapter, releaseId, trackId) || "").trim();
 }
 
+function findPlayableCompactTrackIndex(startIndex = 0) {
+        const tracks = Array.isArray(compactReleasePlayerState.tracks) ? compactReleasePlayerState.tracks : [];
+        if (!tracks.length) return -1;
+
+        const normalizedStartIndex = Number.isFinite(Number(startIndex)) ? Math.max(0, Math.round(Number(startIndex))) : 0;
+        for (let index = normalizedStartIndex; index < tracks.length; index += 1) {
+                const source = resolveReleaseTrackAudioSource(tracks[index], compactReleasePlayerState.releaseId);
+                if (source) return index;
+        }
+
+        return -1;
+}
+
 function formatDurationLabel(seconds) {
     const numeric = Number(seconds);
     if (!Number.isFinite(numeric) || numeric <= 0) return "--:--";
@@ -848,7 +861,14 @@ async function openCompactReleasePlayer(releaseId) {
 
         status.textContent = "";
         renderCompactReleaseTrackList();
-        await playCompactReleaseTrack(0, true);
+        const firstPlayableIndex = findPlayableCompactTrackIndex(0);
+        if (firstPlayableIndex < 0) {
+            status.textContent = tPublic("releasePlayerTrackUnavailable");
+            resetCompactReleasePlayerAudio();
+            return;
+        }
+
+        await playCompactReleaseTrack(firstPlayableIndex, true);
     } catch (error) {
         console.error("Failed to load release tracks", error);
         compactReleasePlayerState.loading = false;
@@ -884,7 +904,10 @@ function bindCompactReleasePlayerControls() {
         if (!tracks.length) return;
         const nextIndex = compactReleasePlayerState.activeTrackIndex + 1;
         if (nextIndex >= tracks.length) return;
-        await playCompactReleaseTrack(nextIndex, true);
+
+        const nextPlayableIndex = findPlayableCompactTrackIndex(nextIndex);
+        if (nextPlayableIndex < 0) return;
+        await playCompactReleaseTrack(nextPlayableIndex, true);
     });
 
     compactReleasePlayerControlsBound = true;

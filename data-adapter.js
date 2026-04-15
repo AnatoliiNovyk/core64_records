@@ -775,7 +775,12 @@
                     return normalizeTracks(tracks);
                 } catch (error) {
                     const status = Number(error && error.status);
-                    if (status !== 413 && status < 500) throw error;
+                    const code = String(error && error.code ? error.code : "").trim();
+                    const shouldFallbackToMeta = status === 0
+                        || code === "API_NETWORK_TIMEOUT"
+                        || status === 413
+                        || status >= 500;
+                    if (!shouldFallbackToMeta) throw error;
 
                     const metaResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}/meta`);
                     const metaTracks = metaResponse && metaResponse.data && Array.isArray(metaResponse.data.tracks)
