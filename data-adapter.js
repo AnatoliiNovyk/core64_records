@@ -827,12 +827,35 @@
                 };
 
                 try {
-                    const existingResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
-                    const existingTracks = existingResponse && existingResponse.data && Array.isArray(existingResponse.data.tracks)
-                        ? existingResponse.data.tracks
-                        : [];
-                    const normalizedExistingTracks = normalizeTracksResult(existingTracks);
+                    const fetchExistingTracksForReconcile = async () => {
+                        try {
+                            const metaResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}/meta`);
+                            const metaTracks = metaResponse && metaResponse.data && Array.isArray(metaResponse.data.tracks)
+                                ? metaResponse.data.tracks
+                                : [];
+                            return normalizeTracksResult(metaTracks);
+                        } catch (error) {
+                            if (shouldFallbackToLegacyBulk(error)) {
+                                const existingResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
+                                const existingTracks = existingResponse && existingResponse.data && Array.isArray(existingResponse.data.tracks)
+                                    ? existingResponse.data.tracks
+                                    : [];
+                                return normalizeTracksResult(existingTracks);
+                            }
+
+                            const status = Number(error && error.status);
+                            if (status === 413 || status >= 500) {
+                                // Continue without deletion reconciliation when server cannot stream full track payloads.
+                                return [];
+                            }
+
+                            throw error;
+                        }
+                    };
+
+                    const normalizedExistingTracks = await fetchExistingTracksForReconcile();
                     const retainedTrackIds = new Set();
+                    const resolvedTracks = [];
 
                     for (let index = 0; index < tracks.length; index += 1) {
                         const track = tracks[index];
@@ -852,9 +875,23 @@
                                     body
                                 });
                                 const updatedTrackId = Number(updateResponse && updateResponse.data && updateResponse.data.track && updateResponse.data.track.id);
+                                const resolvedTrackId = Number.isFinite(updatedTrackId) && updatedTrackId > 0
+                                    ? Math.round(updatedTrackId)
+                                    : Math.round(candidateId);
                                 if (Number.isFinite(updatedTrackId) && updatedTrackId > 0) {
                                     retainedTrackIds.add(Math.round(updatedTrackId));
+                                } else {
+                                    retainedTrackIds.add(Math.round(candidateId));
                                 }
+
+                                resolvedTracks.push({
+                                    id: resolvedTrackId,
+                                    releaseId: normalizedReleaseId,
+                                    title: track.title,
+                                    audioDataUrl: track.audioDataUrl,
+                                    durationSeconds: track.durationSeconds,
+                                    sortOrder: index + 1
+                                });
                             } catch (error) {
                                 const status = Number(error && error.status);
                                 const code = String(error && error.code ? error.code : "").trim();
@@ -866,9 +903,21 @@
                                     body
                                 });
                                 const createdTrackId = Number(createResponse && createResponse.data && createResponse.data.track && createResponse.data.track.id);
+                                const resolvedTrackId = Number.isFinite(createdTrackId) && createdTrackId > 0
+                                    ? Math.round(createdTrackId)
+                                    : null;
                                 if (Number.isFinite(createdTrackId) && createdTrackId > 0) {
                                     retainedTrackIds.add(Math.round(createdTrackId));
                                 }
+
+                                resolvedTracks.push({
+                                    id: resolvedTrackId,
+                                    releaseId: normalizedReleaseId,
+                                    title: track.title,
+                                    audioDataUrl: track.audioDataUrl,
+                                    durationSeconds: track.durationSeconds,
+                                    sortOrder: index + 1
+                                });
                             }
                             continue;
                         }
@@ -878,9 +927,21 @@
                             body
                         });
                         const createdTrackId = Number(createResponse && createResponse.data && createResponse.data.track && createResponse.data.track.id);
+                        const resolvedTrackId = Number.isFinite(createdTrackId) && createdTrackId > 0
+                            ? Math.round(createdTrackId)
+                            : null;
                         if (Number.isFinite(createdTrackId) && createdTrackId > 0) {
                             retainedTrackIds.add(Math.round(createdTrackId));
                         }
+
+                        resolvedTracks.push({
+                            id: resolvedTrackId,
+                            releaseId: normalizedReleaseId,
+                            title: track.title,
+                            audioDataUrl: track.audioDataUrl,
+                            durationSeconds: track.durationSeconds,
+                            sortOrder: index + 1
+                        });
                     }
 
                     const tracksToDelete = normalizedExistingTracks.filter((track) => {
@@ -896,12 +957,7 @@
                         });
                     }
 
-                    const finalResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
-                    const finalTracks = finalResponse && finalResponse.data && Array.isArray(finalResponse.data.tracks)
-                        ? finalResponse.data.tracks
-                        : [];
-
-                    return normalizeTracksResult(finalTracks);
+                    return normalizeTracksResult(resolvedTracks);
                 } catch (error) {
                     if (shouldFallbackToLegacyBulk(error)) {
                         return await applyLegacyBulkSave();

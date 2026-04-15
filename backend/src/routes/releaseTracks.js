@@ -4,6 +4,7 @@ import {
   createReleaseTrackByReleaseId,
   deleteReleaseTrackById,
   getReleaseById,
+  listReleaseTrackMetaByReleaseId,
   listReleaseTracksByReleaseId,
   replaceReleaseTracksByReleaseId,
   updateReleaseTrackById
@@ -55,6 +56,39 @@ router.get("/release-tracks/:releaseId", async (req, res, next) => {
     }
 
     const tracks = await listReleaseTracksByReleaseId(releaseId);
+    return res.json({
+      data: {
+        releaseId,
+        tracks
+      }
+    });
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/release-tracks/:releaseId/meta", async (req, res, next) => {
+  try {
+    const releaseId = parseReleaseId(req.params.releaseId);
+    if (!releaseId) {
+      return sendApiError(res, {
+        status: 400,
+        code: "RELEASE_TRACKS_INVALID_RELEASE_ID",
+        error: "Invalid release id"
+      });
+    }
+
+    const release = await getReleaseById(releaseId);
+    if (!release) {
+      return sendApiError(res, {
+        status: 404,
+        code: "RELEASE_NOT_FOUND",
+        error: "Release not found",
+        meta: { releaseId }
+      });
+    }
+
+    const tracks = await listReleaseTrackMetaByReleaseId(releaseId);
     return res.json({
       data: {
         releaseId,

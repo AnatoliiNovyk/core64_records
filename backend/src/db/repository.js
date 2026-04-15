@@ -996,6 +996,32 @@ export async function listReleaseTracksByReleaseId(releaseId) {
   return (result.rows || []).map((row) => fromDbReleaseTrackRow(row));
 }
 
+export async function listReleaseTrackMetaByReleaseId(releaseId) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId) return [];
+
+  const result = await pool.query(
+    `SELECT
+      id,
+      release_id,
+      title,
+      duration_seconds,
+      sort_order
+    FROM release_tracks
+    WHERE release_id = $1
+    ORDER BY sort_order ASC, id ASC`,
+    [normalizedReleaseId]
+  );
+
+  return (result.rows || []).map((row) => ({
+    id: row.id,
+    releaseId: row.release_id,
+    title: row.title,
+    durationSeconds: toBoundedInteger(row.duration_seconds, 0, 0, 86400),
+    sortOrder: toBoundedInteger(row.sort_order, 0, 0, 9999)
+  }));
+}
+
 export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload = []) {
   const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
   if (!normalizedReleaseId) return [];
