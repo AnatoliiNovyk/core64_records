@@ -54,6 +54,10 @@ const PUBLIC_I18N = {
         releasePlayerControlPause: "Пауза",
         releasePlayerControlSeek: "Позиція відтворення",
         releasePlayerControlVolume: "Гучність",
+        releaseTypeSingleLabel: "Сингл",
+        releaseTypeEpLabel: "EP",
+        releaseTypeAlbumLabel: "Альбом",
+        releaseTypeRemixLabel: "Ремікс",
         releasePlayAria: "Відкрити плеєр релізу",
         sectionLabelArtists: "АРТИСТИ ЛЕЙБЛУ",
         sectionEvents: "АФІША ПОДІЙ",
@@ -136,6 +140,10 @@ const PUBLIC_I18N = {
         releasePlayerControlPause: "Pause",
         releasePlayerControlSeek: "Playback position",
         releasePlayerControlVolume: "Volume",
+        releaseTypeSingleLabel: "Single",
+        releaseTypeEpLabel: "EP",
+        releaseTypeAlbumLabel: "Album",
+        releaseTypeRemixLabel: "Remix",
         releasePlayAria: "Open release player",
         sectionLabelArtists: "LABEL ARTISTS",
         sectionEvents: "EVENT SCHEDULE",
@@ -602,15 +610,19 @@ function getSocialBrandIconSvg(platform, sizeClass) {
 
 function normalizeReleaseTypeValue(value) {
     const rawValue = String(value ?? "").trim().toLowerCase();
-    if (rawValue === "single" || rawValue === "ep" || rawValue === "album") return rawValue;
+    if (rawValue === "single" || rawValue === "сингл") return "single";
+    if (rawValue === "ep" || rawValue === "e.p." || rawValue === "ер") return "ep";
+    if (rawValue === "album" || rawValue === "альбом") return "album";
+    if (rawValue === "remix" || rawValue === "ремікс" || rawValue === "ремикс") return "remix";
     return "single";
 }
 
 function getReleaseTypeLabel(value) {
     const normalizedValue = normalizeReleaseTypeValue(value);
-    if (normalizedValue === "ep") return "EP";
-    if (normalizedValue === "album") return "Альбом";
-    return "Сингл";
+    if (normalizedValue === "ep") return tPublic("releaseTypeEpLabel");
+    if (normalizedValue === "album") return tPublic("releaseTypeAlbumLabel");
+    if (normalizedValue === "remix") return tPublic("releaseTypeRemixLabel");
+    return tPublic("releaseTypeSingleLabel");
 }
 
 function formatDateToLocalIso(value, fallback = "") {

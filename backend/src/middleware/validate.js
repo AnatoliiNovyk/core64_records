@@ -47,7 +47,7 @@ export const releaseSchema = z.object({
   title: z.string().min(1),
   artist: z.string().min(1),
   genre: z.string().min(1),
-  releaseType: z.enum(["single", "ep", "album"]).optional().default("single"),
+  releaseType: z.enum(["single", "ep", "album", "remix"]).optional().default("single"),
   releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   year: z.string().optional().default(""),
   image: z.string().min(1),

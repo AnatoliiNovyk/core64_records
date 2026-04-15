@@ -330,6 +330,7 @@ const ADMIN_I18N = {
         releaseTypeSingleLabel: "Сингл",
         releaseTypeEpLabel: "EP",
         releaseTypeAlbumLabel: "Альбом",
+        releaseTypeRemixLabel: "Ремікс",
         releaseTracksTitle: "Треки релізу",
         releaseTracksHint: "Додавайте треки тільки файлом з вашого комп'ютера. Доступні формати: MP3, WAV.",
         releaseTrackListLabel: "Список треків",
@@ -663,6 +664,7 @@ const ADMIN_I18N = {
         releaseTypeSingleLabel: "Single",
         releaseTypeEpLabel: "EP",
         releaseTypeAlbumLabel: "Album",
+        releaseTypeRemixLabel: "Remix",
         releaseTracksTitle: "Release tracks",
         releaseTracksHint: "Add tracks only by uploading files from your computer. Allowed formats: MP3, WAV.",
         releaseTrackListLabel: "Track list",
@@ -5766,6 +5768,7 @@ function generateFields(type, item) {
     const releaseTypeSingleLabel = sanitizeInput(tAdmin("releaseTypeSingleLabel"));
     const releaseTypeEpLabel = sanitizeInput(tAdmin("releaseTypeEpLabel"));
     const releaseTypeAlbumLabel = sanitizeInput(tAdmin("releaseTypeAlbumLabel"));
+    const releaseTypeRemixLabel = sanitizeInput(tAdmin("releaseTypeRemixLabel"));
     const modalLocale = getActiveLanguage() === "en"
         ? {
             releaseTitleLabel: "Release title",
@@ -5893,6 +5896,7 @@ function generateFields(type, item) {
                     <option value="single" ${fieldValues.releaseType === 'single' ? 'selected' : ''}>${releaseTypeSingleLabel}</option>
                     <option value="ep" ${fieldValues.releaseType === 'ep' ? 'selected' : ''}>${releaseTypeEpLabel}</option>
                     <option value="album" ${fieldValues.releaseType === 'album' ? 'selected' : ''}>${releaseTypeAlbumLabel}</option>
+                    <option value="remix" ${fieldValues.releaseType === 'remix' ? 'selected' : ''}>${releaseTypeRemixLabel}</option>
                 </select>
             </div>
             <div class="grid grid-cols-2 gap-4">
@@ -6061,12 +6065,16 @@ function getTypeName(type) {
 const RELEASE_TYPE_OPTIONS = [
     { value: "single", labelKey: "releaseTypeSingleLabel" },
     { value: "ep", label: "EP" },
-    { value: "album", labelKey: "releaseTypeAlbumLabel" }
+    { value: "album", labelKey: "releaseTypeAlbumLabel" },
+    { value: "remix", labelKey: "releaseTypeRemixLabel" }
 ];
 
 function normalizeReleaseTypeValue(value) {
     const rawValue = String(value ?? "").trim().toLowerCase();
-    if (rawValue === "single" || rawValue === "ep" || rawValue === "album") return rawValue;
+    if (rawValue === "single" || rawValue === "сингл") return "single";
+    if (rawValue === "ep" || rawValue === "e.p." || rawValue === "ер") return "ep";
+    if (rawValue === "album" || rawValue === "альбом") return "album";
+    if (rawValue === "remix" || rawValue === "ремікс" || rawValue === "ремикс") return "remix";
     return "single";
 }
 
