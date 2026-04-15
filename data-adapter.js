@@ -792,29 +792,122 @@
                 });
 
             if (await shouldUseApi()) {
-                const response = await apiRequest(`/release-tracks/${normalizedReleaseId}`, {
-                    method: "PUT",
-                    body: {
-                        tracks: tracks.map((track) => ({
-                            title: track.title,
-                            audioDataUrl: track.audioDataUrl,
-                            durationSeconds: track.durationSeconds,
-                            sortOrder: track.sortOrder
-                        }))
-                    }
-                });
-
-                const savedTracks = response && response.data && Array.isArray(response.data.tracks)
-                    ? response.data.tracks
-                    : [];
-
-                return savedTracks
+                const normalizeTracksResult = (items = []) => items
                     .map((track, index) => normalizeReleaseTrackPayload(track, index))
                     .filter((track) => track.releaseId === normalizedReleaseId)
                     .sort((left, right) => {
                         if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
                         return Number(left.id || 0) - Number(right.id || 0);
                     });
+
+                const applyLegacyBulkSave = async () => {
+                    const response = await apiRequest(`/release-tracks/${normalizedReleaseId}`, {
+                        method: "PUT",
+                        body: {
+                            tracks: tracks.map((track) => ({
+                                title: track.title,
+                                audioDataUrl: track.audioDataUrl,
+                                durationSeconds: track.durationSeconds,
+                                sortOrder: track.sortOrder
+                            }))
+                        }
+                    });
+
+                    const savedTracks = response && response.data && Array.isArray(response.data.tracks)
+                        ? response.data.tracks
+                        : [];
+
+                    return normalizeTracksResult(savedTracks);
+                };
+
+                const shouldFallbackToLegacyBulk = (error) => {
+                    const status = Number(error && error.status);
+                    const code = String(error && error.code ? error.code : "").trim();
+                    return status === 405 || (status === 404 && code === "API_ROUTE_NOT_FOUND");
+                };
+
+                try {
+                    const existingResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
+                    const existingTracks = existingResponse && existingResponse.data && Array.isArray(existingResponse.data.tracks)
+                        ? existingResponse.data.tracks
+                        : [];
+                    const normalizedExistingTracks = normalizeTracksResult(existingTracks);
+                    const retainedTrackIds = new Set();
+
+                    for (let index = 0; index < tracks.length; index += 1) {
+                        const track = tracks[index];
+                        const candidateId = Number(track.id);
+                        const hasTrackId = Number.isFinite(candidateId) && candidateId > 0;
+                        const body = {
+                            title: track.title,
+                            audioDataUrl: track.audioDataUrl,
+                            durationSeconds: track.durationSeconds,
+                            sortOrder: index + 1
+                        };
+
+                        if (hasTrackId) {
+                            try {
+                                const updateResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}/${Math.round(candidateId)}`, {
+                                    method: "PUT",
+                                    body
+                                });
+                                const updatedTrackId = Number(updateResponse && updateResponse.data && updateResponse.data.track && updateResponse.data.track.id);
+                                if (Number.isFinite(updatedTrackId) && updatedTrackId > 0) {
+                                    retainedTrackIds.add(Math.round(updatedTrackId));
+                                }
+                            } catch (error) {
+                                const status = Number(error && error.status);
+                                const code = String(error && error.code ? error.code : "").trim();
+                                const isMissingTrack = status === 404 && code === "RELEASE_TRACK_NOT_FOUND";
+                                if (!isMissingTrack) throw error;
+
+                                const createResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}`, {
+                                    method: "POST",
+                                    body
+                                });
+                                const createdTrackId = Number(createResponse && createResponse.data && createResponse.data.track && createResponse.data.track.id);
+                                if (Number.isFinite(createdTrackId) && createdTrackId > 0) {
+                                    retainedTrackIds.add(Math.round(createdTrackId));
+                                }
+                            }
+                            continue;
+                        }
+
+                        const createResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}`, {
+                            method: "POST",
+                            body
+                        });
+                        const createdTrackId = Number(createResponse && createResponse.data && createResponse.data.track && createResponse.data.track.id);
+                        if (Number.isFinite(createdTrackId) && createdTrackId > 0) {
+                            retainedTrackIds.add(Math.round(createdTrackId));
+                        }
+                    }
+
+                    const tracksToDelete = normalizedExistingTracks.filter((track) => {
+                        const trackId = Number(track.id);
+                        if (!Number.isFinite(trackId) || trackId <= 0) return false;
+                        return !retainedTrackIds.has(Math.round(trackId));
+                    });
+
+                    for (let index = 0; index < tracksToDelete.length; index += 1) {
+                        const track = tracksToDelete[index];
+                        await apiRequest(`/release-tracks/${normalizedReleaseId}/${Math.round(Number(track.id))}`, {
+                            method: "DELETE"
+                        });
+                    }
+
+                    const finalResponse = await apiRequest(`/release-tracks/${normalizedReleaseId}`);
+                    const finalTracks = finalResponse && finalResponse.data && Array.isArray(finalResponse.data.tracks)
+                        ? finalResponse.data.tracks
+                        : [];
+
+                    return normalizeTracksResult(finalTracks);
+                } catch (error) {
+                    if (shouldFallbackToLegacyBulk(error)) {
+                        return await applyLegacyBulkSave();
+                    }
+                    throw error;
+                }
             }
 
             const data = getLocalData();

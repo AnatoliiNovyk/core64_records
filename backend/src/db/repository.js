@@ -1045,6 +1045,76 @@ export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload =
   }
 }
 
+export async function createReleaseTrackByReleaseId(releaseId, trackPayload = {}) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId) return null;
+
+  const payload = trackPayload && typeof trackPayload === "object" ? trackPayload : {};
+  const title = String(payload.title || "").trim();
+  const audioDataUrl = String(payload.audioDataUrl || payload.audio_data_url || "").trim();
+  const durationSeconds = toBoundedInteger(payload.durationSeconds ?? payload.duration_seconds, 0, 0, 86400);
+  const sortOrder = toBoundedInteger(payload.sortOrder ?? payload.sort_order, 0, 0, 9999);
+
+  const result = await pool.query(
+    `INSERT INTO release_tracks (
+      release_id,
+      title,
+      audio_data_url,
+      duration_seconds,
+      sort_order
+    )
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, release_id, title, audio_data_url, duration_seconds, sort_order`,
+    [normalizedReleaseId, title, audioDataUrl, durationSeconds, sortOrder]
+  );
+
+  return result.rows[0] ? fromDbReleaseTrackRow(result.rows[0]) : null;
+}
+
+export async function updateReleaseTrackById(releaseId, trackId, trackPayload = {}) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  const normalizedTrackId = toBoundedInteger(trackId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId || !normalizedTrackId) return null;
+
+  const payload = trackPayload && typeof trackPayload === "object" ? trackPayload : {};
+  const title = String(payload.title || "").trim();
+  const audioDataUrl = String(payload.audioDataUrl || payload.audio_data_url || "").trim();
+  const durationSeconds = toBoundedInteger(payload.durationSeconds ?? payload.duration_seconds, 0, 0, 86400);
+  const sortOrder = toBoundedInteger(payload.sortOrder ?? payload.sort_order, 0, 0, 9999);
+
+  const result = await pool.query(
+    `UPDATE release_tracks
+    SET
+      title = $1,
+      audio_data_url = $2,
+      duration_seconds = $3,
+      sort_order = $4,
+      updated_at = NOW()
+    WHERE id = $5
+      AND release_id = $6
+    RETURNING id, release_id, title, audio_data_url, duration_seconds, sort_order`,
+    [title, audioDataUrl, durationSeconds, sortOrder, normalizedTrackId, normalizedReleaseId]
+  );
+
+  return result.rows[0] ? fromDbReleaseTrackRow(result.rows[0]) : null;
+}
+
+export async function deleteReleaseTrackById(releaseId, trackId) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  const normalizedTrackId = toBoundedInteger(trackId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedReleaseId || !normalizedTrackId) return false;
+
+  const result = await pool.query(
+    `DELETE FROM release_tracks
+    WHERE id = $1
+      AND release_id = $2
+    RETURNING id`,
+    [normalizedTrackId, normalizedReleaseId]
+  );
+
+  return !!(result.rows[0] && result.rows[0].id);
+}
+
 const PUBLIC_SETTINGS_SELECT = `
   SELECT
     COALESCE(s_i18n_lang.title, s_i18n_default.title, s.title) AS title,
