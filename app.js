@@ -10,6 +10,11 @@ let compactReleasePlayerControlsBound = false;
 let compactReleasePlayerOffsetSyncBound = false;
 let compactReleasePlayerOffsetSyncFrame = 0;
 let compactReleasePlayerOffsetResizeObserver = null;
+let compactReleasePlayerVisualizerFrame = 0;
+let compactReleasePlayerAudioContext = null;
+let compactReleasePlayerAnalyser = null;
+let compactReleasePlayerAudioSourceNode = null;
+let compactReleasePlayerFrequencyData = null;
 let compactReleasePlayerState = {
     releaseId: null,
     tracks: [],
@@ -45,6 +50,10 @@ const PUBLIC_I18N = {
         releasePlayerTrackUnavailable: "Аудіофайл треку тимчасово недоступний.",
         releasePlayerClose: "Закрити плеєр",
         releasePlayerAutoplayBlocked: "Автовідтворення заблоковано браузером. Натисніть Play у плеєрі.",
+        releasePlayerControlPlay: "Відтворити",
+        releasePlayerControlPause: "Пауза",
+        releasePlayerControlSeek: "Позиція відтворення",
+        releasePlayerControlVolume: "Гучність",
         releasePlayAria: "Відкрити плеєр релізу",
         sectionLabelArtists: "АРТИСТИ ЛЕЙБЛУ",
         sectionEvents: "АФІША ПОДІЙ",
@@ -123,6 +132,10 @@ const PUBLIC_I18N = {
         releasePlayerTrackUnavailable: "Track audio is temporarily unavailable.",
         releasePlayerClose: "Close player",
         releasePlayerAutoplayBlocked: "Autoplay was blocked by the browser. Press Play in the player.",
+        releasePlayerControlPlay: "Play",
+        releasePlayerControlPause: "Pause",
+        releasePlayerControlSeek: "Playback position",
+        releasePlayerControlVolume: "Volume",
         releasePlayAria: "Open release player",
         sectionLabelArtists: "LABEL ARTISTS",
         sectionEvents: "EVENT SCHEDULE",
@@ -726,6 +739,22 @@ function formatDurationLabel(seconds) {
     return `${minutes}:${String(restSeconds).padStart(2, "0")}`;
 }
 
+function formatPlaybackClock(seconds) {
+    const numeric = Number(seconds);
+    if (!Number.isFinite(numeric) || numeric < 0) return "0:00";
+
+    const safe = Math.max(0, Math.floor(numeric));
+    const hours = Math.floor(safe / 3600);
+    const minutes = Math.floor((safe % 3600) / 60);
+    const restSeconds = safe % 60;
+
+    if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
+    }
+
+    return `${minutes}:${String(restSeconds).padStart(2, "0")}`;
+}
+
 function getCompactReleasePlayerElements() {
     return {
         root: document.getElementById("release-compact-player"),
@@ -733,9 +762,195 @@ function getCompactReleasePlayerElements() {
         artist: document.getElementById("release-compact-player-artist"),
         cover: document.getElementById("release-compact-player-cover"),
         audio: document.getElementById("release-compact-player-audio"),
+        playToggle: document.getElementById("release-compact-player-play-toggle"),
+        seek: document.getElementById("release-compact-player-seek"),
+        timeLabel: document.getElementById("release-compact-player-time"),
+        volume: document.getElementById("release-compact-player-volume"),
+        visualizer: document.getElementById("release-compact-player-visualizer"),
         list: document.getElementById("release-compact-player-track-list"),
         status: document.getElementById("release-compact-player-status")
     };
+}
+
+function clampNumber(value, min, max) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return min;
+    return Math.max(min, Math.min(max, numeric));
+}
+
+function setCompactReleasePlayerPlayToggleUi(isPlaying) {
+    const { playToggle } = getCompactReleasePlayerElements();
+    if (!playToggle || !playToggle.isConnected) return;
+
+    const playing = isPlaying === true;
+    playToggle.textContent = playing ? "||" : ">";
+
+    const i18nKey = playing ? "releasePlayerControlPause" : "releasePlayerControlPlay";
+    const label = tPublic(i18nKey);
+    playToggle.setAttribute("aria-label", label);
+    playToggle.setAttribute("title", label);
+    playToggle.classList.toggle("text-cyan-100", playing);
+    playToggle.classList.toggle("text-cyan-300", !playing);
+}
+
+function syncCompactReleasePlayerPlaybackUi() {
+    const { audio, seek, timeLabel, volume } = getCompactReleasePlayerElements();
+    if (!audio) return;
+
+    const duration = Number(audio.duration);
+    const hasDuration = Number.isFinite(duration) && duration > 0;
+    const currentTime = hasDuration
+        ? clampNumber(audio.currentTime, 0, duration)
+        : Math.max(0, Number.isFinite(Number(audio.currentTime)) ? Number(audio.currentTime) : 0);
+
+    if (seek && seek.isConnected && document.activeElement !== seek) {
+        const nextValue = hasDuration ? Math.round((currentTime / duration) * 1000) : 0;
+        seek.value = String(clampNumber(nextValue, 0, 1000));
+    }
+
+    if (timeLabel && timeLabel.isConnected) {
+        timeLabel.textContent = `${formatPlaybackClock(currentTime)} / ${hasDuration ? formatPlaybackClock(duration) : "--:--"}`;
+    }
+
+    if (volume && volume.isConnected && document.activeElement !== volume) {
+        const currentVolume = audio.muted ? 0 : clampNumber(audio.volume, 0, 1);
+        volume.value = String(Math.round(currentVolume * 100));
+    }
+
+    setCompactReleasePlayerPlayToggleUi(!audio.paused && !audio.ended);
+}
+
+function ensureCompactReleasePlayerAudioGraph(audio) {
+    if (!audio) return null;
+
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext;
+    if (typeof AudioContextCtor !== "function") return null;
+
+    if (!compactReleasePlayerAudioContext) {
+        compactReleasePlayerAudioContext = new AudioContextCtor();
+    }
+
+    if (!compactReleasePlayerAnalyser) {
+        compactReleasePlayerAnalyser = compactReleasePlayerAudioContext.createAnalyser();
+        compactReleasePlayerAnalyser.fftSize = 128;
+        compactReleasePlayerAnalyser.smoothingTimeConstant = 0.82;
+    }
+
+    if (!compactReleasePlayerAudioSourceNode) {
+        try {
+            compactReleasePlayerAudioSourceNode = compactReleasePlayerAudioContext.createMediaElementSource(audio);
+            compactReleasePlayerAudioSourceNode.connect(compactReleasePlayerAnalyser);
+            compactReleasePlayerAnalyser.connect(compactReleasePlayerAudioContext.destination);
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    if (!compactReleasePlayerFrequencyData || compactReleasePlayerFrequencyData.length !== compactReleasePlayerAnalyser.frequencyBinCount) {
+        compactReleasePlayerFrequencyData = new Uint8Array(compactReleasePlayerAnalyser.frequencyBinCount);
+    }
+
+    return compactReleasePlayerAnalyser;
+}
+
+function resumeCompactReleasePlayerAudioContext() {
+    if (!compactReleasePlayerAudioContext || compactReleasePlayerAudioContext.state !== "suspended") return;
+    compactReleasePlayerAudioContext.resume().catch(() => {
+        // Browser may block resume until explicit user gesture.
+    });
+}
+
+function drawCompactReleasePlayerVisualizer() {
+    const { root, visualizer, audio } = getCompactReleasePlayerElements();
+    if (!root || root.classList.contains("hidden") || !visualizer || !visualizer.isConnected) {
+        return;
+    }
+
+    const context2d = visualizer.getContext("2d");
+    if (!context2d) return;
+
+    const rect = visualizer.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const devicePixelRatio = Math.max(1, window.devicePixelRatio || 1);
+    const targetWidth = Math.round(rect.width * devicePixelRatio);
+    const targetHeight = Math.round(rect.height * devicePixelRatio);
+
+    if (visualizer.width !== targetWidth || visualizer.height !== targetHeight) {
+        visualizer.width = targetWidth;
+        visualizer.height = targetHeight;
+    }
+
+    context2d.setTransform(1, 0, 0, 1, 0, 0);
+    context2d.clearRect(0, 0, targetWidth, targetHeight);
+
+    const gradient = context2d.createLinearGradient(0, 0, 0, targetHeight);
+    gradient.addColorStop(0, "rgba(8, 36, 44, 0.82)");
+    gradient.addColorStop(1, "rgba(1, 8, 14, 0.96)");
+    context2d.fillStyle = gradient;
+    context2d.fillRect(0, 0, targetWidth, targetHeight);
+
+    const barsCount = 40;
+    const barGap = Math.max(2, Math.round(targetWidth / 340));
+    const barWidth = Math.max(2, Math.floor((targetWidth - (barsCount - 1) * barGap) / barsCount));
+    const totalBarsWidth = barsCount * barWidth + (barsCount - 1) * barGap;
+    const startX = Math.max(0, Math.round((targetWidth - totalBarsWidth) / 2));
+
+    let isLiveAudio = false;
+    if (audio && compactReleasePlayerAnalyser && compactReleasePlayerFrequencyData && !audio.paused) {
+        compactReleasePlayerAnalyser.getByteFrequencyData(compactReleasePlayerFrequencyData);
+        isLiveAudio = true;
+    }
+
+    const now = Date.now();
+    for (let index = 0; index < barsCount; index += 1) {
+        const x = startX + index * (barWidth + barGap);
+        let normalized = 0;
+
+        if (isLiveAudio) {
+            const sampleIndex = Math.floor((index / Math.max(1, barsCount - 1)) * (compactReleasePlayerFrequencyData.length - 1));
+            normalized = clampNumber(compactReleasePlayerFrequencyData[sampleIndex] / 255, 0.05, 1);
+        } else {
+            const wave = Math.sin((now * 0.004) + index * 0.45);
+            normalized = 0.18 + ((wave + 1) * 0.22);
+        }
+
+        const amplitude = Math.max(0.08, normalized);
+        const barHeight = Math.max(4, Math.round((targetHeight - 8) * amplitude));
+        const y = targetHeight - barHeight - 4;
+
+        const barGradient = context2d.createLinearGradient(0, y, 0, y + barHeight);
+        barGradient.addColorStop(0, "rgba(255, 0, 160, 0.92)");
+        barGradient.addColorStop(0.45, "rgba(24, 215, 255, 0.95)");
+        barGradient.addColorStop(1, "rgba(2, 95, 120, 0.95)");
+        context2d.fillStyle = barGradient;
+        context2d.fillRect(x, y, barWidth, barHeight);
+    }
+}
+
+function stopCompactReleasePlayerVisualizer() {
+    if (compactReleasePlayerVisualizerFrame) {
+        cancelAnimationFrame(compactReleasePlayerVisualizerFrame);
+        compactReleasePlayerVisualizerFrame = 0;
+    }
+}
+
+function startCompactReleasePlayerVisualizer() {
+    stopCompactReleasePlayerVisualizer();
+
+    const renderFrame = () => {
+        const { root } = getCompactReleasePlayerElements();
+        if (!root || root.classList.contains("hidden")) {
+            stopCompactReleasePlayerVisualizer();
+            return;
+        }
+
+        drawCompactReleasePlayerVisualizer();
+        compactReleasePlayerVisualizerFrame = requestAnimationFrame(renderFrame);
+    };
+
+    drawCompactReleasePlayerVisualizer();
+    compactReleasePlayerVisualizerFrame = requestAnimationFrame(renderFrame);
 }
 
 function resetCompactReleasePlayerAudio() {
@@ -744,6 +959,7 @@ function resetCompactReleasePlayerAudio() {
     audio.pause();
     audio.removeAttribute("src");
     audio.load();
+    syncCompactReleasePlayerPlaybackUi();
 }
 
 function syncCompactReleasePlayerOffset() {
@@ -812,6 +1028,7 @@ function hideCompactReleasePlayer() {
         loading: false
     };
     resetCompactReleasePlayerAudio();
+    stopCompactReleasePlayerVisualizer();
     if (status) status.textContent = "";
     if (list) list.innerHTML = "";
     setFloatingCompactReleasePlayerEnabled(false);
@@ -858,12 +1075,16 @@ async function playCompactReleaseTrack(trackIndex, shouldAutoplay = true) {
         return;
     }
 
+    ensureCompactReleasePlayerAudioGraph(audio);
     audio.src = audioSource;
     audio.load();
+    syncCompactReleasePlayerPlaybackUi();
+    startCompactReleasePlayerVisualizer();
 
     if (!shouldAutoplay) return;
 
     try {
+        resumeCompactReleasePlayerAudioContext();
         await audio.play();
         if (status) status.textContent = "";
     } catch (_error) {
@@ -884,6 +1105,7 @@ async function openCompactReleasePlayer(releaseId) {
     root.classList.remove("hidden");
     setFloatingCompactReleasePlayerEnabled(true);
     bindCompactReleasePlayerOffsetSync();
+    startCompactReleasePlayerVisualizer();
     title.textContent = String(release.title || "Release");
     artist.textContent = String(release.artist || "");
     cover.src = String(release.image || "").trim() || RELEASE_IMAGE_FALLBACK;
@@ -946,11 +1168,68 @@ async function openCompactReleasePlayer(releaseId) {
 function bindCompactReleasePlayerControls() {
     if (compactReleasePlayerControlsBound) return;
 
-    const { root, list, audio } = getCompactReleasePlayerElements();
+    const { root, list, audio, playToggle, seek, volume, status } = getCompactReleasePlayerElements();
     const closeBtn = document.getElementById("release-compact-player-close");
-    if (!root || !list || !audio || !closeBtn) return;
+    if (!root || !list || !audio || !closeBtn || !playToggle || !seek || !volume) return;
+
+    audio.controls = false;
+    audio.setAttribute("controlsList", "nodownload noplaybackrate noremoteplayback nofullscreen");
+    audio.setAttribute("disablePictureInPicture", "true");
+    audio.setAttribute("disableremoteplayback", "true");
+    audio.addEventListener("contextmenu", (event) => event.preventDefault());
+
+    const protectedArea = root.querySelector(".release-player-content");
+    if (protectedArea) {
+        protectedArea.addEventListener("contextmenu", (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            const restrictedNode = target
+                ? target.closest("#release-compact-player-visualizer, .compact-player-controls")
+                : null;
+            if (restrictedNode) {
+                event.preventDefault();
+            }
+        });
+    }
+
+    audio.volume = clampNumber(Number(volume.value) / 100, 0, 1);
+    setCompactReleasePlayerPlayToggleUi(false);
+    syncCompactReleasePlayerPlaybackUi();
 
     closeBtn.addEventListener("click", () => hideCompactReleasePlayer());
+
+    playToggle.addEventListener("click", async () => {
+        if (!audio.getAttribute("src")) {
+            if (status) status.textContent = tPublic("releasePlayerTrackUnavailable");
+            return;
+        }
+
+        try {
+            if (audio.paused) {
+                resumeCompactReleasePlayerAudioContext();
+                await audio.play();
+                if (status) status.textContent = "";
+            } else {
+                audio.pause();
+            }
+        } catch (_error) {
+            if (status) status.textContent = tPublic("releasePlayerAutoplayBlocked");
+        }
+    });
+
+    seek.addEventListener("input", () => {
+        const duration = Number(audio.duration);
+        if (!Number.isFinite(duration) || duration <= 0) return;
+        const ratio = clampNumber(Number(seek.value) / 1000, 0, 1);
+        audio.currentTime = ratio * duration;
+        syncCompactReleasePlayerPlaybackUi();
+    });
+
+    volume.addEventListener("input", () => {
+        const nextVolume = clampNumber(Number(volume.value) / 100, 0, 1);
+        audio.muted = nextVolume <= 0;
+        audio.volume = nextVolume;
+        syncCompactReleasePlayerPlaybackUi();
+    });
 
     list.addEventListener("click", async (event) => {
         const target = event.target instanceof Element
@@ -963,7 +1242,27 @@ function bindCompactReleasePlayerControls() {
         await playCompactReleaseTrack(trackIndex, true);
     });
 
+    ["loadedmetadata", "durationchange", "timeupdate", "seeking", "seeked", "emptied", "volumechange"].forEach((eventName) => {
+        audio.addEventListener(eventName, () => {
+            syncCompactReleasePlayerPlaybackUi();
+            if (eventName === "loadedmetadata" || eventName === "durationchange") {
+                scheduleCompactReleasePlayerOffsetSync();
+            }
+        });
+    });
+
+    audio.addEventListener("play", () => {
+        resumeCompactReleasePlayerAudioContext();
+        setCompactReleasePlayerPlayToggleUi(true);
+        startCompactReleasePlayerVisualizer();
+    });
+
+    audio.addEventListener("pause", () => {
+        setCompactReleasePlayerPlayToggleUi(false);
+    });
+
     audio.addEventListener("ended", async () => {
+        setCompactReleasePlayerPlayToggleUi(false);
         const tracks = Array.isArray(compactReleasePlayerState.tracks) ? compactReleasePlayerState.tracks : [];
         if (!tracks.length) return;
         const nextIndex = compactReleasePlayerState.activeTrackIndex + 1;
