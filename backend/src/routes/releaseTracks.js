@@ -92,6 +92,27 @@ function parseAudioByteRange(rangeHeader, totalSize) {
   };
 }
 
+function normalizeWeakEntityTag(value) {
+  return String(value || "").trim().replace(/^W\//i, "");
+}
+
+function isIfNoneMatchSatisfied(ifNoneMatchHeader, currentEntityTag) {
+  const headerValue = String(ifNoneMatchHeader || "").trim();
+  if (!headerValue) return false;
+
+  const currentTag = normalizeWeakEntityTag(currentEntityTag);
+  if (!currentTag) return false;
+
+  return headerValue
+    .split(",")
+    .map((candidate) => String(candidate || "").trim())
+    .filter(Boolean)
+    .some((candidate) => {
+      if (candidate === "*") return true;
+      return normalizeWeakEntityTag(candidate) === currentTag;
+    });
+}
+
 router.get("/release-tracks/:releaseId", async (req, res, next) => {
   try {
     const releaseId = parseReleaseId(req.params.releaseId);
@@ -216,8 +237,7 @@ router.get("/release-tracks/:releaseId/:trackId/audio", async (req, res, next) =
     res.setHeader("Accept-Ranges", "bytes");
     res.setHeader("Cache-Control", "private, max-age=0, must-revalidate");
 
-    const ifNoneMatch = String(req.headers["if-none-match"] || "").trim();
-    if (ifNoneMatch && ifNoneMatch === eTag) {
+    if (isIfNoneMatchSatisfied(req.headers["if-none-match"], eTag)) {
       return res.status(304).send();
     }
 

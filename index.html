@@ -15,6 +15,7 @@
             --dark: #0a0a0f;
             --darker: #050508;
             --release-player-offset: 0px;
+            --release-player-body-padding: 0px;
         }
         
         body {
@@ -206,7 +207,7 @@
         }
 
         body.has-floating-release-player {
-            padding-bottom: calc(var(--release-player-offset, 0px) + 24px);
+            padding-bottom: calc(var(--release-player-body-padding, 0px) + env(safe-area-inset-bottom));
         }
 
         #release-compact-player.release-player-floating {

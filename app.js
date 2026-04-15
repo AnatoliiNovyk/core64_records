@@ -9,6 +9,7 @@ let floatingScrollTopResizeListenerBound = false;
 let compactReleasePlayerControlsBound = false;
 let compactReleasePlayerOffsetSyncBound = false;
 let compactReleasePlayerOffsetSyncFrame = 0;
+let compactReleasePlayerOffsetResizeObserver = null;
 let compactReleasePlayerState = {
     releaseId: null,
     tracks: [],
@@ -748,12 +749,16 @@ function resetCompactReleasePlayerAudio() {
 function syncCompactReleasePlayerOffset() {
     const { root } = getCompactReleasePlayerElements();
     let offset = 0;
+    let bodyPadding = 0;
 
     if (root && !root.classList.contains("hidden") && root.classList.contains("release-player-floating")) {
-        offset = Math.max(0, Math.ceil(root.getBoundingClientRect().height) + 20);
+        const playerHeight = Math.max(0, Math.ceil(root.getBoundingClientRect().height));
+        offset = playerHeight + 16;
+        bodyPadding = Math.min(168, Math.max(40, Math.round(playerHeight * 0.42)));
     }
 
     document.documentElement.style.setProperty("--release-player-offset", `${offset}px`);
+    document.documentElement.style.setProperty("--release-player-body-padding", `${bodyPadding}px`);
 }
 
 function scheduleCompactReleasePlayerOffsetSync() {
@@ -770,9 +775,19 @@ function scheduleCompactReleasePlayerOffsetSync() {
 function bindCompactReleasePlayerOffsetSync() {
     if (compactReleasePlayerOffsetSyncBound) return;
 
+    const { root } = getCompactReleasePlayerElements();
+
     window.addEventListener("resize", () => {
         scheduleCompactReleasePlayerOffsetSync();
     });
+
+    if (root && typeof ResizeObserver === "function") {
+        compactReleasePlayerOffsetResizeObserver = new ResizeObserver(() => {
+            scheduleCompactReleasePlayerOffsetSync();
+        });
+        compactReleasePlayerOffsetResizeObserver.observe(root);
+    }
+
     compactReleasePlayerOffsetSyncBound = true;
 }
 
