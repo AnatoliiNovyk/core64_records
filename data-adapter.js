@@ -213,8 +213,8 @@
     const STORAGE_LANG_KEY = "core64_language";
     const STORAGE_API_BASE_KEY = "core64_api_base_url";
     const DEFAULT_API_TIMEOUT_MS = 15000;
-    const API_READINESS_CACHE_TTL_MS = 5000;
-    const API_READINESS_PROBE_TIMEOUT_MS = 2500;
+    const API_READINESS_CACHE_TTL_MS = 30000;
+    const API_READINESS_PROBE_TIMEOUT_MS = 1200;
     let runtimeApiBaseUrl = "";
     let apiReadinessCachedValue = null;
     let apiReadinessCheckedAtMs = 0;
@@ -460,12 +460,36 @@
             .sort((left, right) => left.sortOrder - right.sortOrder);
     }
 
+    function buildEmptyLocalData() {
+        return {
+            releases: [],
+            artists: [],
+            events: [],
+            sponsors: [],
+            releaseTracks: [],
+            settings: deepClone(DEFAULT_DATA.settings),
+            sectionSettings: deepClone(DEFAULT_DATA.sectionSettings),
+            contactRequests: []
+        };
+    }
+
+    function shouldSeedDemoDefaultsForLocalData() {
+        return getDataMode() === "local";
+    }
+
     function getLocalData() {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) {
-                const defaults = deepClone(DEFAULT_DATA);
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+                const shouldUseDemoDefaults = shouldSeedDemoDefaultsForLocalData();
+                const defaults = shouldUseDemoDefaults
+                    ? deepClone(DEFAULT_DATA)
+                    : buildEmptyLocalData();
+
+                if (shouldUseDemoDefaults) {
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
+                }
+
                 return defaults;
             }
 
@@ -487,7 +511,9 @@
             };
         } catch (error) {
             console.warn("localStorage read failed, fallback to defaults", error);
-            return deepClone(DEFAULT_DATA);
+            return shouldSeedDemoDefaultsForLocalData()
+                ? deepClone(DEFAULT_DATA)
+                : buildEmptyLocalData();
         }
     }
 
@@ -826,8 +852,7 @@
 
         async isApiAvailable() {
             try {
-                await apiRequest("/health");
-                return true;
+                return await shouldUseApi();
             } catch (_error) {
                 return false;
             }
@@ -1432,7 +1457,14 @@
                 }
             }
 
-            if (getDataMode() === "api" && shouldAllowOfflineAdminAccess()) {
+            const mode = getDataMode();
+            if (mode === "api" && !shouldAllowOfflineAdminAccess()) {
+                sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+                sessionStorage.removeItem(STORAGE_AUTH_KEY);
+                return false;
+            }
+
+            if (mode === "api" && shouldAllowOfflineAdminAccess()) {
                 sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
                 return true;
             }
@@ -1463,7 +1495,14 @@
                 }
             }
 
-            if (getDataMode() === "api" && shouldAllowOfflineAdminAccess()) {
+            const mode = getDataMode();
+            if (mode === "api" && !shouldAllowOfflineAdminAccess()) {
+                sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+                sessionStorage.removeItem(STORAGE_AUTH_KEY);
+                return false;
+            }
+
+            if (mode === "api" && shouldAllowOfflineAdminAccess()) {
                 sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
                 return true;
             }
@@ -1472,7 +1511,9 @@
         },
 
         ensureLocalDefaults() {
-            getLocalData();
+            if (getDataMode() === "local") {
+                getLocalData();
+            }
         },
 
         getDefaultLanguage() {

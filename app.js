@@ -2140,6 +2140,15 @@ async function bootstrap() {
     const requireApi = (window.CORE64_CONFIG && typeof window.CORE64_CONFIG.requireApiOnPublic === "boolean")
         ? window.CORE64_CONFIG.requireApiOnPublic
         : isProdHost;
+    const isApiAvailableMethod = getAdapterMethod("isApiAvailable");
+
+    if (requireApi && isApiAvailableMethod) {
+        const apiReady = await isApiAvailableMethod.call(adapter);
+        if (!apiReady) {
+            showPublicApiStatus(tPublic("apiTemporarilyUnavailable"));
+            return;
+        }
+    }
 
     try {
         const data = await adapter.getSiteData();
