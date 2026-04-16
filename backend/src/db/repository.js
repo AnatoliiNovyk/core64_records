@@ -1,6 +1,8 @@
 import { pool } from "./pool.js";
 import { config } from "../config.js";
 import { resolveLanguage } from "../i18n/language.js";
+import { logger } from "../utils/logger.js";
+import { isDatabaseStorageLimitError } from "../utils/dbError.js";
 
 const SECTION_SETTINGS_DEFAULTS = [
   {
@@ -51,6 +53,7 @@ const SECTION_SETTINGS_DEFAULTS = [
 ];
 
 const HERO_SUBTITLE_DEFAULT = "Neurofunk • Drum & Bass • Breakbeat • Techstep";
+const AUDIT_LOG_DETAILS_MAX_CHARS = 8192;
 
 function getSectionDefaultsMap() {
   return SECTION_SETTINGS_DEFAULTS.reduce((acc, entry) => {
@@ -1660,10 +1663,36 @@ export async function updateContactRequestStatus(id, status) {
 }
 
 export async function writeAuditLog({ entityType, entityId, action, actor, details }) {
-  await pool.query(
-    "INSERT INTO audit_logs (entity_type, entity_id, action, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)",
-    [entityType, entityId ?? null, action, actor || "system", JSON.stringify(details || {})]
-  );
+  const normalizedDetails = details && typeof details === "object" ? details : {};
+  const serializedDetails = JSON.stringify(normalizedDetails);
+  const compactDetails = serializedDetails.length > AUDIT_LOG_DETAILS_MAX_CHARS
+    ? JSON.stringify({
+      isCompact: true,
+      truncated: true,
+      originalLength: serializedDetails.length,
+      preview: serializedDetails.slice(0, AUDIT_LOG_DETAILS_MAX_CHARS)
+    })
+    : serializedDetails;
+
+  try {
+    await pool.query(
+      "INSERT INTO audit_logs (entity_type, entity_id, action, actor, details) VALUES ($1, $2, $3, $4, $5::jsonb)",
+      [entityType, entityId ?? null, action, actor || "system", compactDetails]
+    );
+    return true;
+  } catch (error) {
+    if (isDatabaseStorageLimitError(error)) {
+      logger.warn("audit.log.skipped.storage_limit", {
+        entityType,
+        entityId: entityId ?? null,
+        action,
+        actor: actor || "system"
+      });
+      return false;
+    }
+
+    throw error;
+  }
 }
 
 export async function listAuditLogs({

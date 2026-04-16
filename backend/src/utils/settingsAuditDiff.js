@@ -40,6 +40,8 @@ const SECTION_TRACKED_FIELDS = [
   "menuTitleEn"
 ];
 
+const AUDIT_VALUE_MAX_LENGTH = 1024;
+
 function normalizePrimitive(value) {
   if (value === undefined || value === null) return null;
 
@@ -106,7 +108,18 @@ function toSortedSectionOrder(sections) {
 
 function toAuditSettingsValue(field, value) {
   if (SETTINGS_SECRET_FIELDS.has(field)) return "[REDACTED]";
-  return normalizePrimitive(value);
+
+  const normalized = normalizePrimitive(value);
+  if (typeof normalized !== "string") {
+    return normalized;
+  }
+
+  if (normalized.length <= AUDIT_VALUE_MAX_LENGTH) {
+    return normalized;
+  }
+
+  const omittedChars = normalized.length - AUDIT_VALUE_MAX_LENGTH;
+  return `${normalized.slice(0, AUDIT_VALUE_MAX_LENGTH)} [TRUNCATED ${omittedChars} chars]`;
 }
 
 export function buildSettingsDiff(previousSettings, nextSettings) {
@@ -191,8 +204,8 @@ export function buildSectionSettingsDiff(previousSections, nextSections) {
 
       changedFields.push(field);
       changes[field] = {
-        before: beforeValue,
-        after: afterValue
+        before: toAuditSettingsValue(field, beforeValue),
+        after: toAuditSettingsValue(field, afterValue)
       };
     });
 

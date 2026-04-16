@@ -9,6 +9,7 @@ const NETWORK_CODES = new Set([
 
 const TLS_CODES = new Set(["SELF_SIGNED_CERT_IN_CHAIN", "DEPTH_ZERO_SELF_SIGNED_CERT", "ERR_TLS_CERT_ALTNAME_INVALID"]);
 const AUTH_CODES = new Set(["28P01"]);
+const STORAGE_LIMIT_CODES = new Set(["53100"]);
 
 export const sanitizeDatabaseErrorCode = (error) => {
   const raw = String(error?.code || "").trim().toUpperCase();
@@ -46,4 +47,18 @@ export const classifyDatabaseError = (error) => {
 export const isDatabaseConnectivityError = (error) => {
   const kind = classifyDatabaseError(error);
   return kind !== "unknown";
+};
+
+export const isDatabaseStorageLimitError = (error) => {
+  const code = String(error?.code || "").trim().toUpperCase();
+  const message = String(error?.message || "").trim().toLowerCase();
+
+  if (STORAGE_LIMIT_CODES.has(code)) {
+    return true;
+  }
+
+  return message.includes("project size limit")
+    || message.includes("no space left on device")
+    || message.includes("disk full")
+    || message.includes("out of disk space");
 };

@@ -13,7 +13,7 @@ import publicRoutes from "./routes/public.js";
 import releaseTracksRoutes from "./routes/releaseTracks.js";
 import auditRoutes from "./routes/auditLogs.js";
 import securityRoutes from "./routes/security.js";
-import { isDatabaseConnectivityError } from "./utils/dbError.js";
+import { isDatabaseConnectivityError, isDatabaseStorageLimitError } from "./utils/dbError.js";
 import { applySecurityHeaders } from "./middleware/security.js";
 import { fromZodError, sendApiError } from "./utils/apiError.js";
 import { requestLoggingMiddleware } from "./middleware/requestLogging.js";
@@ -112,6 +112,15 @@ app.use((error, req, res, _next) => {
       status: 503,
       code: "DB_UNAVAILABLE",
       error: "Database is unavailable"
+    });
+  }
+
+  if (isDatabaseStorageLimitError(error)) {
+    logger.error("http.request.database_storage_limit", errorContext);
+    return sendApiError(res, {
+      status: 507,
+      code: "DB_STORAGE_LIMIT_REACHED",
+      error: "Database storage limit reached"
     });
   }
 
