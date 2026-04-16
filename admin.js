@@ -153,6 +153,14 @@ const ADMIN_I18N = {
         statusNew: "Нове",
         statusInProgress: "В роботі",
         statusDone: "Завершено",
+        contactAttachmentLabel: "Вкладення:",
+        contactAttachmentTypeLabel: "Тип:",
+        contactAttachmentUnknownName: "Файл без назви",
+        contactAttachmentOpenButton: "Відкрити",
+        contactAttachmentDownloadButton: "Завантажити",
+        contactAttachmentNotAvailable: "Вкладення недоступне або відсутнє.",
+        contactAttachmentDownloadFailed: "Не вдалося завантажити вкладення.",
+        contactAttachmentOpenFailed: "Не вдалося відкрити вкладення.",
         auditAllActions: "Усі дії",
         auditAllEntities: "Усі сутності",
         auditSectionTitle: "Журнал аудиту",
@@ -495,6 +503,14 @@ const ADMIN_I18N = {
         statusNew: "New",
         statusInProgress: "In progress",
         statusDone: "Done",
+        contactAttachmentLabel: "Attachment:",
+        contactAttachmentTypeLabel: "Type:",
+        contactAttachmentUnknownName: "Unnamed file",
+        contactAttachmentOpenButton: "Open",
+        contactAttachmentDownloadButton: "Download",
+        contactAttachmentNotAvailable: "Attachment is unavailable or missing.",
+        contactAttachmentDownloadFailed: "Failed to download attachment.",
+        contactAttachmentOpenFailed: "Failed to open attachment.",
         auditAllActions: "All actions",
         auditAllEntities: "All entities",
         auditSectionTitle: "Audit log",
@@ -4910,6 +4926,156 @@ function getStatusLabel(status) {
     return tAdmin("statusNew");
 }
 
+function normalizeContactAttachment(entry) {
+    if (!entry || typeof entry !== "object") {
+        return {
+            name: "",
+            type: "",
+            dataUrl: "",
+            hasData: false,
+            isAudio: false
+        };
+    }
+
+    const name = String(entry.attachmentName || "").trim();
+    const type = String(entry.attachmentType || "").trim();
+    const dataUrl = String(entry.attachmentDataUrl || "").trim();
+    const hasData = dataUrl.startsWith("data:");
+    const normalizedType = type.toLowerCase();
+    const normalizedDataUrl = dataUrl.toLowerCase();
+    const isAudio = normalizedType.startsWith("audio/") || normalizedDataUrl.startsWith("data:audio/");
+
+    return {
+        name,
+        type,
+        dataUrl,
+        hasData,
+        isAudio
+    };
+}
+
+function inferContactAttachmentExtension(attachmentType) {
+    const normalizedType = String(attachmentType || "").trim().toLowerCase();
+    if (!normalizedType) return "";
+    if (normalizedType.includes("mpeg") || normalizedType.includes("mp3")) return ".mp3";
+    if (normalizedType.includes("wav")) return ".wav";
+    if (normalizedType.includes("flac")) return ".flac";
+    if (normalizedType.includes("aiff")) return ".aiff";
+    if (normalizedType.includes("ogg")) return ".ogg";
+    if (normalizedType.includes("zip")) return ".zip";
+    if (normalizedType.includes("rar")) return ".rar";
+    if (normalizedType.includes("7z")) return ".7z";
+    return "";
+}
+
+function getCachedContactRequestById(id) {
+    const normalizedId = normalizeContactRequestId(id);
+    if (normalizedId === null) return null;
+    if (!Array.isArray(cache.contactRequests)) return null;
+
+    const matchedEntry = cache.contactRequests.find((entry) => {
+        if (!entry || typeof entry !== "object") return false;
+        return normalizeContactRequestId(entry.id) === normalizedId;
+    });
+
+    return matchedEntry && typeof matchedEntry === "object" ? matchedEntry : null;
+}
+
+function createBlobFromDataUrl(dataUrl) {
+    const normalizedDataUrl = String(dataUrl || "").trim();
+    if (!normalizedDataUrl.startsWith("data:")) {
+        throw new Error("Attachment data URL is missing or invalid.");
+    }
+
+    const commaIndex = normalizedDataUrl.indexOf(",");
+    if (commaIndex <= 4) {
+        throw new Error("Attachment data URL payload is invalid.");
+    }
+
+    const meta = normalizedDataUrl.slice(5, commaIndex);
+    const dataBody = normalizedDataUrl.slice(commaIndex + 1);
+    const mimeType = (meta.split(";")[0] || "application/octet-stream").trim() || "application/octet-stream";
+    const isBase64 = /;base64/i.test(meta);
+
+    if (isBase64) {
+        const binary = atob(dataBody);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i += 1) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+        return new Blob([bytes], { type: mimeType });
+    }
+
+    return new Blob([decodeURIComponent(dataBody)], { type: mimeType });
+}
+
+function deriveContactAttachmentFileName(entry, attachment) {
+    if (attachment && attachment.name) return attachment.name;
+    const normalizedId = normalizeContactRequestId(entry && entry.id);
+    const extension = inferContactAttachmentExtension(attachment && attachment.type);
+    if (normalizedId === null) {
+        return `contact_attachment${extension}`;
+    }
+    return `contact_request_${normalizedId}_attachment${extension}`;
+}
+
+function downloadContactAttachment(id) {
+    const entry = getCachedContactRequestById(id);
+    const attachment = normalizeContactAttachment(entry);
+    if (!entry || !attachment.hasData) {
+        alert(tAdmin("contactAttachmentNotAvailable"));
+        return;
+    }
+
+    try {
+        const blob = createBlobFromDataUrl(attachment.dataUrl);
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = deriveContactAttachmentFileName(entry, attachment);
+
+        const bodyEl = document.body;
+        if (!bodyEl || bodyEl.isConnected === false) {
+            URL.revokeObjectURL(objectUrl);
+            throw new Error("Document body is not available for download action.");
+        }
+
+        bodyEl.appendChild(link);
+        link.click();
+        if (bodyEl.isConnected && link.isConnected) {
+            bodyEl.removeChild(link);
+        }
+        URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+        console.error("Contact attachment download failed", error);
+        alert(tAdmin("contactAttachmentDownloadFailed"));
+    }
+}
+
+function openContactAttachment(id) {
+    const entry = getCachedContactRequestById(id);
+    const attachment = normalizeContactAttachment(entry);
+    if (!entry || !attachment.hasData) {
+        alert(tAdmin("contactAttachmentNotAvailable"));
+        return;
+    }
+
+    try {
+        const blob = createBlobFromDataUrl(attachment.dataUrl);
+        const objectUrl = URL.createObjectURL(blob);
+        const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+        if (!opened) {
+            downloadContactAttachment(id);
+        }
+        setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+        }, 60_000);
+    } catch (error) {
+        console.error("Contact attachment open failed", error);
+        alert(tAdmin("contactAttachmentOpenFailed"));
+    }
+}
+
 function getFilteredContacts() {
     const { statusFilter, dateFilter, query } = getNormalizedContactsFilters();
 
@@ -4967,6 +5133,29 @@ function renderContacts() {
         const statusSelectOnChangeAttr = normalizedContactId === null
             ? ""
             : `onchange="changeContactStatus(${normalizedContactId}, this.value)"`;
+        const attachment = normalizeContactAttachment(entry);
+        const shouldRenderAttachmentBlock = attachment.hasData || attachment.name || attachment.type;
+        const attachmentBlock = !shouldRenderAttachmentBlock
+            ? ""
+            : `
+                <div class="mt-4 border border-cyan-500/20 rounded p-3 bg-black/20">
+                    <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">${sanitizeInput(tAdmin("contactAttachmentLabel"))}</div>
+                    <div class="text-sm text-gray-200 mb-1">${sanitizeInput(attachment.name || tAdmin("contactAttachmentUnknownName"))}</div>
+                    <div class="text-xs text-gray-400"><span class="text-gray-500">${sanitizeInput(tAdmin("contactAttachmentTypeLabel"))}</span> ${sanitizeInput(attachment.type || "-")}</div>
+                    ${attachment.hasData && normalizedContactId !== null
+                        ? `
+                            <div class="mt-3 flex flex-wrap gap-2">
+                                ${attachment.isAudio
+                                    ? `<button type="button" class="px-3 py-1.5 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-400/10 transition-colors rounded text-xs uppercase tracking-wider" onclick="openContactAttachment(${normalizedContactId})">${sanitizeInput(tAdmin("contactAttachmentOpenButton"))}</button>`
+                                    : ""
+                                }
+                                <button type="button" class="px-3 py-1.5 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-400/10 transition-colors rounded text-xs uppercase tracking-wider" onclick="downloadContactAttachment(${normalizedContactId})">${sanitizeInput(tAdmin("contactAttachmentDownloadButton"))}</button>
+                            </div>
+                        `
+                        : `<div class="mt-2 text-xs text-yellow-300">${sanitizeInput(tAdmin("contactAttachmentNotAvailable"))}</div>`
+                    }
+                </div>
+            `;
 
         return `
             <div class="card p-5 rounded">
@@ -4985,6 +5174,7 @@ function renderContacts() {
                 <div class="text-sm text-gray-300 mb-3"><span class="text-gray-400">${sanitizeInput(tAdmin("contactEmailLabel"))}</span> ${sanitizeInput(entry.email || "-")}</div>
                 <div class="text-xs uppercase tracking-wider text-pink-300 mb-2">${sanitizeInput(tAdmin("contactStatusLabel"))} ${sanitizeInput(getStatusLabel(normalizedStatus))}</div>
                 <div class="text-gray-200 whitespace-pre-wrap">${sanitizeInput(entry.message || "")}</div>
+                ${attachmentBlock}
             </div>
         `;
     }).join("");
@@ -5030,15 +5220,23 @@ function exportContactsCsv() {
         return;
     }
 
-    const header = ["id", "created_at", "status", "name", "email", "subject", "message"];
+    const header = ["id", "created_at", "status", "name", "email", "subject", "message", "attachment_name", "attachment_type", "has_attachment"];
     const rows = filtered.map((entry) => normalizeCsvRowValues([
-        entry.id,
-        entry.created_at || entry.createdAt || "",
-        normalizeContactRequestStatus(entry.status),
-        entry.name || "",
-        entry.email || "",
-        entry.subject || "",
-        entry.message || ""
+        ...(() => {
+            const attachment = normalizeContactAttachment(entry);
+            return [
+                entry.id,
+                entry.created_at || entry.createdAt || "",
+                normalizeContactRequestStatus(entry.status),
+                entry.name || "",
+                entry.email || "",
+                entry.subject || "",
+                entry.message || "",
+                attachment.name || "",
+                attachment.type || "",
+                attachment.hasData ? "yes" : "no"
+            ];
+        })()
     ]));
 
     const csv = [header, ...rows]
