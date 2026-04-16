@@ -21,6 +21,7 @@ let cache = {
     auditLogs: [],
     auditFacets: { actions: [], entities: [] }
 };
+let dashboardSettingsPartialFailure = false;
 let contactsPage = 1;
 const CONTACTS_PAGE_SIZE = 5;
 const CONTACTS_MIN_PAGE = 1;
@@ -108,6 +109,7 @@ const ADMIN_I18N = {
         sponsorNoLink: "Без посилання",
         sponsorOrderLabel: "Порядок",
         loadDataApiError: "Помилка завантаження даних з API. Перевірте з'єднання з backend.",
+        dashboardPartialSettingsWarning: "Дані налаштувань тимчасово недоступні. Лічильники дашборду оновлено частково.",
         loadReleasesMissingAdapter: "Не вдалося завантажити релізи: відсутній метод adapter.",
         loadArtistsMissingAdapter: "Не вдалося завантажити артистів: відсутній метод adapter.",
         loadEventsMissingAdapter: "Не вдалося завантажити події: відсутній метод adapter.",
@@ -449,6 +451,7 @@ const ADMIN_I18N = {
         sponsorNoLink: "No link",
         sponsorOrderLabel: "Order",
         loadDataApiError: "Failed to load data from API. Check backend connection.",
+        dashboardPartialSettingsWarning: "Settings data is temporarily unavailable. Dashboard counters were updated partially.",
         loadReleasesMissingAdapter: "Failed to load releases: adapter method is missing.",
         loadArtistsMissingAdapter: "Failed to load artists: adapter method is missing.",
         loadEventsMissingAdapter: "Failed to load events: adapter method is missing.",
@@ -3059,7 +3062,11 @@ async function showSection(section) {
         }
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
         if (currentSection !== section) return;
-        hideApiStatus();
+        if (section === "dashboard" && dashboardSettingsPartialFailure) {
+            showApiStatus(tAdmin("dashboardPartialSettingsWarning"));
+        } else {
+            hideApiStatus();
+        }
     } catch (error) {
         if (isAbortError(error)) return;
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
@@ -3492,6 +3499,8 @@ async function refreshCache() {
         }
     ];
 
+    dashboardSettingsPartialFailure = false;
+
     const readResults = await Promise.all(collectionReaders.map(async (reader) => {
         try {
             const payload = await getCollectionMethod.call(adapter, reader.key);
@@ -3530,6 +3539,7 @@ async function refreshCache() {
     const events = readResults.find((entry) => entry.key === "events");
     const sponsors = readResults.find((entry) => entry.key === "sponsors");
     const settings = readResults.find((entry) => entry.key === "settings");
+    dashboardSettingsPartialFailure = !!(settings && !settings.ok);
 
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
@@ -3565,6 +3575,12 @@ async function loadDashboard() {
     }
     if (eventsCountEl && eventsCountEl.isConnected) {
         eventsCountEl.textContent = events.length;
+    }
+
+    if (dashboardSettingsPartialFailure) {
+        showApiStatus(tAdmin("dashboardPartialSettingsWarning"));
+    } else {
+        hideApiStatus();
     }
 }
 

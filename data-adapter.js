@@ -255,6 +255,10 @@
         }
     }
 
+    function shouldPreferStoredApiBase() {
+        return !!(window.CORE64_CONFIG && window.CORE64_CONFIG.preferStoredApiBase === true);
+    }
+
     function getQueryApiBaseUrlOverride() {
         if (typeof window === "undefined" || !window.location || !window.location.search) return "";
         const params = new URLSearchParams(window.location.search);
@@ -284,20 +288,27 @@
 
         if (runtimeApiBaseUrl) return runtimeApiBaseUrl;
 
+        const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
+        const storedBaseIsSameOrigin = storedBase ? isSameOriginApiBase(storedBase) : false;
+        if (storedBase && !storedBaseIsSameOrigin) {
+            clearStoredApiBaseUrl();
+        }
+
+        if (shouldPreferStoredApiBase() && storedBase && storedBaseIsSameOrigin) {
+            runtimeApiBaseUrl = storedBase;
+            return runtimeApiBaseUrl;
+        }
+
         const configBase = normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
         if (configBase) {
             runtimeApiBaseUrl = configBase;
             return runtimeApiBaseUrl;
         }
 
-        // Stored override is used only as same-origin fallback when page config is absent.
-        const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
-        if (storedBase && isSameOriginApiBase(storedBase)) {
+        // Stored override is used as same-origin fallback when page config is absent.
+        if (storedBase && storedBaseIsSameOrigin) {
             runtimeApiBaseUrl = storedBase;
             return runtimeApiBaseUrl;
-        }
-        if (storedBase && !isSameOriginApiBase(storedBase)) {
-            clearStoredApiBaseUrl();
         }
 
         runtimeApiBaseUrl = "/api";
