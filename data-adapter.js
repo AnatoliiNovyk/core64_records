@@ -240,13 +240,6 @@
         }
     }
 
-    function isSameOriginApiBase(value) {
-        if (typeof window === "undefined" || !window.location || !window.location.origin) return true;
-        const resolvedUrl = resolveApiBaseAsUrl(value);
-        if (!resolvedUrl) return false;
-        return resolvedUrl.origin === window.location.origin;
-    }
-
     function clearStoredApiBaseUrl() {
         try {
             localStorage.removeItem(STORAGE_API_BASE_KEY);
@@ -255,8 +248,18 @@
         }
     }
 
+    function getStoredApiBaseUrl() {
+        const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
+        if (!storedBase) return "";
+        if (resolveApiBaseAsUrl(storedBase)) return storedBase;
+        clearStoredApiBaseUrl();
+        return "";
+    }
+
     function shouldPreferStoredApiBase() {
-        return !!(window.CORE64_CONFIG && window.CORE64_CONFIG.preferStoredApiBase === true);
+        const configured = window.CORE64_CONFIG && window.CORE64_CONFIG.preferStoredApiBase;
+        if (typeof configured === "boolean") return configured;
+        return true;
     }
 
     function getQueryApiBaseUrlOverride() {
@@ -279,40 +282,50 @@
         }
     }
 
-    function getApiBaseUrl() {
+    function getApiBaseCandidates() {
         const queryOverride = getQueryApiBaseUrlOverride();
-        if (queryOverride) {
-            setRuntimeApiBaseUrl(queryOverride);
-            return queryOverride;
-        }
-
-        if (runtimeApiBaseUrl) return runtimeApiBaseUrl;
-
-        const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
-        const storedBaseIsSameOrigin = storedBase ? isSameOriginApiBase(storedBase) : false;
-        if (storedBase && !storedBaseIsSameOrigin) {
-            clearStoredApiBaseUrl();
-        }
-
-        if (shouldPreferStoredApiBase() && storedBase && storedBaseIsSameOrigin) {
-            runtimeApiBaseUrl = storedBase;
-            return runtimeApiBaseUrl;
-        }
-
+        const runtimeBase = normalizeApiBaseUrl(runtimeApiBaseUrl);
+        const storedBase = getStoredApiBaseUrl();
         const configBase = normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
-        if (configBase) {
-            runtimeApiBaseUrl = configBase;
-            return runtimeApiBaseUrl;
+        const preferStored = shouldPreferStoredApiBase();
+
+        const ordered = [];
+        if (queryOverride) {
+            ordered.push(queryOverride);
+        }
+        if (runtimeBase) {
+            ordered.push(runtimeBase);
         }
 
-        // Stored override is used as same-origin fallback when page config is absent.
-        if (storedBase && storedBaseIsSameOrigin) {
-            runtimeApiBaseUrl = storedBase;
-            return runtimeApiBaseUrl;
+        if (preferStored) {
+            if (storedBase) ordered.push(storedBase);
+            if (configBase) ordered.push(configBase);
+        } else {
+            if (configBase) ordered.push(configBase);
+            if (storedBase) ordered.push(storedBase);
         }
 
-        runtimeApiBaseUrl = "/api";
-        return runtimeApiBaseUrl;
+        ordered.push("/api");
+
+        const unique = [];
+        const seen = new Set();
+        ordered.forEach((entry) => {
+            const normalized = normalizeApiBaseUrl(entry);
+            if (!normalized) return;
+            if (!resolveApiBaseAsUrl(normalized)) return;
+            if (seen.has(normalized)) return;
+            seen.add(normalized);
+            unique.push(normalized);
+        });
+
+        return unique;
+    }
+
+    function getApiBaseUrl() {
+        const candidates = getApiBaseCandidates();
+        const preferredBase = candidates[0] || "/api";
+        runtimeApiBaseUrl = preferredBase;
+        return preferredBase;
     }
 
     function getApiTimeoutMs() {
@@ -500,6 +513,30 @@
         return `${base.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
     }
 
+    function shouldRetryApiRequestWithNextBase({ method, path, status, code }) {
+        const normalizedMethod = String(method || "GET").trim().toUpperCase();
+        const normalizedPath = String(path || "").trim();
+        const isSafeMethod = normalizedMethod === "GET" || normalizedMethod === "HEAD" || normalizedMethod === "OPTIONS";
+        const isIdempotentMutation = normalizedMethod === "PUT" || normalizedMethod === "DELETE";
+        const isAuthPath = normalizedPath.startsWith("/auth/");
+
+        if (code === "API_NETWORK_ERROR" || code === "API_NETWORK_TIMEOUT") {
+            return isSafeMethod || isIdempotentMutation || isAuthPath;
+        }
+        if (code === "API_INVALID_JSON") {
+            return true;
+        }
+        if (status === 0) return true;
+        if (status === 404 || status === 405) {
+            return true;
+        }
+        if (status >= 500 && status <= 599) {
+            return isSafeMethod || isAuthPath;
+        }
+
+        return false;
+    }
+
     async function apiRequest(path, options) {
         const token = sessionStorage.getItem(STORAGE_TOKEN_KEY);
         const headers = Object.assign({ "Content-Type": "application/json" }, options && options.headers ? options.headers : {});
@@ -507,52 +544,97 @@
             headers.Authorization = `Bearer ${token}`;
         }
 
-        const timeout = withRequestTimeout(options && options.signal ? options.signal : undefined, getApiTimeoutMs());
-
-        let response;
-        try {
-            response = await fetch(`${getApiBaseUrl()}${path}`, {
-                method: (options && options.method) || "GET",
-                headers,
-                body: options && options.body ? JSON.stringify(options.body) : undefined,
-                signal: timeout.signal
-            });
-        } catch (error) {
-            const isTimeout = error && error.name === "AbortError";
-            const networkMessage = isTimeout ? "Request timeout" : (error && error.message ? error.message : "Network request failed");
-            const networkError = new Error(normalizeApiErrorDetails(networkMessage, "Network request failed"));
-            networkError.code = isTimeout ? "API_NETWORK_TIMEOUT" : "API_NETWORK_ERROR";
-            networkError.status = 0;
-            throw networkError;
-        } finally {
-            timeout.cancel();
+        const method = (options && options.method) || "GET";
+        const requestBody = options && options.body ? JSON.stringify(options.body) : undefined;
+        const baseCandidates = getApiBaseCandidates();
+        if (baseCandidates.length === 0) {
+            baseCandidates.push(getApiBaseUrl());
         }
 
-        if (!response.ok) {
-            let details = `HTTP ${response.status}`;
-            let code = "";
-            let payload = null;
+        let lastError = null;
+
+        for (let index = 0; index < baseCandidates.length; index += 1) {
+            const baseUrl = baseCandidates[index];
+            const hasNextCandidate = index < baseCandidates.length - 1;
+            const timeout = withRequestTimeout(options && options.signal ? options.signal : undefined, getApiTimeoutMs());
+
+            let response;
             try {
-                payload = await response.json();
-                const validationMessage = extractValidationErrorMessage(payload);
-                details = normalizeApiErrorDetails(validationMessage || payload.error || payload.message, details);
-                code = String(payload.code || "").trim();
-            } catch (_err) {
-                // No-op: use fallback message.
+                response = await fetch(`${baseUrl}${path}`, {
+                    method,
+                    headers,
+                    body: requestBody,
+                    signal: timeout.signal
+                });
+            } catch (error) {
+                const isTimeout = error && error.name === "AbortError";
+                const networkMessage = isTimeout ? "Request timeout" : (error && error.message ? error.message : "Network request failed");
+                const networkError = new Error(normalizeApiErrorDetails(networkMessage, "Network request failed"));
+                networkError.code = isTimeout ? "API_NETWORK_TIMEOUT" : "API_NETWORK_ERROR";
+                networkError.status = 0;
+                lastError = networkError;
+
+                if (hasNextCandidate && shouldRetryApiRequestWithNextBase({ method, path, status: 0, code: networkError.code })) {
+                    continue;
+                }
+
+                throw networkError;
+            } finally {
+                timeout.cancel();
             }
 
-            const apiError = new Error(normalizeApiErrorDetails(details, `HTTP ${response.status}`));
-            apiError.status = response.status;
-            apiError.code = code;
-            apiError.payload = payload;
-            throw apiError;
+            if (!response.ok) {
+                let details = `HTTP ${response.status}`;
+                let code = "";
+                let payload = null;
+                try {
+                    payload = await response.json();
+                    const validationMessage = extractValidationErrorMessage(payload);
+                    details = normalizeApiErrorDetails(validationMessage || payload.error || payload.message, details);
+                    code = String(payload.code || "").trim();
+                } catch (_err) {
+                    // No-op: use fallback message.
+                }
+
+                const apiError = new Error(normalizeApiErrorDetails(details, `HTTP ${response.status}`));
+                apiError.status = response.status;
+                apiError.code = code;
+                apiError.payload = payload;
+                lastError = apiError;
+
+                if (hasNextCandidate && shouldRetryApiRequestWithNextBase({ method, path, status: response.status, code })) {
+                    continue;
+                }
+
+                throw apiError;
+            }
+
+            if (response.status === 204) {
+                setRuntimeApiBaseUrl(baseUrl);
+                return null;
+            }
+
+            try {
+                const payload = await response.json();
+                setRuntimeApiBaseUrl(baseUrl);
+                return payload;
+            } catch (error) {
+                const parseError = new Error(normalizeApiErrorDetails(error && error.message ? error.message : "Invalid JSON response", "Invalid JSON response"));
+                parseError.code = "API_INVALID_JSON";
+                parseError.status = Number(response.status) || 0;
+                parseError.payload = null;
+                lastError = parseError;
+
+                if (hasNextCandidate && shouldRetryApiRequestWithNextBase({ method, path, status: parseError.status, code: parseError.code })) {
+                    continue;
+                }
+
+                throw parseError;
+            }
         }
 
-        if (response.status === 204) {
-            return null;
-        }
-
-        return response.json();
+        if (lastError) throw lastError;
+        throw new Error("API request failed");
     }
 
     async function shouldUseApi() {
