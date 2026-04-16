@@ -3464,20 +3464,81 @@ async function refreshCache() {
         return;
     }
 
-    const releases = await getCollectionMethod.call(adapter, "releases");
-    const artists = await getCollectionMethod.call(adapter, "artists");
-    const events = await getCollectionMethod.call(adapter, "events");
-    const sponsors = await getCollectionMethod.call(adapter, "sponsors");
-    const settings = await getCollectionMethod.call(adapter, "settings");
+    const collectionReaders = [
+        {
+            key: "releases",
+            normalize: normalizeRecordArray,
+            fallback: () => cache.releases
+        },
+        {
+            key: "artists",
+            normalize: normalizeRecordArray,
+            fallback: () => cache.artists
+        },
+        {
+            key: "events",
+            normalize: normalizeRecordArray,
+            fallback: () => cache.events
+        },
+        {
+            key: "sponsors",
+            normalize: normalizeRecordArray,
+            fallback: () => cache.sponsors
+        },
+        {
+            key: "settings",
+            normalize: normalizeRecordObject,
+            fallback: () => cache.settings
+        }
+    ];
+
+    const readResults = await Promise.all(collectionReaders.map(async (reader) => {
+        try {
+            const payload = await getCollectionMethod.call(adapter, reader.key);
+            return {
+                key: reader.key,
+                data: reader.normalize(payload),
+                ok: true,
+                error: null
+            };
+        } catch (error) {
+            if (isUnauthorizedApiError(error)) {
+                throw error;
+            }
+
+            console.error(`Failed to refresh ${reader.key} cache`, error);
+            return {
+                key: reader.key,
+                data: reader.normalize(reader.fallback()),
+                ok: false,
+                error
+            };
+        }
+    }));
+
+    const coreCollectionResults = readResults.filter((entry) => entry.key !== "settings");
+    const anyCoreCollectionLoaded = coreCollectionResults.some((entry) => entry.ok);
+    if (!anyCoreCollectionLoaded) {
+        const firstCoreError = coreCollectionResults.find((entry) => entry.error)?.error;
+        if (firstCoreError) {
+            throw firstCoreError;
+        }
+    }
+
+    const releases = readResults.find((entry) => entry.key === "releases");
+    const artists = readResults.find((entry) => entry.key === "artists");
+    const events = readResults.find((entry) => entry.key === "events");
+    const sponsors = readResults.find((entry) => entry.key === "sponsors");
+    const settings = readResults.find((entry) => entry.key === "settings");
 
     if (sectionNavigationSeq !== navigationSeqAtRefresh) return;
     if (currentSection !== sectionAtRefresh || currentSection !== "dashboard") return;
     if (!dashboardSectionEl.isConnected) return;
-    cache.releases = normalizeRecordArray(releases);
-    cache.artists = normalizeRecordArray(artists);
-    cache.events = normalizeRecordArray(events);
-    cache.sponsors = normalizeRecordArray(sponsors);
-    cache.settings = normalizeRecordObject(settings);
+    cache.releases = releases ? normalizeRecordArray(releases.data) : normalizeRecordArray(cache.releases);
+    cache.artists = artists ? normalizeRecordArray(artists.data) : normalizeRecordArray(cache.artists);
+    cache.events = events ? normalizeRecordArray(events.data) : normalizeRecordArray(cache.events);
+    cache.sponsors = sponsors ? normalizeRecordArray(sponsors.data) : normalizeRecordArray(cache.sponsors);
+    cache.settings = settings ? normalizeRecordObject(settings.data) : normalizeRecordObject(cache.settings);
 }
 
 async function loadDashboard() {
