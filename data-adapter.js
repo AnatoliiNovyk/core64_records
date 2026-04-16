@@ -230,6 +230,31 @@
         return normalized.replace(/\/+$/, "");
     }
 
+    function resolveApiBaseAsUrl(value) {
+        const normalized = normalizeApiBaseUrl(value);
+        if (!normalized || typeof window === "undefined" || !window.location || !window.location.origin) return null;
+        try {
+            return new URL(normalized, window.location.origin);
+        } catch (_error) {
+            return null;
+        }
+    }
+
+    function isSameOriginApiBase(value) {
+        if (typeof window === "undefined" || !window.location || !window.location.origin) return true;
+        const resolvedUrl = resolveApiBaseAsUrl(value);
+        if (!resolvedUrl) return false;
+        return resolvedUrl.origin === window.location.origin;
+    }
+
+    function clearStoredApiBaseUrl() {
+        try {
+            localStorage.removeItem(STORAGE_API_BASE_KEY);
+        } catch (_error) {
+            // Ignore storage failures.
+        }
+    }
+
     function getQueryApiBaseUrlOverride() {
         if (typeof window === "undefined" || !window.location || !window.location.search) return "";
         const params = new URLSearchParams(window.location.search);
@@ -259,17 +284,20 @@
 
         if (runtimeApiBaseUrl) return runtimeApiBaseUrl;
 
-        // Persisted manual override should win over static page config.
-        const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
-        if (storedBase) {
-            runtimeApiBaseUrl = storedBase;
-            return runtimeApiBaseUrl;
-        }
-
         const configBase = normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
         if (configBase) {
             runtimeApiBaseUrl = configBase;
             return runtimeApiBaseUrl;
+        }
+
+        // Stored override is used only as same-origin fallback when page config is absent.
+        const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
+        if (storedBase && isSameOriginApiBase(storedBase)) {
+            runtimeApiBaseUrl = storedBase;
+            return runtimeApiBaseUrl;
+        }
+        if (storedBase && !isSameOriginApiBase(storedBase)) {
+            clearStoredApiBaseUrl();
         }
 
         runtimeApiBaseUrl = "/api";
