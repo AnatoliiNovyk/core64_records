@@ -233,11 +233,18 @@ const ADMIN_I18N = {
         settingsInvalidDomain: "Домен має бути валідним hostname, наприклад core64.online.",
         settingsSectionTitle: "Налаштування сайту",
         settingsLabelTitle: "Назва лейблу",
+        settingsLabelTitleUk: "Назва лейблу (UK)",
+        settingsLabelTitleEn: "Назва лейблу (EN)",
         settingsTitlePlaceholder: "CORE64 Records",
         settingsLabelAbout: "Опис лейблу (перший абзац)",
+        settingsLabelAboutUk: "Опис лейблу / перший абзац (UK)",
+        settingsLabelAboutEn: "Опис лейблу / перший абзац (EN)",
         settingsAboutPlaceholder: "CORE64 Records — незалежний музичний лейбл...",
         settingsLabelMission: "Місія / Другий абзац",
+        settingsLabelMissionUk: "Місія / другий абзац (UK)",
+        settingsLabelMissionEn: "Місія / другий абзац (EN)",
         settingsMissionPlaceholder: "Наша місія — підтримувати андерграунд сцену...",
+        settingsLocalizedFieldsHint: "Заповнюйте UK та EN окремо, щоб публічний сайт коректно перемикав мову контенту.",
         settingsLabelEmail: "Контактний Email",
         settingsEmailPlaceholder: "hello@core64.records",
         settingsHeroMainLogoTitle: "Головне лого Home-секції",
@@ -567,11 +574,18 @@ const ADMIN_I18N = {
         settingsInvalidDomain: "Domain must be a valid hostname, for example core64.online.",
         settingsSectionTitle: "Site settings",
         settingsLabelTitle: "Label name",
+        settingsLabelTitleUk: "Label name (UK)",
+        settingsLabelTitleEn: "Label name (EN)",
         settingsTitlePlaceholder: "CORE64 Records",
         settingsLabelAbout: "Label description (first paragraph)",
+        settingsLabelAboutUk: "Label description / first paragraph (UK)",
+        settingsLabelAboutEn: "Label description / first paragraph (EN)",
         settingsAboutPlaceholder: "CORE64 Records is an independent music label...",
         settingsLabelMission: "Mission / Second paragraph",
+        settingsLabelMissionUk: "Mission / second paragraph (UK)",
+        settingsLabelMissionEn: "Mission / second paragraph (EN)",
         settingsMissionPlaceholder: "Our mission is to support the underground scene...",
+        settingsLocalizedFieldsHint: "Fill in UK and EN separately so the public website switches content language correctly.",
         settingsLabelEmail: "Contact email",
         settingsEmailPlaceholder: "hello@core64.records",
         settingsHeroMainLogoTitle: "Home section main logo",
@@ -3768,9 +3782,12 @@ async function loadSettings() {
     cache.settings = normalizeRecordObject(nextSettings);
     const settingsSectionEl = document.getElementById("section-settings");
     if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
-    const titleInputEl = document.getElementById("setting-title");
-    const aboutInputEl = document.getElementById("setting-about");
-    const missionInputEl = document.getElementById("setting-mission");
+    const titleUkInputEl = document.getElementById("setting-title-uk");
+    const titleEnInputEl = document.getElementById("setting-title-en");
+    const aboutUkInputEl = document.getElementById("setting-about-uk");
+    const aboutEnInputEl = document.getElementById("setting-about-en");
+    const missionUkInputEl = document.getElementById("setting-mission-uk");
+    const missionEnInputEl = document.getElementById("setting-mission-en");
     const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
     const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
@@ -3791,14 +3808,30 @@ async function loadSettings() {
     const captchaErrorMessageEl = document.getElementById("setting-captcha-error-message");
     const captchaMissingTokenMessageEl = document.getElementById("setting-captcha-missing-token-message");
     const captchaInvalidDomainMessageEl = document.getElementById("setting-captcha-invalid-domain-message");
-    if (titleInputEl && titleInputEl.isConnected) {
-        titleInputEl.value = decodeHtmlEntities(cache.settings.title || "");
+    const localizedTitleUk = decodeHtmlEntities(cache.settings.titleUk || cache.settings.title || "");
+    const localizedTitleEn = decodeHtmlEntities(cache.settings.titleEn || cache.settings.title || "");
+    const localizedAboutUk = decodeHtmlEntities(cache.settings.aboutUk || cache.settings.about || "");
+    const localizedAboutEn = decodeHtmlEntities(cache.settings.aboutEn || cache.settings.about || "");
+    const localizedMissionUk = decodeHtmlEntities(cache.settings.missionUk || cache.settings.mission || "");
+    const localizedMissionEn = decodeHtmlEntities(cache.settings.missionEn || cache.settings.mission || "");
+
+    if (titleUkInputEl && titleUkInputEl.isConnected) {
+        titleUkInputEl.value = localizedTitleUk;
     }
-    if (aboutInputEl && aboutInputEl.isConnected) {
-        aboutInputEl.value = decodeHtmlEntities(cache.settings.about || "");
+    if (titleEnInputEl && titleEnInputEl.isConnected) {
+        titleEnInputEl.value = localizedTitleEn;
     }
-    if (missionInputEl && missionInputEl.isConnected) {
-        missionInputEl.value = decodeHtmlEntities(cache.settings.mission || "");
+    if (aboutUkInputEl && aboutUkInputEl.isConnected) {
+        aboutUkInputEl.value = localizedAboutUk;
+    }
+    if (aboutEnInputEl && aboutEnInputEl.isConnected) {
+        aboutEnInputEl.value = localizedAboutEn;
+    }
+    if (missionUkInputEl && missionUkInputEl.isConnected) {
+        missionUkInputEl.value = localizedMissionUk;
+    }
+    if (missionEnInputEl && missionEnInputEl.isConnected) {
+        missionEnInputEl.value = localizedMissionEn;
     }
     if (heroSubtitleUkInputEl && heroSubtitleUkInputEl.isConnected) {
         heroSubtitleUkInputEl.value = decodeHtmlEntities(cache.settings.heroSubtitleUk || "");
@@ -6444,9 +6477,12 @@ async function saveSettings(options = {}) {
     const sectionAtSave = currentSection;
     const navigationSeqAtSave = sectionNavigationSeq;
     const { notifySuccess } = normalizeSaveSettingsOptions(options);
-    const titleInputEl = document.getElementById("setting-title");
-    const aboutInputEl = document.getElementById("setting-about");
-    const missionInputEl = document.getElementById("setting-mission");
+    const titleUkInputEl = document.getElementById("setting-title-uk");
+    const titleEnInputEl = document.getElementById("setting-title-en");
+    const aboutUkInputEl = document.getElementById("setting-about-uk");
+    const aboutEnInputEl = document.getElementById("setting-about-en");
+    const missionUkInputEl = document.getElementById("setting-mission-uk");
+    const missionEnInputEl = document.getElementById("setting-mission-en");
     const heroSubtitleUkInputEl = document.getElementById("setting-hero-subtitle-uk");
     const heroSubtitleEnInputEl = document.getElementById("setting-hero-subtitle-en");
     const emailInputEl = document.getElementById("setting-email");
@@ -6471,7 +6507,33 @@ async function saveSettings(options = {}) {
         console.warn("Logo inputs are unavailable during settings save");
         return false;
     }
-    if (!titleInputEl || !aboutInputEl || !missionInputEl || !heroSubtitleUkInputEl || !heroSubtitleEnInputEl || !emailInputEl || !instagramInputEl || !youtubeInputEl || !soundcloudInputEl || !radioInputEl || !captchaEnabledEl || !captchaProviderEl || !captchaDomainEl || !hcaptchaSiteKeyEl || !hcaptchaSecretKeyEl || !recaptchaSiteKeyEl || !recaptchaSecretKeyEl || !captchaErrorMessageEl || !captchaMissingTokenMessageEl || !captchaInvalidDomainMessageEl || !titleInputEl.isConnected || !aboutInputEl.isConnected || !missionInputEl.isConnected || !heroSubtitleUkInputEl.isConnected || !heroSubtitleEnInputEl.isConnected || !emailInputEl.isConnected || !instagramInputEl.isConnected || !youtubeInputEl.isConnected || !soundcloudInputEl.isConnected || !radioInputEl.isConnected || !captchaEnabledEl.isConnected || !captchaProviderEl.isConnected || !captchaDomainEl.isConnected || !hcaptchaSiteKeyEl.isConnected || !hcaptchaSecretKeyEl.isConnected || !recaptchaSiteKeyEl.isConnected || !recaptchaSecretKeyEl.isConnected || !captchaErrorMessageEl.isConnected || !captchaMissingTokenMessageEl.isConnected || !captchaInvalidDomainMessageEl.isConnected) {
+    const requiredSettingsInputs = [
+        titleUkInputEl,
+        titleEnInputEl,
+        aboutUkInputEl,
+        aboutEnInputEl,
+        missionUkInputEl,
+        missionEnInputEl,
+        heroSubtitleUkInputEl,
+        heroSubtitleEnInputEl,
+        emailInputEl,
+        instagramInputEl,
+        youtubeInputEl,
+        soundcloudInputEl,
+        radioInputEl,
+        captchaEnabledEl,
+        captchaProviderEl,
+        captchaDomainEl,
+        hcaptchaSiteKeyEl,
+        hcaptchaSecretKeyEl,
+        recaptchaSiteKeyEl,
+        recaptchaSecretKeyEl,
+        captchaErrorMessageEl,
+        captchaMissingTokenMessageEl,
+        captchaInvalidDomainMessageEl
+    ];
+
+    if (requiredSettingsInputs.some((inputEl) => !inputEl || !inputEl.isConnected)) {
         console.warn("Core settings inputs are unavailable during settings save");
         return false;
     }
@@ -6530,10 +6592,24 @@ async function saveSettings(options = {}) {
         return false;
     }
 
+    const titleUk = normalizeSettingsPlainText(titleUkInputEl.value, "");
+    const titleEn = normalizeSettingsPlainText(titleEnInputEl.value, "");
+    const aboutUk = normalizeSettingsPlainText(aboutUkInputEl.value, "");
+    const aboutEn = normalizeSettingsPlainText(aboutEnInputEl.value, "");
+    const missionUk = normalizeSettingsPlainText(missionUkInputEl.value, "");
+    const missionEn = normalizeSettingsPlainText(missionEnInputEl.value, "");
+    const activeLanguage = getActiveLanguage() === "en" ? "en" : "uk";
+
     const settings = {
-        title: normalizeSettingsPlainText(titleInputEl.value, ""),
-        about: normalizeSettingsPlainText(aboutInputEl.value, ""),
-        mission: normalizeSettingsPlainText(missionInputEl.value, ""),
+        titleUk,
+        titleEn,
+        aboutUk,
+        aboutEn,
+        missionUk,
+        missionEn,
+        title: activeLanguage === "en" ? (titleEn || titleUk) : (titleUk || titleEn),
+        about: activeLanguage === "en" ? (aboutEn || aboutUk) : (aboutUk || aboutEn),
+        mission: activeLanguage === "en" ? (missionEn || missionUk) : (missionUk || missionEn),
         heroSubtitleUk: normalizeSettingsPlainText(heroSubtitleUkInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         heroSubtitleEn: normalizeSettingsPlainText(heroSubtitleEnInputEl.value, tAdmin("settingsHeroSubtitlePlaceholder")),
         email: normalizeSettingsPlainText(emailInputEl.value, ""),

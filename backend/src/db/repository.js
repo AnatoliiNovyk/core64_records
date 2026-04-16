@@ -154,6 +154,9 @@ async function upsertSettingsHeroSubtitles(queryable, payload, requestedLanguage
     contactCaptchaInvalidDomainMessage: String(payload.contactCaptchaInvalidDomainMessage || "").trim()
   };
 
+  const hasExplicitLocalizedField = (key) => Object.prototype.hasOwnProperty.call(payload, key);
+  const readExplicitLocalizedField = (key) => String(payload[key] ?? "").trim();
+
   const existingI18nResult = await queryable.query(
     `SELECT
       language_code AS "languageCode",
@@ -196,20 +199,27 @@ async function upsertSettingsHeroSubtitles(queryable, payload, requestedLanguage
     return localizedFromPayload[fieldName];
   };
 
+  const resolveExplicitOrLocalizedField = (languageCode, fieldName, explicitKey) => {
+    if (hasExplicitLocalizedField(explicitKey)) {
+      return readExplicitLocalizedField(explicitKey);
+    }
+    return resolveLocalizedField(languageCode, fieldName);
+  };
+
   const localizedByLanguage = {
     uk: {
-      title: resolveLocalizedField("uk", "title"),
-      about: resolveLocalizedField("uk", "about"),
-      mission: resolveLocalizedField("uk", "mission"),
+      title: resolveExplicitOrLocalizedField("uk", "title", "titleUk"),
+      about: resolveExplicitOrLocalizedField("uk", "about", "aboutUk"),
+      mission: resolveExplicitOrLocalizedField("uk", "mission", "missionUk"),
       contactCaptchaErrorMessage: resolveLocalizedField("uk", "contactCaptchaErrorMessage"),
       contactCaptchaMissingTokenMessage: resolveLocalizedField("uk", "contactCaptchaMissingTokenMessage"),
       contactCaptchaInvalidDomainMessage: resolveLocalizedField("uk", "contactCaptchaInvalidDomainMessage"),
       heroSubtitle: heroSubtitleUk
     },
     en: {
-      title: resolveLocalizedField("en", "title"),
-      about: resolveLocalizedField("en", "about"),
-      mission: resolveLocalizedField("en", "mission"),
+      title: resolveExplicitOrLocalizedField("en", "title", "titleEn"),
+      about: resolveExplicitOrLocalizedField("en", "about", "aboutEn"),
+      mission: resolveExplicitOrLocalizedField("en", "mission", "missionEn"),
       contactCaptchaErrorMessage: resolveLocalizedField("en", "contactCaptchaErrorMessage"),
       contactCaptchaMissingTokenMessage: resolveLocalizedField("en", "contactCaptchaMissingTokenMessage"),
       contactCaptchaInvalidDomainMessage: resolveLocalizedField("en", "contactCaptchaInvalidDomainMessage"),
@@ -1224,6 +1234,12 @@ const ADMIN_SETTINGS_SELECT_LOCALIZED = `
     COALESCE(s_i18n_lang.title, s_i18n_default.title, s.title) AS title,
     COALESCE(s_i18n_lang.about, s_i18n_default.about, s.about) AS about,
     COALESCE(s_i18n_lang.mission, s_i18n_default.mission, s.mission) AS mission,
+    COALESCE(s_i18n_uk.title, s.title) AS "titleUk",
+    COALESCE(s_i18n_en.title, s_i18n_uk.title, s.title) AS "titleEn",
+    COALESCE(s_i18n_uk.about, s.about) AS "aboutUk",
+    COALESCE(s_i18n_en.about, s_i18n_uk.about, s.about) AS "aboutEn",
+    COALESCE(s_i18n_uk.mission, s.mission) AS "missionUk",
+    COALESCE(s_i18n_en.mission, s_i18n_uk.mission, s.mission) AS "missionEn",
     email,
     header_logo_url AS "headerLogoUrl",
     footer_logo_url AS "footerLogoUrl",
@@ -1251,6 +1267,12 @@ const ADMIN_SETTINGS_SELECT_LOCALIZED = `
   LEFT JOIN settings_i18n AS s_i18n_default
     ON s_i18n_default.settings_id = s.id
     AND s_i18n_default.language_code = $2
+  LEFT JOIN settings_i18n AS s_i18n_uk
+    ON s_i18n_uk.settings_id = s.id
+    AND s_i18n_uk.language_code = 'uk'
+  LEFT JOIN settings_i18n AS s_i18n_en
+    ON s_i18n_en.settings_id = s.id
+    AND s_i18n_en.language_code = 'en'
   ORDER BY s.id ASC
   LIMIT 1
 `;
@@ -1260,6 +1282,12 @@ const LEGACY_ADMIN_SETTINGS_SELECT_LOCALIZED = `
     COALESCE(s_i18n_lang.title, s_i18n_default.title, s.title) AS title,
     COALESCE(s_i18n_lang.about, s_i18n_default.about, s.about) AS about,
     COALESCE(s_i18n_lang.mission, s_i18n_default.mission, s.mission) AS mission,
+    COALESCE(s_i18n_uk.title, s.title) AS "titleUk",
+    COALESCE(s_i18n_en.title, s_i18n_uk.title, s.title) AS "titleEn",
+    COALESCE(s_i18n_uk.about, s.about) AS "aboutUk",
+    COALESCE(s_i18n_en.about, s_i18n_uk.about, s.about) AS "aboutEn",
+    COALESCE(s_i18n_uk.mission, s.mission) AS "missionUk",
+    COALESCE(s_i18n_en.mission, s_i18n_uk.mission, s.mission) AS "missionEn",
     email,
     header_logo_url AS "headerLogoUrl",
     footer_logo_url AS "footerLogoUrl",
@@ -1285,6 +1313,12 @@ const LEGACY_ADMIN_SETTINGS_SELECT_LOCALIZED = `
   LEFT JOIN settings_i18n AS s_i18n_default
     ON s_i18n_default.settings_id = s.id
     AND s_i18n_default.language_code = $2
+  LEFT JOIN settings_i18n AS s_i18n_uk
+    ON s_i18n_uk.settings_id = s.id
+    AND s_i18n_uk.language_code = 'uk'
+  LEFT JOIN settings_i18n AS s_i18n_en
+    ON s_i18n_en.settings_id = s.id
+    AND s_i18n_en.language_code = 'en'
   ORDER BY s.id ASC
   LIMIT 1
 `;
@@ -1474,10 +1508,23 @@ export async function getAdminSettings(requestedLanguage = config.defaultLanguag
   const baseSettings = await queryAdminSettings(pool, requestedLanguage);
   if (!baseSettings) return null;
   const heroSubtitles = await getSettingsHeroSubtitles(pool);
-  return {
+  const normalized = {
     ...baseSettings,
     ...heroSubtitles
   };
+
+  const fallbackTitle = String(normalized.title || "").trim();
+  const fallbackAbout = String(normalized.about || "").trim();
+  const fallbackMission = String(normalized.mission || "").trim();
+
+  normalized.titleUk = String(normalized.titleUk ?? fallbackTitle).trim();
+  normalized.titleEn = String(normalized.titleEn ?? normalized.titleUk ?? fallbackTitle).trim();
+  normalized.aboutUk = String(normalized.aboutUk ?? fallbackAbout).trim();
+  normalized.aboutEn = String(normalized.aboutEn ?? normalized.aboutUk ?? fallbackAbout).trim();
+  normalized.missionUk = String(normalized.missionUk ?? fallbackMission).trim();
+  normalized.missionEn = String(normalized.missionEn ?? normalized.missionUk ?? fallbackMission).trim();
+
+  return normalized;
 }
 
 export async function saveSettings(payload, requestedLanguage = config.defaultLanguage) {

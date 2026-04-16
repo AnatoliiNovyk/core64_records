@@ -290,17 +290,36 @@
                 <h2 class="text-3xl font-bold mb-8 text-yellow-400" data-i18n="settingsSectionTitle">Налаштування сайту</h2>
                 
                 <div class="card p-6 rounded max-w-2xl space-y-6">
-                    <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelTitle">Назва лейблу</label>
-                        <input type="text" id="setting-title" class="form-input w-full p-3 rounded" data-i18n-title="settingsLabelTitle" data-i18n-placeholder="settingsTitlePlaceholder" title="Назва лейблу" placeholder="CORE64 Records">
+                    <p class="text-xs text-cyan-300/80" data-i18n="settingsLocalizedFieldsHint">Заповнюйте UK та EN окремо, щоб публічний сайт коректно перемикав мову контенту.</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelTitleUk">Назва лейблу (UK)</label>
+                            <input type="text" id="setting-title-uk" class="form-input w-full p-3 rounded" data-i18n-title="settingsLabelTitleUk" placeholder="CORE64 Records">
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelTitleEn">Label name (EN)</label>
+                            <input type="text" id="setting-title-en" class="form-input w-full p-3 rounded" data-i18n-title="settingsLabelTitleEn" placeholder="CORE64 Records Label">
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelAbout">Опис лейблу (перший абзац)</label>
-                        <textarea id="setting-about" rows="4" class="form-input w-full p-3 rounded" data-i18n-placeholder="settingsAboutPlaceholder" placeholder="CORE64 Records — незалежний музичний лейбл..."></textarea>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelAboutUk">Опис лейблу / перший абзац (UK)</label>
+                            <textarea id="setting-about-uk" rows="4" class="form-input w-full p-3 rounded" placeholder="CORE64 Records — незалежний музичний лейбл..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelAboutEn">Label description / first paragraph (EN)</label>
+                            <textarea id="setting-about-en" rows="4" class="form-input w-full p-3 rounded" placeholder="CORE64 Records is an independent music label..."></textarea>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelMission">Місія / Другий абзац</label>
-                        <textarea id="setting-mission" rows="4" class="form-input w-full p-3 rounded" data-i18n-placeholder="settingsMissionPlaceholder" placeholder="Наша місія — підтримувати андерграунд сцену..."></textarea>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelMissionUk">Місія / другий абзац (UK)</label>
+                            <textarea id="setting-mission-uk" rows="4" class="form-input w-full p-3 rounded" placeholder="Наша місія — підтримувати андерграунд сцену..."></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-gray-400 mb-2 uppercase text-sm" data-i18n="settingsLabelMissionEn">Mission / second paragraph (EN)</label>
+                            <textarea id="setting-mission-en" rows="4" class="form-input w-full p-3 rounded" placeholder="Our mission is to support the underground scene..."></textarea>
+                        </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
@@ -701,7 +720,7 @@
         };
     </script>
     <script src="data-adapter.js"></script>
-    <script src="admin.js"></script>
+    <script src="admin.js?v=2026-04-16-15"></script>
     <script>
         lucide.createIcons();
     </script>
