@@ -2766,6 +2766,10 @@ document.addEventListener("DOMContentLoaded", async () => {
         window.addEventListener("beforeunload", handleUnsavedSettingsBeforeUnload);
         globalEventListenersBound = true;
     }
+
+    // Keep login visibility consistent with adapter auth state in degraded/offline flows.
+    await syncLoginScreenWithAuthState();
+
     if (!isApiAvailableMethod) {
         if (sectionNavigationSeq !== navigationSeqAtBootstrap) return;
         if (currentSection !== sectionAtBootstrap) return;
@@ -2803,6 +2807,29 @@ document.addEventListener("DOMContentLoaded", async () => {
         showApiStatus(tAdmin("apiAdminLoadFailed"));
     }
 });
+
+async function syncLoginScreenWithAuthState() {
+    const sectionAtSync = currentSection;
+    const navigationSeqAtSync = sectionNavigationSeq;
+    const loginScreen = document.getElementById("login-screen");
+    const isAuthenticatedMethod = getAdapterMethod("isAuthenticated");
+    if (!loginScreen || !loginScreen.isConnected || !isAuthenticatedMethod) return;
+
+    try {
+        const isAuth = await isAuthenticatedMethod.call(adapter);
+        if (sectionNavigationSeq !== navigationSeqAtSync) return;
+        if (currentSection !== sectionAtSync) return;
+        if (!loginScreen.isConnected) return;
+        if (isAuth) {
+            loginScreen.classList.add("hidden");
+        }
+    } catch (error) {
+        if (sectionNavigationSeq !== navigationSeqAtSync) return;
+        if (currentSection !== sectionAtSync) return;
+        if (!loginScreen.isConnected) return;
+        console.warn("Failed to sync login visibility with auth state", error);
+    }
+}
 
 async function checkAuth() {
     const sectionAtAuth = currentSection;

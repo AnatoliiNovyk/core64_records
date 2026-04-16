@@ -213,7 +213,11 @@
     const STORAGE_LANG_KEY = "core64_language";
     const STORAGE_API_BASE_KEY = "core64_api_base_url";
     const DEFAULT_API_TIMEOUT_MS = 15000;
+    const API_READINESS_CACHE_TTL_MS = 5000;
+    const API_READINESS_PROBE_TIMEOUT_MS = 2500;
     let runtimeApiBaseUrl = "";
+    let apiReadinessCachedValue = null;
+    let apiReadinessCheckedAtMs = 0;
 
     function deepClone(value) {
         return JSON.parse(JSON.stringify(value));
@@ -275,6 +279,8 @@
         const normalized = normalizeApiBaseUrl(value);
         if (!normalized) return;
         runtimeApiBaseUrl = normalized;
+        apiReadinessCachedValue = null;
+        apiReadinessCheckedAtMs = 0;
         try {
             localStorage.setItem(STORAGE_API_BASE_KEY, normalized);
         } catch (_error) {
@@ -537,6 +543,61 @@
         return false;
     }
 
+    function shouldRequireDatabaseForApi() {
+        const configured = window.CORE64_CONFIG && window.CORE64_CONFIG.requireDatabaseForApi;
+        if (typeof configured === "boolean") return configured;
+        return true;
+    }
+
+    function shouldAllowOfflineAdminAccess() {
+        const configured = window.CORE64_CONFIG && window.CORE64_CONFIG.allowOfflineAdminAccess;
+        if (typeof configured === "boolean") return configured;
+        return true;
+    }
+
+    function isDbUnavailableApiError(error) {
+        const status = Number(error && error.status);
+        const code = String(error && error.code ? error.code : "").trim();
+        return status === 503 || code === "DB_UNAVAILABLE";
+    }
+
+    function isRouteMissingApiError(error) {
+        const status = Number(error && error.status);
+        const code = String(error && error.code ? error.code : "").trim();
+        return status === 404 || status === 405 || code === "API_ROUTE_NOT_FOUND";
+    }
+
+    async function evaluateApiReadiness() {
+        const readinessProbeTimeout = Math.min(getApiTimeoutMs(), API_READINESS_PROBE_TIMEOUT_MS);
+
+        const healthProbe = withRequestTimeout(undefined, readinessProbeTimeout);
+        try {
+            await apiRequest("/health", { signal: healthProbe.signal });
+        } catch (_error) {
+            healthProbe.cancel();
+            return false;
+        } finally {
+            healthProbe.cancel();
+        }
+
+        if (!shouldRequireDatabaseForApi()) {
+            return true;
+        }
+
+        const dbProbe = withRequestTimeout(undefined, readinessProbeTimeout);
+        try {
+            await apiRequest("/health/db", { signal: dbProbe.signal });
+            return true;
+        } catch (error) {
+            dbProbe.cancel();
+            if (isDbUnavailableApiError(error)) return false;
+            if (isRouteMissingApiError(error)) return true;
+            return false;
+        } finally {
+            dbProbe.cancel();
+        }
+    }
+
     async function apiRequest(path, options) {
         const token = sessionStorage.getItem(STORAGE_TOKEN_KEY);
         const headers = Object.assign({ "Content-Type": "application/json" }, options && options.headers ? options.headers : {});
@@ -639,13 +700,23 @@
 
     async function shouldUseApi() {
         const mode = getDataMode();
-        if (mode === "api") return true;
         if (mode === "local") return false;
 
+        const nowMs = Date.now();
+        const hasFreshCachedReadiness = apiReadinessCachedValue !== null
+            && (nowMs - apiReadinessCheckedAtMs) <= API_READINESS_CACHE_TTL_MS;
+        if (hasFreshCachedReadiness) {
+            return apiReadinessCachedValue;
+        }
+
         try {
-            await apiRequest("/health");
-            return true;
+            const isReady = await evaluateApiReadiness();
+            apiReadinessCachedValue = isReady;
+            apiReadinessCheckedAtMs = nowMs;
+            return isReady;
         } catch (_error) {
+            apiReadinessCachedValue = false;
+            apiReadinessCheckedAtMs = nowMs;
             return false;
         }
     }
@@ -1361,6 +1432,11 @@
                 }
             }
 
+            if (getDataMode() === "api" && shouldAllowOfflineAdminAccess()) {
+                sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                return true;
+            }
+
             const localPassword = localStorage.getItem("core64_admin_password") || "core64admin";
             const isValid = password === localPassword;
             if (isValid) {
@@ -1385,6 +1461,11 @@
                     sessionStorage.removeItem(STORAGE_AUTH_KEY);
                     return false;
                 }
+            }
+
+            if (getDataMode() === "api" && shouldAllowOfflineAdminAccess()) {
+                sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                return true;
             }
 
             return sessionStorage.getItem(STORAGE_AUTH_KEY) === "true";
