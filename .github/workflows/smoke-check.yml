@@ -8,8 +8,8 @@ on:
         required: true
         type: string
       core64_admin_password:
-        description: Admin password used by smoke-check auth flow
-        required: true
+        description: Deprecated fallback admin password for smoke-check auth flow (prefer secret CORE64_ADMIN_PASSWORD)
+        required: false
         type: string
       core64_smoke_timeout_ms:
         description: Request timeout in milliseconds
@@ -36,10 +36,36 @@ jobs:
         with:
           node-version: 20
 
+      - name: Resolve admin password source
+        env:
+          CORE64_ADMIN_PASSWORD_SECRET: ${{ secrets['CORE64_ADMIN_PASSWORD'] }}
+          CORE64_ADMIN_PASSWORD_INPUT: ${{ github.event.inputs.core64_admin_password }}
+        run: |
+          if [ -n "$CORE64_ADMIN_PASSWORD_SECRET" ]; then
+            echo "::add-mask::$CORE64_ADMIN_PASSWORD_SECRET"
+            {
+              echo "CORE64_ADMIN_PASSWORD<<EOF"
+              echo "$CORE64_ADMIN_PASSWORD_SECRET"
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            echo "CORE64_ADMIN_PASSWORD_SOURCE=secret" >> "$GITHUB_ENV"
+          elif [ -n "$CORE64_ADMIN_PASSWORD_INPUT" ]; then
+            echo "::add-mask::$CORE64_ADMIN_PASSWORD_INPUT"
+            {
+              echo "CORE64_ADMIN_PASSWORD<<EOF"
+              echo "$CORE64_ADMIN_PASSWORD_INPUT"
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            echo "CORE64_ADMIN_PASSWORD_SOURCE=input_fallback" >> "$GITHUB_ENV"
+            echo "::warning::Input core64_admin_password is deprecated. Configure repository secret CORE64_ADMIN_PASSWORD."
+          else
+            echo "Missing admin password. Configure secret CORE64_ADMIN_PASSWORD or provide fallback input core64_admin_password."
+            exit 1
+          fi
+
       - name: Validate required inputs
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
         run: |
           if [ -z "$CORE64_API_BASE" ]; then
             echo "Missing required input: core64_api_base"
@@ -47,14 +73,13 @@ jobs:
           fi
 
           if [ -z "$CORE64_ADMIN_PASSWORD" ]; then
-            echo "Missing required input: core64_admin_password"
+            echo "Missing resolved admin password. Configure secret CORE64_ADMIN_PASSWORD or fallback input core64_admin_password."
             exit 1
           fi
 
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
         run: node scripts/smoke-check.mjs

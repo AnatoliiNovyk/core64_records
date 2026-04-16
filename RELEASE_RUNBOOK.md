@@ -86,8 +86,10 @@ Emergency-only opt-out for contact smoke:
 CI alternative (single gate run):
 
 - Run GitHub Actions workflow `Pre-Release Gate`.
-- Provide `core64_api_base` and `core64_admin_password` inputs.
+- Provide `core64_api_base` input.
+- Ensure repository secret `CORE64_ADMIN_PASSWORD` is configured for smoke auth.
 - Ensure repository secret `BRANCH_PROTECTION_TOKEN` is configured.
+- Use `core64_admin_password` input only as temporary fallback (deprecated).
 - Ensure release owner diversity check is green (or explicitly overridden for emergency only).
 - Ensure changelog coverage check is green for the selected commit range.
 - Ensure changelog format check is green for changed changelog files in the selected commit range.

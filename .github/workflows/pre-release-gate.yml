@@ -8,8 +8,8 @@ on:
         required: true
         type: string
       core64_admin_password:
-        description: Admin password used by smoke-check auth flow
-        required: true
+        description: Deprecated fallback admin password for smoke-check auth flow (prefer secret CORE64_ADMIN_PASSWORD)
+        required: false
         type: string
       core64_smoke_timeout_ms:
         description: Request timeout in milliseconds for API and UI smoke
@@ -104,10 +104,36 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Resolve admin password source
+        env:
+          CORE64_ADMIN_PASSWORD_SECRET: ${{ secrets['CORE64_ADMIN_PASSWORD'] }}
+          CORE64_ADMIN_PASSWORD_INPUT: ${{ github.event.inputs.core64_admin_password }}
+        run: |
+          if [ -n "$CORE64_ADMIN_PASSWORD_SECRET" ]; then
+            echo "::add-mask::$CORE64_ADMIN_PASSWORD_SECRET"
+            {
+              echo "CORE64_ADMIN_PASSWORD<<EOF"
+              echo "$CORE64_ADMIN_PASSWORD_SECRET"
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            echo "CORE64_ADMIN_PASSWORD_SOURCE=secret" >> "$GITHUB_ENV"
+          elif [ -n "$CORE64_ADMIN_PASSWORD_INPUT" ]; then
+            echo "::add-mask::$CORE64_ADMIN_PASSWORD_INPUT"
+            {
+              echo "CORE64_ADMIN_PASSWORD<<EOF"
+              echo "$CORE64_ADMIN_PASSWORD_INPUT"
+              echo "EOF"
+            } >> "$GITHUB_ENV"
+            echo "CORE64_ADMIN_PASSWORD_SOURCE=input_fallback" >> "$GITHUB_ENV"
+            echo "::warning::Input core64_admin_password is deprecated. Configure repository secret CORE64_ADMIN_PASSWORD."
+          else
+            echo "Missing admin password. Configure secret CORE64_ADMIN_PASSWORD or provide fallback input core64_admin_password."
+            exit 1
+          fi
+
       - name: Validate required inputs
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
           CORE64_SMOKE_RATE_LIMIT_CHECK: ${{ github.event.inputs.core64_smoke_rate_limit_check }}
@@ -123,7 +149,7 @@ jobs:
           fi
 
           if [ -z "$CORE64_ADMIN_PASSWORD" ]; then
-            echo "Missing required input: core64_admin_password"
+            echo "Missing resolved admin password. Configure secret CORE64_ADMIN_PASSWORD or fallback input core64_admin_password."
             exit 1
           fi
 
@@ -201,7 +227,7 @@ jobs:
 
       - name: Validate workflow secret
         env:
-          BRANCH_PROTECTION_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
+          BRANCH_PROTECTION_TOKEN: ${{ secrets['BRANCH_PROTECTION_TOKEN'] }}
         run: |
           if [ -z "$BRANCH_PROTECTION_TOKEN" ]; then
             echo "Missing required secret: BRANCH_PROTECTION_TOKEN"
@@ -244,7 +270,6 @@ jobs:
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
         run: node scripts/smoke-check.mjs
@@ -252,21 +277,18 @@ jobs:
       - name: Run settings/public contract check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_CONTRACT_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
         run: npm run contract-check:settings-public
 
       - name: Run settings i18n consistency check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_CONSISTENCY_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
         run: npm run consistency-check:settings-i18n
 
       - name: Run API error contract check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_CONTRACT_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
         run: node scripts/verify-api-error-contract.mjs
 
@@ -279,7 +301,6 @@ jobs:
       - name: Run UI smoke
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_UI_HEADLESS: "true"
           CORE64_UI_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
         run: npm run ui-smoke
@@ -287,7 +308,7 @@ jobs:
       - name: Verify branch protection policy
         shell: pwsh
         env:
-          BRANCH_PROTECTION_TOKEN: ${{ secrets.BRANCH_PROTECTION_TOKEN }}
+          BRANCH_PROTECTION_TOKEN: ${{ secrets['BRANCH_PROTECTION_TOKEN'] }}
         run: |
           $expectedContexts = "${{ github.event.inputs.expected_check_contexts }}".Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" }
           if ($expectedContexts.Count -eq 0) {
@@ -307,7 +328,6 @@ jobs:
         if: ${{ github.event.inputs.core64_smoke_rate_limit_check == 'true' }}
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_ADMIN_PASSWORD: ${{ github.event.inputs.core64_admin_password }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_CONTACT: "false"
           CORE64_SMOKE_RATE_LIMIT_CHECK: "true"

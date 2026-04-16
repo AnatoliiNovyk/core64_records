@@ -122,23 +122,38 @@ function Resolve-AdminPassword {
     )
 
     if (-not [string]::IsNullOrWhiteSpace($env:CORE64_ADMIN_PASSWORD)) {
-        return $env:CORE64_ADMIN_PASSWORD.Trim()
+        return @{
+            Password = $env:CORE64_ADMIN_PASSWORD.Trim()
+            Source = "env:CORE64_ADMIN_PASSWORD"
+        }
     }
 
     if (-not [string]::IsNullOrWhiteSpace($RequestedPassword) -and $RequestedPassword -ne "core64admin") {
-        return $RequestedPassword
+        return @{
+            Password = $RequestedPassword
+            Source = "parameter:Core64AdminPassword"
+        }
     }
 
     $backendAdminPassword = Get-BackendEnvValue -Key "ADMIN_PASSWORD" -EnvPath (Join-Path $repoRoot "backend/.env")
     if (-not [string]::IsNullOrWhiteSpace($backendAdminPassword)) {
-        return $backendAdminPassword
+        return @{
+            Password = $backendAdminPassword
+            Source = "backend/.env:ADMIN_PASSWORD"
+        }
     }
 
     if (-not [string]::IsNullOrWhiteSpace($RequestedPassword)) {
-        return $RequestedPassword
+        return @{
+            Password = $RequestedPassword
+            Source = "default-parameter"
+        }
     }
 
-    return "core64admin"
+    return @{
+        Password = "core64admin"
+        Source = "hardcoded-default"
+    }
 }
 
 function Invoke-SmokeCheck {
@@ -287,9 +302,15 @@ if ($ExpectedCheckContexts.Count -eq 0) {
     throw "ExpectedCheckContexts cannot be empty."
 }
 
-$resolvedCore64AdminPassword = Resolve-AdminPassword -RequestedPassword $Core64AdminPassword
+$resolvedAdminPassword = Resolve-AdminPassword -RequestedPassword $Core64AdminPassword
+$resolvedCore64AdminPassword = [string]$resolvedAdminPassword.Password
 if ([string]::IsNullOrWhiteSpace($resolvedCore64AdminPassword)) {
-    throw "Core64AdminPassword could not be resolved. Set CORE64_ADMIN_PASSWORD env var or backend/.env ADMIN_PASSWORD."
+    throw "Core64AdminPassword could not be resolved. Set CORE64_ADMIN_PASSWORD env var, pass -Core64AdminPassword, or set backend/.env ADMIN_PASSWORD."
+}
+
+Write-Host "[info] CORE64_ADMIN_PASSWORD source: $($resolvedAdminPassword.Source)"
+if ($resolvedAdminPassword.Source -eq "default-parameter" -or $resolvedAdminPassword.Source -eq "hardcoded-default") {
+    Write-Warning "Using default admin password source for local gate. Set CORE64_ADMIN_PASSWORD or pass -Core64AdminPassword for deterministic checks."
 }
 
 Write-Host "[1/22] Validating release owner assignments..."

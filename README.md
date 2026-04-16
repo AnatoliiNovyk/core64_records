@@ -251,9 +251,13 @@ GitHub Actions workflow is available at:
 It runs as a manual pre-release gate (`workflow_dispatch`) with inputs:
 
 - `core64_api_base` (example: `https://your-domain/api`)
-- `core64_admin_password`
 - `core64_smoke_timeout_ms` (optional, default `15000`)
 - `core64_smoke_contact` (optional, default `false`)
+- `core64_admin_password` (optional deprecated fallback; prefer repository secret `CORE64_ADMIN_PASSWORD`)
+
+Required repository secret:
+
+- `CORE64_ADMIN_PASSWORD`
 
 ## CI Branch Protection Verification
 
@@ -300,6 +304,11 @@ Pre-release gate input validation:
 
 The shared input `core64_smoke_timeout_ms` is reused by both `smoke-check` and `ui-smoke` in the unified gate.
 
+Admin password resolution in CI gate:
+
+- repository secret `CORE64_ADMIN_PASSWORD` (primary)
+- workflow input `core64_admin_password` (deprecated fallback)
+
 For contact endpoint coverage, enable smoke contact check:
 
 - CI input: `core64_smoke_contact=true`
@@ -308,6 +317,7 @@ For contact endpoint coverage, enable smoke contact check:
 
 Required repository secret:
 
+- `CORE64_ADMIN_PASSWORD`
 - `BRANCH_PROTECTION_TOKEN`
 
 ## CI Deploy to Google Run
