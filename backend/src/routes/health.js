@@ -2,6 +2,7 @@ import { Router } from "express";
 import dns from "node:dns/promises";
 import net from "node:net";
 import { pool } from "../db/pool.js";
+import { getFirestoreDb } from "../db/firestoreClient.js";
 import { config } from "../config.js";
 import { classifyDatabaseError, sanitizeDatabaseErrorCode } from "../utils/dbError.js";
 import { logger } from "../utils/logger.js";
@@ -10,6 +11,10 @@ const router = Router();
 
 function isPostgresHealthCheckEnabled() {
   return config.dataBackend === "postgres" || config.dataBackend === "dual";
+}
+
+function isFirestoreHealthCheckEnabled() {
+  return config.dataBackend === "firestore";
 }
 
 function getSafeDatabaseTarget() {
@@ -116,6 +121,45 @@ router.get("/health/db", async (req, res) => {
   const startedAt = Date.now();
   const target = getSafeDatabaseTarget();
   const connectionTimeoutMs = config.dbConnectionTimeoutMs;
+
+  if (isFirestoreHealthCheckEnabled()) {
+    try {
+      const firestore = await getFirestoreDb();
+      await firestore.collection("_health").doc("ping").get();
+
+      return res.json({
+        status: "ok",
+        database: "ok",
+        service: "core64-api",
+        backend: "firestore",
+        durationMs: Date.now() - startedAt,
+        target,
+        time: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error("health.db.firestore_check_failed", {
+        requestId: String(res.getHeader("x-request-id") || ""),
+        method: req.method,
+        path: req.path,
+        target,
+        error
+      });
+
+      return res.status(503).json({
+        status: "degraded",
+        database: "unavailable",
+        code: "DB_UNAVAILABLE",
+        error: "Database connectivity check failed",
+        details: {
+          kind: "firestore",
+          dbCode: sanitizeDatabaseErrorCode(error),
+          durationMs: Date.now() - startedAt,
+          target
+        },
+        time: new Date().toISOString()
+      });
+    }
+  }
 
   if (!isPostgresHealthCheckEnabled()) {
     return res.status(503).json({
