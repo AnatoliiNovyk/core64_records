@@ -861,6 +861,65 @@ function toDbValue(key, value) {
   return [key, value];
 }
 
+function payloadKeyFromDbColumn(column) {
+  if (column === "ticket_link") return "ticketLink";
+  if (column === "release_type") return "releaseType";
+  if (column === "release_date") return "releaseDate";
+  if (column === "short_description") return "shortDescription";
+  if (column === "sort_order") return "sortOrder";
+  return column;
+}
+
+const tableColumnsCache = new Map();
+
+async function getTableColumns(tableName, forceRefresh = false) {
+  const normalizedTableName = String(tableName || "").trim();
+  if (!normalizedTableName) return null;
+
+  if (!forceRefresh && tableColumnsCache.has(normalizedTableName)) {
+    return tableColumnsCache.get(normalizedTableName);
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = current_schema()
+        AND table_name = $1`,
+      [normalizedTableName]
+    );
+
+    const columns = new Set(
+      (result.rows || [])
+        .map((row) => String(row.column_name || "").trim())
+        .filter(Boolean)
+    );
+
+    tableColumnsCache.set(normalizedTableName, columns);
+    return columns;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function isMissingColumnError(error) {
+  return String(error && error.code ? error.code : "").trim() === "42703";
+}
+
+async function resolveWritableColumns(type, entityConfig, forceRefresh = false) {
+  if (type !== "releases") {
+    return entityConfig.columns;
+  }
+
+  const schemaColumns = await getTableColumns(entityConfig.table, forceRefresh);
+  if (!schemaColumns || schemaColumns.size === 0) {
+    return entityConfig.columns;
+  }
+
+  const writableColumns = entityConfig.columns.filter((column) => schemaColumns.has(column));
+  return writableColumns.length > 0 ? writableColumns : entityConfig.columns;
+}
+
 function toBoundedInteger(value, fallback, min, max) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -918,23 +977,33 @@ export async function listByType(type, requestedLanguage = config.defaultLanguag
 export async function createByType(type, payload) {
   const entityConfig = tableConfig[type];
   const normalizedPayload = type === "releases" ? normalizeReleasePayload(payload) : payload;
-  const mapped = entityConfig.columns.map((column) => {
-    const payloadKey = column === "ticket_link"
-      ? "ticketLink"
-      : (column === "release_type"
-        ? "releaseType"
-        : (column === "release_date"
-          ? "releaseDate"
-          : (column === "short_description"
-            ? "shortDescription"
-            : (column === "sort_order" ? "sortOrder" : column))));
-    return normalizedPayload[payloadKey] ?? "";
-  });
 
-  const placeholders = mapped.map((_, index) => `$${index + 1}`).join(", ");
-  const query = `INSERT INTO ${entityConfig.table} (${entityConfig.columns.join(", ")}) VALUES (${placeholders}) RETURNING *`;
-  const result = await pool.query(query, mapped);
-  const baseRow = result.rows[0];
+  const createWithColumns = async (columns) => {
+    const mapped = columns.map((column) => {
+      const payloadKey = payloadKeyFromDbColumn(column);
+      return normalizedPayload[payloadKey] ?? "";
+    });
+
+    const placeholders = mapped.map((_, index) => `$${index + 1}`).join(", ");
+    const query = `INSERT INTO ${entityConfig.table} (${columns.join(", ")}) VALUES (${placeholders}) RETURNING *`;
+    const result = await pool.query(query, mapped);
+    return result.rows[0] || null;
+  };
+
+  let baseRow = null;
+  const writableColumns = await resolveWritableColumns(type, entityConfig);
+  try {
+    baseRow = await createWithColumns(writableColumns);
+  } catch (error) {
+    if (type !== "releases" || !isMissingColumnError(error)) {
+      throw error;
+    }
+
+    const refreshedColumns = await resolveWritableColumns(type, entityConfig, true);
+    baseRow = await createWithColumns(refreshedColumns);
+  }
+
+  if (!baseRow) return null;
   await upsertEntityTranslations(type, baseRow.id, normalizedPayload, baseRow);
   return fromDbRow(type, baseRow);
 }
@@ -942,29 +1011,44 @@ export async function createByType(type, payload) {
 export async function updateByType(type, id, payload) {
   const entityConfig = tableConfig[type];
   const normalizedPayload = type === "releases" ? normalizeReleasePayload(payload) : payload;
-  const assignments = [];
-  const values = [];
 
-  Object.entries(normalizedPayload).forEach(([key, value]) => {
-    if (key === "id" || key === "i18n") return;
-    const [dbKey, dbValue] = toDbValue(key, value);
-    if (!entityConfig.columns.includes(dbKey)) return;
-    values.push(dbValue);
-    assignments.push(`${dbKey} = $${values.length}`);
-  });
+  const updateWithColumns = async (columns) => {
+    const writableColumns = new Set(columns);
+    const assignments = [];
+    const values = [];
+
+    Object.entries(normalizedPayload).forEach(([key, value]) => {
+      if (key === "id" || key === "i18n") return;
+      const [dbKey, dbValue] = toDbValue(key, value);
+      if (!writableColumns.has(dbKey)) return;
+      values.push(dbValue);
+      assignments.push(`${dbKey} = $${values.length}`);
+    });
+
+    if (assignments.length > 0) {
+      values.push(id);
+      const result = await pool.query(
+        `UPDATE ${entityConfig.table} SET ${assignments.join(", ")} WHERE id = $${values.length} RETURNING *`,
+        values
+      );
+      return result.rows[0] || null;
+    }
+
+    const existing = await pool.query(`SELECT * FROM ${entityConfig.table} WHERE id = $1`, [id]);
+    return existing.rows[0] || null;
+  };
 
   let row = null;
+  const writableColumns = await resolveWritableColumns(type, entityConfig);
+  try {
+    row = await updateWithColumns(writableColumns);
+  } catch (error) {
+    if (type !== "releases" || !isMissingColumnError(error)) {
+      throw error;
+    }
 
-  if (assignments.length > 0) {
-    values.push(id);
-    const result = await pool.query(
-      `UPDATE ${entityConfig.table} SET ${assignments.join(", ")} WHERE id = $${values.length} RETURNING *`,
-      values
-    );
-    row = result.rows[0] || null;
-  } else {
-    const existing = await pool.query(`SELECT * FROM ${entityConfig.table} WHERE id = $1`, [id]);
-    row = existing.rows[0] || null;
+    const refreshedColumns = await resolveWritableColumns(type, entityConfig, true);
+    row = await updateWithColumns(refreshedColumns);
   }
 
   if (!row) return null;
