@@ -8,7 +8,18 @@ import { logger } from "../utils/logger.js";
 
 const router = Router();
 
+function isPostgresHealthCheckEnabled() {
+  return config.dataBackend === "postgres" || config.dataBackend === "dual";
+}
+
 function getSafeDatabaseTarget() {
+  if (!isPostgresHealthCheckEnabled()) {
+    return {
+      parse: "skipped",
+      backend: config.dataBackend
+    };
+  }
+
   const value = String(config.databaseUrl || "").trim();
   if (!value) {
     return { parse: "failed" };
@@ -93,13 +104,33 @@ async function runConnectivityProbe(target, connectionTimeoutMs) {
 }
 
 router.get("/health", (_req, res) => {
-  res.json({ status: "ok", service: "core64-api", time: new Date().toISOString() });
+  res.json({
+    status: "ok",
+    service: "core64-api",
+    dataBackend: config.dataBackend,
+    time: new Date().toISOString()
+  });
 });
 
 router.get("/health/db", async (req, res) => {
   const startedAt = Date.now();
   const target = getSafeDatabaseTarget();
   const connectionTimeoutMs = config.dbConnectionTimeoutMs;
+
+  if (!isPostgresHealthCheckEnabled()) {
+    return res.status(503).json({
+      status: "degraded",
+      database: "unavailable",
+      code: "DB_BACKEND_HEALTH_NOT_IMPLEMENTED",
+      error: "Configured data backend health check is not implemented yet",
+      details: {
+        backend: config.dataBackend,
+        durationMs: Date.now() - startedAt,
+        target
+      },
+      time: new Date().toISOString()
+    });
+  }
 
   try {
     await pool.query("SELECT 1");

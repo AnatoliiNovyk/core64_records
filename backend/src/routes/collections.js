@@ -11,7 +11,7 @@ import {
   deleteByType,
   listByType,
   updateByType
-} from "../db/repository.js";
+} from "../db/repository.adapter.js";
 import { resolveLanguage } from "../i18n/language.js";
 import { requireAuth } from "../middleware/auth.js";
 import { config } from "../config.js";

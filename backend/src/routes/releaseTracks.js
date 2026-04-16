@@ -9,7 +9,7 @@ import {
   listReleaseTracksByReleaseId,
   replaceReleaseTracksByReleaseId,
   updateReleaseTrackById
-} from "../db/repository.js";
+} from "../db/repository.adapter.js";
 import { requireAuth } from "../middleware/auth.js";
 import { config } from "../config.js";
 import { createRateLimiter } from "../middleware/security.js";

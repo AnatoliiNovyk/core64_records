@@ -1,6 +1,11 @@
 import { Router } from "express";
 import { contactRequestSchema, contactRequestStatusSchema } from "../middleware/validate.js";
-import { createContactRequest, listContactRequests, updateContactRequestStatus, writeAuditLog } from "../db/repository.js";
+import {
+  createContactRequest,
+  listContactRequests,
+  updateContactRequestStatus,
+  writeAuditLog
+} from "../db/repository.adapter.js";
 import { requireAuth } from "../middleware/auth.js";
 import { verifyContactCaptcha } from "../services/captcha.js";
 import { config } from "../config.js";

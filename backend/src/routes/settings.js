@@ -8,7 +8,7 @@ import {
   saveSectionSettings,
   saveSettingsBundle,
   writeAuditLog
-} from "../db/repository.js";
+} from "../db/repository.adapter.js";
 import { buildSettingsDiff, buildSectionSettingsDiff } from "../utils/settingsAuditDiff.js";
 import { config } from "../config.js";
 import { createRateLimiter } from "../middleware/security.js";

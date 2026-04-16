@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listAuditFacets, listAuditLogs } from "../db/repository.js";
+import { listAuditFacets, listAuditLogs } from "../db/repository.adapter.js";
 import { requireAuth } from "../middleware/auth.js";
 
 const router = Router();

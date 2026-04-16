@@ -1,4 +1,4 @@
-import { getAdminSettings } from "../db/repository.js";
+import { getAdminSettings } from "../db/repository.adapter.js";
 
 const HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify";
 const RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";

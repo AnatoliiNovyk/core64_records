@@ -31,6 +31,7 @@ const readEnvString = (name, fallback = "") => {
 export const config = {
   port: toNumber(process.env.PORT, 3000),
   nodeEnv: readEnvString("NODE_ENV", "development") || "development",
+  dataBackend: readEnvString("DATA_BACKEND", "postgres").toLowerCase(),
   logLevel: readEnvString("LOG_LEVEL", "info").toLowerCase(),
   requestLoggingEnabled: toBoolean(process.env.REQUEST_LOGGING_ENABLED, true),
   requestLoggingMaxBodyChars: toNumber(process.env.REQUEST_LOGGING_MAX_BODY_CHARS, 2048),
@@ -40,6 +41,7 @@ export const config = {
     .map((value) => String(value).trim().toLowerCase())
     .filter(Boolean),
   databaseUrl: readEnvString("DATABASE_URL"),
+  firestoreProjectId: readEnvString("FIRESTORE_PROJECT_ID"),
   dbConnectionTimeoutMs: toNumber(process.env.DB_CONNECTION_TIMEOUT_MS, 15000),
   dbQueryTimeoutMs: toNumber(process.env.DB_QUERY_TIMEOUT_MS, 10000),
   dbStatementTimeoutMs: toNumber(process.env.DB_STATEMENT_TIMEOUT_MS, 10000),
@@ -116,8 +118,15 @@ const validateDatabaseUrl = (value) => {
 export const validateConfig = () => {
   const errors = [];
   const isProduction = config.nodeEnv === "production";
+  const isPostgresEnabled = config.dataBackend === "postgres" || config.dataBackend === "dual";
+  const isFirestoreEnabled = config.dataBackend === "firestore" || config.dataBackend === "dual";
+  const allowedDataBackends = new Set(["postgres", "dual", "firestore"]);
   const allowedLogLevels = new Set(["debug", "info", "warn", "error"]);
   const allowedCspModes = new Set(["enforce", "report-only", "both"]);
+
+  if (!allowedDataBackends.has(config.dataBackend)) {
+    errors.push("DATA_BACKEND must be one of: postgres, dual, firestore.");
+  }
 
   if (!allowedLogLevels.has(config.logLevel)) {
     errors.push("LOG_LEVEL must be one of: debug, info, warn, error.");
@@ -131,9 +140,15 @@ export const validateConfig = () => {
     errors.push("DEFAULT_LANGUAGE must be included in SUPPORTED_LANGUAGES.");
   }
 
-  const databaseUrlError = validateDatabaseUrl(config.databaseUrl);
-  if (databaseUrlError) {
-    errors.push(databaseUrlError);
+  if (isPostgresEnabled) {
+    const databaseUrlError = validateDatabaseUrl(config.databaseUrl);
+    if (databaseUrlError) {
+      errors.push(databaseUrlError);
+    }
+  }
+
+  if (isFirestoreEnabled && !String(config.firestoreProjectId || "").trim()) {
+    errors.push("FIRESTORE_PROJECT_ID is required when DATA_BACKEND is firestore or dual.");
   }
 
   if (!Number.isInteger(config.dbConnectionTimeoutMs) || config.dbConnectionTimeoutMs < 1000) {

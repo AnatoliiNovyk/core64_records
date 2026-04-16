@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listByType, getPublicSettings, getPublicSectionSettings } from "../db/repository.js";
+import { listByType, getPublicSettings, getPublicSectionSettings } from "../db/repository.adapter.js";
 import { resolveLanguage } from "../i18n/language.js";
 
 const router = Router();
