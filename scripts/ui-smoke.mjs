@@ -121,6 +121,28 @@ function ensureOk(result, label) {
     throw new Error(`${label} failed with ${result.response.status}: ${details}`);
 }
 
+async function requestAdminToken(adminPassword) {
+    const login = await requestJson(`${apiBase}/auth/login`, {
+        method: "POST",
+        body: { password: adminPassword }
+    });
+    ensureOk(login, "POST /auth/login (ui smoke)");
+
+    const token = String(login.json?.data?.token || "").trim();
+    if (!token) {
+        throw new Error("POST /auth/login (ui smoke) returned no token");
+    }
+
+    return token;
+}
+
+async function persistAdminSessionToken(page, token) {
+    await page.evaluate((nextToken) => {
+        sessionStorage.setItem("core64_admin_token", nextToken);
+        sessionStorage.setItem("core64_admin_auth", "true");
+    }, token);
+}
+
 function formatValueForError(value) {
     try {
         return JSON.stringify(value);
@@ -331,6 +353,33 @@ async function ensureAdminLoggedIn(page, adminUrl, adminPassword) {
         requestTimeoutMs,
         "wait for admin login screen to hide"
     );
+
+    let token = await page.evaluate(() => sessionStorage.getItem("core64_admin_token") || "");
+    if (!token) {
+        token = await requestAdminToken(adminPassword);
+        await persistAdminSessionToken(page, token);
+    }
+
+    let authMeResult = await requestJson(`${apiBase}/auth/me`, { token });
+    if (!authMeResult.response.ok) {
+        token = await requestAdminToken(adminPassword);
+        await persistAdminSessionToken(page, token);
+        authMeResult = await requestJson(`${apiBase}/auth/me`, { token });
+        ensureOk(authMeResult, "GET /auth/me after session refresh");
+
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await waitForFunction(
+            page,
+            () => {
+                const loginScreen = document.getElementById("login-screen");
+                if (!loginScreen) return true;
+                return loginScreen.classList.contains("hidden");
+            },
+            undefined,
+            requestTimeoutMs,
+            "wait for admin login screen to hide after token refresh"
+        );
+    }
 }
 
 async function openSettingsSection(page) {
