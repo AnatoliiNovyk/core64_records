@@ -289,6 +289,13 @@ jobs:
           echo "::add-mask::$DATABASE_URL_VALUE"
           node scripts/check-postgres-cutover-readiness.mjs --strict
 
+      - name: Run API error contract check
+        env:
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_CONTRACT_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_CONTRACT_AUTH_RATE_LIMIT_ATTEMPTS: "30"
+        run: node scripts/verify-api-error-contract.mjs
+
       - name: Run smoke-check
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
@@ -307,12 +314,6 @@ jobs:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
           CORE64_CONSISTENCY_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
         run: npm run consistency-check:settings-i18n
-
-      - name: Run API error contract check
-        env:
-          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_CONTRACT_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
-        run: node scripts/verify-api-error-contract.mjs
 
       - name: Install UI smoke dependencies
         run: npm ci
