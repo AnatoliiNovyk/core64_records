@@ -380,6 +380,9 @@ async function ensureAdminLoggedIn(page, adminUrl, adminPassword) {
             "wait for admin login screen to hide after token refresh"
         );
     }
+
+    await persistAdminSessionToken(page, token);
+    return token;
 }
 
 async function openSettingsSection(page) {
@@ -402,14 +405,6 @@ async function openSettingsSection(page) {
         requestTimeoutMs,
         "wait for settings section and section settings rows"
     );
-}
-
-async function getAuthToken(page) {
-    const token = await page.evaluate(() => sessionStorage.getItem("core64_admin_token") || "");
-    if (!token) {
-        throw new Error("Admin auth token was not stored in sessionStorage");
-    }
-    return token;
 }
 
 function normalizeSettingsPayload(data) {
@@ -892,8 +887,7 @@ async function run() {
     let restoreResult = null;
 
     try {
-        await ensureAdminLoggedIn(adminPage, adminUrl, adminPassword);
-        token = await getAuthToken(adminPage);
+        token = await ensureAdminLoggedIn(adminPage, adminUrl, adminPassword);
         originalBundle = await fetchOriginalBundle(token);
 
         const mutatedSections = buildMutatedSections(originalBundle.sections);
