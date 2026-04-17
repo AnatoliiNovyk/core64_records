@@ -218,6 +218,14 @@
     let runtimeApiBaseUrl = "";
     let apiReadinessCachedValue = null;
     let apiReadinessCheckedAtMs = 0;
+    let apiReadinessLastReport = {
+        checkedAtMs: 0,
+        ok: null,
+        reason: "not_checked",
+        code: "",
+        status: 0,
+        details: ""
+    };
 
     function deepClone(value) {
         return JSON.parse(JSON.stringify(value));
@@ -551,6 +559,9 @@
         const isSafeMethod = normalizedMethod === "GET" || normalizedMethod === "HEAD" || normalizedMethod === "OPTIONS";
         const isIdempotentMutation = normalizedMethod === "PUT" || normalizedMethod === "DELETE";
         const isAuthPath = normalizedPath.startsWith("/auth/");
+        const isHealthPath = normalizedPath === "/health" || normalizedPath.startsWith("/health?");
+        const isHealthDbPath = normalizedPath === "/health/db" || normalizedPath.startsWith("/health/db?");
+        const isPublicPath = normalizedPath === "/public" || normalizedPath.startsWith("/public?");
 
         if (code === "API_NETWORK_ERROR" || code === "API_NETWORK_TIMEOUT") {
             return isSafeMethod || isIdempotentMutation || isAuthPath;
@@ -561,6 +572,17 @@
         if (status === 0) return true;
         if (status === 404 || status === 405) {
             return true;
+        }
+        if (status === 401) {
+            if (isAuthPath && code === "AUTH_INVALID_CREDENTIALS") {
+                return true;
+            }
+            if (isSafeMethod && (isHealthPath || isHealthDbPath || isPublicPath)) {
+                return true;
+            }
+            if (isSafeMethod && !code) {
+                return true;
+            }
         }
         if (status >= 500 && status <= 599) {
             return isSafeMethod || isAuthPath;
@@ -581,6 +603,18 @@
         return true;
     }
 
+    function updateApiReadinessReport(report) {
+        const normalized = report && typeof report === "object" ? report : {};
+        apiReadinessLastReport = {
+            checkedAtMs: Date.now(),
+            ok: typeof normalized.ok === "boolean" ? normalized.ok : null,
+            reason: String(normalized.reason || "unknown").trim() || "unknown",
+            code: String(normalized.code || "").trim(),
+            status: Number(normalized.status) || 0,
+            details: normalizeApiErrorDetails(normalized.details || "", "", 220)
+        };
+    }
+
     function isDbUnavailableApiError(error) {
         const status = Number(error && error.status);
         const code = String(error && error.code ? error.code : "").trim();
@@ -599,7 +633,14 @@
         const healthProbe = withRequestTimeout(undefined, readinessProbeTimeout);
         try {
             await apiRequest("/health", { signal: healthProbe.signal });
-        } catch (_error) {
+        } catch (error) {
+            updateApiReadinessReport({
+                ok: false,
+                reason: "health_probe_failed",
+                code: String(error && error.code ? error.code : "").trim(),
+                status: Number(error && error.status) || 0,
+                details: String(error && error.message ? error.message : "API health probe failed")
+            });
             healthProbe.cancel();
             return false;
         } finally {
@@ -607,17 +648,56 @@
         }
 
         if (!shouldRequireDatabaseForApi()) {
+            updateApiReadinessReport({
+                ok: true,
+                reason: "api_ready_without_db_probe",
+                code: "",
+                status: 200,
+                details: "Health check passed; DB probe not required"
+            });
             return true;
         }
 
         const dbProbe = withRequestTimeout(undefined, readinessProbeTimeout);
         try {
             await apiRequest("/health/db", { signal: dbProbe.signal });
+            updateApiReadinessReport({
+                ok: true,
+                reason: "api_ready",
+                code: "",
+                status: 200,
+                details: "Health and DB probes passed"
+            });
             return true;
         } catch (error) {
             dbProbe.cancel();
-            if (isDbUnavailableApiError(error)) return false;
-            if (isRouteMissingApiError(error)) return true;
+            if (isDbUnavailableApiError(error)) {
+                updateApiReadinessReport({
+                    ok: false,
+                    reason: "db_unavailable",
+                    code: String(error && error.code ? error.code : "").trim(),
+                    status: Number(error && error.status) || 0,
+                    details: String(error && error.message ? error.message : "Database probe failed")
+                });
+                return false;
+            }
+            if (isRouteMissingApiError(error)) {
+                updateApiReadinessReport({
+                    ok: true,
+                    reason: "db_probe_not_supported",
+                    code: String(error && error.code ? error.code : "").trim(),
+                    status: Number(error && error.status) || 0,
+                    details: String(error && error.message ? error.message : "DB probe route is not available")
+                });
+                return true;
+            }
+            updateApiReadinessReport({
+                ok: false,
+                reason: "db_probe_failed",
+                code: String(error && error.code ? error.code : "").trim(),
+                status: Number(error && error.status) || 0,
+                details: String(error && error.message ? error.message : "DB probe failed")
+            });
             return false;
         } finally {
             dbProbe.cancel();
@@ -856,6 +936,17 @@
             } catch (_error) {
                 return false;
             }
+        },
+
+        getApiReadinessReport() {
+            return {
+                checkedAtMs: Number(apiReadinessLastReport.checkedAtMs) || 0,
+                ok: apiReadinessLastReport.ok,
+                reason: String(apiReadinessLastReport.reason || "unknown"),
+                code: String(apiReadinessLastReport.code || ""),
+                status: Number(apiReadinessLastReport.status) || 0,
+                details: String(apiReadinessLastReport.details || "")
+            };
         },
 
         async getSiteData() {
@@ -1437,31 +1528,23 @@
 
         async login(password) {
             if (await shouldUseApi()) {
-                try {
-                    const response = await apiRequest("/auth/login", {
-                        method: "POST",
-                        body: { password }
-                    });
-                    sessionStorage.setItem(STORAGE_TOKEN_KEY, response.data.token);
-                    sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
-                    return true;
-                } catch (error) {
-                    const errorCode = String(error && error.code ? error.code : "").trim();
-                    if (errorCode === "AUTH_INVALID_CREDENTIALS") {
-                        return false;
-                    }
-                    if (Number(error && error.status) === 401 && /invalid credentials/i.test(String(error && error.message ? error.message : ""))) {
-                        return false;
-                    }
-                    throw error;
-                }
+                const response = await apiRequest("/auth/login", {
+                    method: "POST",
+                    body: { password }
+                });
+                sessionStorage.setItem(STORAGE_TOKEN_KEY, response.data.token);
+                sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                return true;
             }
 
             const mode = getDataMode();
             if (mode === "api" && !shouldAllowOfflineAdminAccess()) {
                 sessionStorage.removeItem(STORAGE_TOKEN_KEY);
                 sessionStorage.removeItem(STORAGE_AUTH_KEY);
-                return false;
+                const error = new Error("Invalid credentials");
+                error.code = "AUTH_INVALID_CREDENTIALS";
+                error.status = 401;
+                throw error;
             }
 
             if (mode === "api" && shouldAllowOfflineAdminAccess()) {
@@ -1473,8 +1556,12 @@
             const isValid = password === localPassword;
             if (isValid) {
                 sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                return true;
             }
-            return isValid;
+            const error = new Error("Invalid credentials");
+            error.code = "AUTH_INVALID_CREDENTIALS";
+            error.status = 401;
+            throw error;
         },
 
         async logout() {

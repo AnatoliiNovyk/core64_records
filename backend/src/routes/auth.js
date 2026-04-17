@@ -18,7 +18,15 @@ const authLoginRateLimiter = createRateLimiter({
 
 router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
   try {
-    const password = String(req.body.password || "");
+    const password = String(req.body?.password || "").trim();
+
+    if (!password) {
+      return sendApiError(res, {
+        status: 400,
+        code: "AUTH_PASSWORD_REQUIRED",
+        error: "Password is required"
+      });
+    }
 
     // Emergency path: if ADMIN_PASSWORD matches, allow login even when DB is degraded.
     if (password && password === config.adminPassword) {

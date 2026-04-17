@@ -381,6 +381,8 @@ const ADMIN_I18N = {
         authNetworkFailed: "Не вдалося з'єднатися з API. Перевірте, що backend запущений і CORS налаштований.",
         authNetworkTimeout: "API не відповів вчасно. Перевірте доступність /api або вкажіть ?apiBaseUrl=https://<api-domain>/api у URL.",
         authServiceUnavailable: "Сервіс авторизації тимчасово недоступний. Перевірте підключення backend до бази даних.",
+        authRateLimited: "Забагато спроб входу. Зачекайте трохи і спробуйте ще раз.",
+        authPasswordRequired: "Введіть пароль для входу.",
         authApiRejected: "Авторизацію відхилено API: {details}",
         authSessionExpired: "Сесію завершено. Увійдіть в адмін-панель повторно.",
         settingsPendingNone: "Відкладених повідомлень немає",
@@ -731,6 +733,8 @@ const ADMIN_I18N = {
         authNetworkFailed: "Unable to reach API. Verify backend is running and CORS is configured.",
         authNetworkTimeout: "API did not respond in time. Verify /api or set ?apiBaseUrl=https://<api-domain>/api in URL.",
         authServiceUnavailable: "Authentication service is temporarily unavailable. Verify backend database connectivity.",
+        authRateLimited: "Too many sign-in attempts. Please wait and try again.",
+        authPasswordRequired: "Enter a password to sign in.",
         authApiRejected: "API rejected authorization: {details}",
         authSessionExpired: "Session expired. Please sign in again.",
         settingsPendingNone: "No queued messages",
@@ -844,6 +848,14 @@ function resolveLoginErrorMessage(error) {
     const status = Number(error && error.status);
     const details = normalizeUiErrorDetails(error && error.message ? error.message : "");
 
+    if (code === "AUTH_INVALID_CREDENTIALS") {
+        return tAdmin("authInvalidPassword");
+    }
+
+    if (code === "AUTH_PASSWORD_REQUIRED") {
+        return tAdmin("authPasswordRequired");
+    }
+
     if (code === "AUTH_ADMIN_NOT_INITIALIZED") {
         return tAdmin("authAdminNotInitialized");
     }
@@ -858,6 +870,10 @@ function resolveLoginErrorMessage(error) {
 
     if (code === "AUTH_SERVICE_UNAVAILABLE") {
         return tAdmin("authServiceUnavailable");
+    }
+
+    if (code === "AUTH_RATE_LIMITED" || status === 429) {
+        return tAdmin("authRateLimited");
     }
 
     if (status === 401) {
@@ -2904,9 +2920,10 @@ async function handleLogin(e) {
             return;
         }
         if (!success) {
-            errorEl.textContent = tAdmin("authInvalidPassword");
-            errorEl.classList.remove("hidden");
-            return;
+            const error = new Error("Invalid credentials");
+            error.code = "AUTH_INVALID_CREDENTIALS";
+            error.status = 401;
+            throw error;
         }
 
         loginScreen.classList.add("hidden");

@@ -103,6 +103,9 @@ const PUBLIC_I18N = {
         footerRights: "© 2024 CORE64 Records. Усі права захищені.",
         goToAdminPanel: "Перейти в адмін-панель",
         apiTemporarilyUnavailable: "Сервіс тимчасово недоступний. Не вдалося отримати дані з API.",
+        apiTemporarilyUnavailableNetwork: "Немає з'єднання з API. Перевірте мережу або спробуйте пізніше.",
+        apiTemporarilyUnavailableTimeout: "API відповідає надто довго. Спробуйте оновити сторінку пізніше.",
+        apiTemporarilyUnavailableDatabase: "API тимчасово недоступний через проблему з базою даних. Спробуйте пізніше.",
         sendingMessage: "Відправка повідомлення...",
         fileTooLargePrefix: "Файл завеликий. Максимум:",
         fileReadFailed: "Не вдалося прочитати файл. Спробуйте інший файл.",
@@ -189,6 +192,9 @@ const PUBLIC_I18N = {
         footerRights: "© 2024 CORE64 Records. All rights reserved.",
         goToAdminPanel: "Open admin panel",
         apiTemporarilyUnavailable: "Service is temporarily unavailable. Failed to fetch data from API.",
+        apiTemporarilyUnavailableNetwork: "Unable to reach API. Check your network or try again later.",
+        apiTemporarilyUnavailableTimeout: "API response timed out. Please refresh later.",
+        apiTemporarilyUnavailableDatabase: "API is temporarily unavailable due to a database issue. Please try again later.",
         sendingMessage: "Sending message...",
         fileTooLargePrefix: "File is too large. Maximum:",
         fileReadFailed: "Failed to read the file. Please try another file.",
@@ -328,6 +334,27 @@ function hidePublicApiStatus() {
     const statusEl = document.getElementById("public-api-status");
     if (!statusEl) return;
     statusEl.classList.add("hidden");
+}
+
+function resolvePublicApiStatusMessage(errorLike) {
+    const source = errorLike && typeof errorLike === "object" ? errorLike : {};
+    const code = String(source.code || "").trim();
+    const status = Number(source.status || 0);
+    const reason = String(source.reason || "").trim().toLowerCase();
+
+    if (reason === "db_unavailable" || code === "DB_UNAVAILABLE" || status === 503) {
+        return tPublic("apiTemporarilyUnavailableDatabase");
+    }
+
+    if (code === "API_NETWORK_TIMEOUT") {
+        return tPublic("apiTemporarilyUnavailableTimeout");
+    }
+
+    if (code === "API_NETWORK_ERROR" || status === 0 || reason === "health_probe_failed") {
+        return tPublic("apiTemporarilyUnavailableNetwork");
+    }
+
+    return tPublic("apiTemporarilyUnavailable");
 }
 
 function updateContactStatus(message, isError) {
@@ -2141,12 +2168,16 @@ async function bootstrap() {
         ? window.CORE64_CONFIG.requireApiOnPublic
         : isProdHost;
     const isApiAvailableMethod = getAdapterMethod("isApiAvailable");
+    const getApiReadinessReportMethod = getAdapterMethod("getApiReadinessReport");
+    let readinessReport = null;
 
     if (requireApi && isApiAvailableMethod) {
         const apiReady = await isApiAvailableMethod.call(adapter);
         if (!apiReady) {
-            showPublicApiStatus(tPublic("apiTemporarilyUnavailable"));
-            return;
+            readinessReport = getApiReadinessReportMethod
+                ? getApiReadinessReportMethod.call(adapter)
+                : null;
+            showPublicApiStatus(resolvePublicApiStatusMessage(readinessReport));
         }
     }
 
@@ -2165,12 +2196,13 @@ async function bootstrap() {
         applyHeroMainLogo(data.settings || {});
     } catch (error) {
         console.error("Failed to load site data", error);
+        const fallback = adapter.defaults;
         if (requireApi) {
-            showPublicApiStatus(tPublic("apiTemporarilyUnavailable"));
-            return;
+            showPublicApiStatus(resolvePublicApiStatusMessage(error || readinessReport || {}));
+        } else {
+            hidePublicApiStatus();
         }
 
-        const fallback = adapter.defaults;
         renderReleases(fallback);
         renderArtists(fallback);
         renderEvents(fallback);
