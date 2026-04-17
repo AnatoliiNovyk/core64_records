@@ -20,6 +20,21 @@ Google Run + Supabase deployment playbook:
   - non-default strong `ADMIN_PASSWORD`
   - `CORS_ORIGIN` without `*`
 
+Before rotating `DATABASE_URL` to a new Postgres target, run cutover preflight against the candidate URL:
+
+```bash
+DATABASE_URL_VALUE="postgresql://user:pass@host:5432/db?sslmode=require" node scripts/check-postgres-cutover-readiness.mjs --strict
+```
+
+PowerShell equivalent:
+
+```powershell
+$env:DATABASE_URL_VALUE = "postgresql://user:pass@host:5432/db?sslmode=require"
+node scripts/check-postgres-cutover-readiness.mjs --strict
+```
+
+The preflight is green only when URL policy validation, DNS lookup, and TCP connection checks all pass.
+
 ## 2. Start Services
 
 From project root:

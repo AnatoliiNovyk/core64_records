@@ -31,6 +31,15 @@ Run local pre-check for required env values:
 pwsh -File scripts/check-google-run-env.ps1
 ```
 
+Before rotating `DATABASE_URL` to a new provider/cluster, run candidate DB preflight:
+
+```powershell
+$env:DATABASE_URL_VALUE = "postgresql://user:pass@host:5432/db?sslmode=require"
+node scripts/check-postgres-cutover-readiness.mjs --strict
+```
+
+This verifies URL policy, DNS, and TCP reachability before deployment.
+
 Ensure required GCP APIs are enabled once (Project Owner action):
 
 ```powershell
