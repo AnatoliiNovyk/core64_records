@@ -342,7 +342,14 @@ function resolvePublicApiStatusMessage(errorLike) {
     const status = Number(source.status || 0);
     const reason = String(source.reason || "").trim().toLowerCase();
 
-    if (reason === "db_unavailable" || code === "DB_UNAVAILABLE" || status === 503) {
+    if (
+        reason === "db_unavailable"
+        || reason === "db_storage_limit"
+        || code === "DB_UNAVAILABLE"
+        || code === "DB_STORAGE_LIMIT_REACHED"
+        || status === 503
+        || status === 507
+    ) {
         return tPublic("apiTemporarilyUnavailableDatabase");
     }
 
@@ -376,7 +383,7 @@ function normalizeUiErrorDetails(value, maxLength = 180) {
 function isDatabaseUnavailableError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
-    return code === "DB_UNAVAILABLE" || status === 503;
+    return code === "DB_UNAVAILABLE" || code === "DB_STORAGE_LIMIT_REACHED" || status === 503 || status === 507;
 }
 
 function resolveContactSubmitErrorMessage(error) {

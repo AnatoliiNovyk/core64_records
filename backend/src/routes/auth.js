@@ -5,6 +5,7 @@ import { config } from "../config.js";
 import { createToken, requireAuth } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/security.js";
 import { sendApiError } from "../utils/apiError.js";
+import { isDatabaseStorageLimitError, sanitizeDatabaseErrorCode } from "../utils/dbError.js";
 import { logger } from "../utils/logger.js";
 
 const router = Router();
@@ -58,12 +59,29 @@ router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
     const token = createToken({ sub: user.id, username: user.username });
     return res.json({ data: { token } });
   } catch (error) {
+    const dbCode = sanitizeDatabaseErrorCode(error);
+    const storageLimitExceeded = isDatabaseStorageLimitError(error);
+
     logger.error("auth.login.failed", {
       requestId: String(res.getHeader("x-request-id") || ""),
       method: req.method,
       path: req.path,
+      dbCode,
+      storageLimitExceeded,
       error
     });
+
+    if (storageLimitExceeded) {
+      return sendApiError(res, {
+        status: 503,
+        code: "AUTH_DB_STORAGE_LIMIT_REACHED",
+        error: "Authentication is temporarily unavailable due to database quota limits",
+        details: {
+          dbCode
+        }
+      });
+    }
+
     return sendApiError(res, {
       status: 503,
       code: "AUTH_SERVICE_UNAVAILABLE",

@@ -4,7 +4,7 @@ import net from "node:net";
 import { pool } from "../db/pool.js";
 import { getFirestoreDb } from "../db/firestoreClient.js";
 import { config } from "../config.js";
-import { classifyDatabaseError, sanitizeDatabaseErrorCode } from "../utils/dbError.js";
+import { classifyDatabaseError, isDatabaseStorageLimitError, sanitizeDatabaseErrorCode } from "../utils/dbError.js";
 import { logger } from "../utils/logger.js";
 
 const router = Router();
@@ -188,9 +188,10 @@ router.get("/health/db", async (req, res) => {
       time: new Date().toISOString()
     });
   } catch (error) {
-    const kind = classifyDatabaseError(error);
+    const storageLimitExceeded = isDatabaseStorageLimitError(error);
+    const kind = storageLimitExceeded ? "storage_limit" : classifyDatabaseError(error);
     const dbCode = sanitizeDatabaseErrorCode(error);
-    const shouldProbe = new Set(["timeout", "network", "connection", "dns"]).has(kind);
+    const shouldProbe = !storageLimitExceeded && new Set(["timeout", "network", "connection", "dns"]).has(kind);
     const probe = shouldProbe ? await runConnectivityProbe(target, connectionTimeoutMs) : null;
     logger.error("health.db.check_failed", {
       requestId: String(res.getHeader("x-request-id") || ""),
@@ -198,15 +199,24 @@ router.get("/health/db", async (req, res) => {
       path: req.path,
       kind,
       dbCode,
+      storageLimitExceeded,
       target,
       error
     });
     res.status(503).json({
       status: "degraded",
       database: "unavailable",
-      code: "DB_UNAVAILABLE",
-      error: "Database connectivity check failed",
-      details: { kind, dbCode, durationMs: Date.now() - startedAt, connectionTimeoutMs, target, probe },
+      code: storageLimitExceeded ? "DB_STORAGE_LIMIT_REACHED" : "DB_UNAVAILABLE",
+      error: storageLimitExceeded ? "Database quota or storage limit reached" : "Database connectivity check failed",
+      details: {
+        kind,
+        dbCode,
+        storageLimitExceeded,
+        durationMs: Date.now() - startedAt,
+        connectionTimeoutMs,
+        target,
+        probe
+      },
       time: new Date().toISOString()
     });
   }

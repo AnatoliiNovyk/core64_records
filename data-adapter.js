@@ -618,7 +618,7 @@
     function isDbUnavailableApiError(error) {
         const status = Number(error && error.status);
         const code = String(error && error.code ? error.code : "").trim();
-        return status === 503 || code === "DB_UNAVAILABLE";
+        return status === 503 || status === 507 || code === "DB_UNAVAILABLE" || code === "DB_STORAGE_LIMIT_REACHED";
     }
 
     function isRouteMissingApiError(error) {

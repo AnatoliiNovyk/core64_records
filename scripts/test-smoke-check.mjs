@@ -433,6 +433,7 @@ function runSmokeCheck(baseUrl, adminPassword, envOverrides = {}) {
         ...process.env,
         CORE64_API_BASE: baseUrl,
         CORE64_ADMIN_PASSWORD: adminPassword,
+        CORE64_SMOKE_MODE: "full",
         CORE64_SMOKE_TIMEOUT_MS: "5000",
         CORE64_SMOKE_RATE_LIMIT_CHECK: "true",
         CORE64_SMOKE_RATE_LIMIT_ATTEMPTS: "3",

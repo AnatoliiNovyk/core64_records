@@ -227,6 +227,7 @@ const ADMIN_I18N = {
         saveRecordFailedDetails: "Не вдалося зберегти запис: {details}",
         saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
         saveRecordDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте зберегти запис пізніше.",
+        saveRecordStorageLimit: "Неможливо зберегти запис: досягнуто ліміт квоти бази даних.",
         saveRecordSessionExpired: "Сесія адміна завершилась. Увійдіть повторно.",
         saveRecordRateLimited: "Забагато змін підряд. Зачекайте кілька секунд і спробуйте знову.",
         saveRecordPayloadTooLarge: "Дані завеликі для збереження. Зменште розмір завантажених файлів.",
@@ -381,6 +382,7 @@ const ADMIN_I18N = {
         authNetworkFailed: "Не вдалося з'єднатися з API. Перевірте, що backend запущений і CORS налаштований.",
         authNetworkTimeout: "API не відповів вчасно. Перевірте доступність /api або вкажіть ?apiBaseUrl=https://<api-domain>/api у URL.",
         authServiceUnavailable: "Сервіс авторизації тимчасово недоступний. Перевірте підключення backend до бази даних.",
+        authStorageLimitReached: "Авторизація тимчасово недоступна через ліміт квоти бази даних. Спробуйте пізніше.",
         authRateLimited: "Забагато спроб входу. Зачекайте трохи і спробуйте ще раз.",
         authPasswordRequired: "Введіть пароль для входу.",
         authApiRejected: "Авторизацію відхилено API: {details}",
@@ -579,6 +581,7 @@ const ADMIN_I18N = {
         saveRecordFailedDetails: "Failed to save record: {details}",
         saveRecordFailed: "Failed to save record. Check data and try again.",
         saveRecordDatabaseUnavailable: "Database is temporarily unavailable. Please try to save again later.",
+        saveRecordStorageLimit: "Unable to save record: database quota limit has been reached.",
         saveRecordSessionExpired: "Admin session expired. Please sign in again.",
         saveRecordRateLimited: "Too many updates in a short time. Wait a few seconds and try again.",
         saveRecordPayloadTooLarge: "Payload is too large to save. Reduce uploaded file size and try again.",
@@ -733,6 +736,7 @@ const ADMIN_I18N = {
         authNetworkFailed: "Unable to reach API. Verify backend is running and CORS is configured.",
         authNetworkTimeout: "API did not respond in time. Verify /api or set ?apiBaseUrl=https://<api-domain>/api in URL.",
         authServiceUnavailable: "Authentication service is temporarily unavailable. Verify backend database connectivity.",
+        authStorageLimitReached: "Authentication is temporarily unavailable due to database quota limits. Please try again later.",
         authRateLimited: "Too many sign-in attempts. Please wait and try again.",
         authPasswordRequired: "Enter a password to sign in.",
         authApiRejected: "API rejected authorization: {details}",
@@ -872,6 +876,10 @@ function resolveLoginErrorMessage(error) {
         return tAdmin("authServiceUnavailable");
     }
 
+    if (code === "AUTH_DB_STORAGE_LIMIT_REACHED") {
+        return tAdmin("authStorageLimitReached");
+    }
+
     if (code === "AUTH_RATE_LIMITED" || status === 429) {
         return tAdmin("authRateLimited");
     }
@@ -894,7 +902,13 @@ function resolveLoginErrorMessage(error) {
 function isDatabaseUnavailableError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
-    return code === "DB_UNAVAILABLE" || status === 503;
+    return code === "DB_UNAVAILABLE" || code === "DB_STORAGE_LIMIT_REACHED" || status === 503 || status === 507;
+}
+
+function isDatabaseStorageLimitError(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
+    return code === "DB_STORAGE_LIMIT_REACHED" || status === 507;
 }
 
 function isPayloadTooLargeError(error) {
@@ -918,6 +932,10 @@ function resolveCrudSaveErrorMessage(error) {
 
     if (status === 429 || /_RATE_LIMITED$/i.test(code)) {
         return tAdmin("saveRecordRateLimited");
+    }
+
+    if (isDatabaseStorageLimitError(error)) {
+        return tAdmin("saveRecordStorageLimit");
     }
 
     if (isDatabaseUnavailableError(error)) {

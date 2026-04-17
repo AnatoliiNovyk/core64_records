@@ -374,6 +374,8 @@ function evaluateDbUnavailableObserverShape(result) {
   const durationMs = Number(details.durationMs);
   const connectionTimeoutMs = Number(details.connectionTimeoutMs);
   const hasTargetShape = String(target.parse || "").trim().length > 0;
+  const acceptedCodes = new Set(["DB_UNAVAILABLE", "DB_STORAGE_LIMIT_REACHED"]);
+  const acceptedErrors = new Set(["Database connectivity check failed", "Database quota or storage limit reached"]);
 
   return {
     status: result.response.status,
@@ -392,8 +394,8 @@ function evaluateDbUnavailableObserverShape(result) {
     },
     ok:
       result.response.status === 503
-      && codeValue === "DB_UNAVAILABLE"
-      && errorValue === "Database connectivity check failed"
+      && acceptedCodes.has(codeValue)
+      && acceptedErrors.has(errorValue)
       && statusLabel === "degraded"
       && databaseLabel === "unavailable"
       && kind.length > 0
