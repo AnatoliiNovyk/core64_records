@@ -752,10 +752,9 @@ async function verifyApiState(token, mutatedSections) {
     };
 }
 
-async function verifyAdminPersistence(page, adminUrl, mutatedSections) {
+async function verifyAdminPersistence(page, adminUrl, adminPassword, mutatedSections) {
     const eventsSection = mutatedSections.find((section) => section.sectionKey === "events");
-    await page.goto(adminUrl, { waitUntil: "domcontentloaded" });
-    await ensureAdminLoggedIn(page, adminUrl, readAdminPasswordFromBackendEnv() || "core64admin");
+    await ensureAdminLoggedIn(page, adminUrl, adminPassword);
     await openSettingsSection(page);
 
     await waitForFunction(
@@ -855,7 +854,7 @@ async function run() {
 
         const apiVerification = await verifyApiState(token, mutatedSections);
         const publicVerification = await verifyPublicUi(publicPage, publicUrl, mutatedSections);
-        const adminVerification = await verifyAdminPersistence(adminPage, adminUrl, mutatedSections);
+        const adminVerification = await verifyAdminPersistence(adminPage, adminUrl, adminPassword, mutatedSections);
 
         restoreResult = await restoreOriginalBundle(token, originalBundle);
 
