@@ -293,6 +293,7 @@ jobs:
         env:
           CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
           CORE64_CONTRACT_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
+          CORE64_CONTRACT_SKIP_AUTH_RATE_LIMIT_CHECK: "true"
           CORE64_CONTRACT_AUTH_RATE_LIMIT_ATTEMPTS: "30"
         run: node scripts/verify-api-error-contract.mjs
 
