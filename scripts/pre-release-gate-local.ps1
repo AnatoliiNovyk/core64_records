@@ -24,6 +24,9 @@ param(
     [int]$Core64ContractRetryDelayMs = 2000,
 
     [Parameter(Mandatory = $false)]
+    [string]$Core64CutoverCandidateDatabaseUrl = "",
+
+    [Parameter(Mandatory = $false)]
     [int]$Core64SmokeRateLimitAttempts = 25,
 
     [Parameter(Mandatory = $false)]
@@ -249,6 +252,28 @@ function Invoke-ApiErrorContractCheck {
     }
 }
 
+function Invoke-CutoverCandidateDbPreflight {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DatabaseUrl
+    )
+
+    $previousDatabaseUrlValue = $env:DATABASE_URL_VALUE
+    $hadDatabaseUrlValue = Test-Path Env:DATABASE_URL_VALUE
+
+    try {
+        $env:DATABASE_URL_VALUE = $DatabaseUrl
+        node scripts/check-postgres-cutover-readiness.mjs --strict
+        return $LASTEXITCODE
+    } finally {
+        if ($hadDatabaseUrlValue) {
+            $env:DATABASE_URL_VALUE = $previousDatabaseUrlValue
+        } else {
+            Remove-Item Env:DATABASE_URL_VALUE -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 if ([string]::IsNullOrWhiteSpace($Token)) {
     $Token = $env:GITHUB_TOKEN
 }
@@ -283,6 +308,10 @@ if ($Core64ContractRetries -lt 1) {
 
 if ($Core64ContractRetryDelayMs -lt 0) {
     throw "Core64ContractRetryDelayMs must be >= 0."
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Core64CutoverCandidateDatabaseUrl)) {
+    $Core64CutoverCandidateDatabaseUrl = $Core64CutoverCandidateDatabaseUrl.Trim()
 }
 
 if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
@@ -356,6 +385,12 @@ if ($LASTEXITCODE -ne 0) {
     throw "DB snapshot helper self-test failed."
 }
 
+Write-Host "Running Postgres cutover preflight helper self-test..."
+node scripts/test-check-postgres-cutover-readiness.mjs
+if ($LASTEXITCODE -ne 0) {
+    throw "Postgres cutover preflight helper self-test failed."
+}
+
 Write-Host "[8/22] Running DATABASE_URL policy helper self-test..."
 node scripts/test-check-database-url-policy.mjs
 if ($LASTEXITCODE -ne 0) {
@@ -414,6 +449,16 @@ Write-Host "[17/22] Running smoke-check helper self-test..."
 node scripts/test-smoke-check.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Smoke-check helper self-test failed."
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Core64CutoverCandidateDatabaseUrl)) {
+    Write-Host "Running candidate Postgres cutover preflight (--strict)..."
+    $cutoverPreflightExitCode = Invoke-CutoverCandidateDbPreflight -DatabaseUrl $Core64CutoverCandidateDatabaseUrl
+    if ($cutoverPreflightExitCode -ne 0) {
+        throw "Candidate Postgres cutover preflight failed."
+    }
+} else {
+    Write-Host "Skipping candidate Postgres cutover preflight (Core64CutoverCandidateDatabaseUrl is empty)."
 }
 
 Write-Host "[18/22] Running API error contract check..."

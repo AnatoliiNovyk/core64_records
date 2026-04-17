@@ -126,6 +126,14 @@ $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
 ```
 
+Optional cutover preflight via local gate (when rotating `DATABASE_URL`):
+
+```powershell
+pwsh -File scripts/pre-release-gate-local.ps1 -Core64CutoverCandidateDatabaseUrl "postgresql://user:pass@host:5432/db?sslmode=require"
+```
+
+When this parameter is provided, the gate runs `scripts/check-postgres-cutover-readiness.mjs --strict` before API contract/smoke checks.
+
 Tokenless local/dev mode (explicit overrides):
 
 ```powershell
