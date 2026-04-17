@@ -32,6 +32,11 @@ on:
         required: false
         default: DATABASE_URL
         type: string
+      cutover_candidate_database_url:
+        description: Optional candidate Postgres DATABASE_URL for strict cutover preflight before rollback smoke
+        required: false
+        default: ""
+        type: string
       auto_fix_pooler_sslmode:
         description: Auto-fix DATABASE_URL pooler sslmode in Secret Manager before strict verdict (true/false)
         required: false
@@ -91,6 +96,7 @@ jobs:
           RUN_POST_ROLLBACK_SMOKE: ${{ github.event.inputs.run_post_rollback_smoke }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
           AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
+          CUTOVER_CANDIDATE_DATABASE_URL: ${{ github.event.inputs.cutover_candidate_database_url }}
           CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
           DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
@@ -123,6 +129,11 @@ jobs:
             exit 1
           fi
 
+          if [ -n "$CUTOVER_CANDIDATE_DATABASE_URL" ] && [[ "$CUTOVER_CANDIDATE_DATABASE_URL" != postgres://* && "$CUTOVER_CANDIDATE_DATABASE_URL" != postgresql://* ]]; then
+            echo "cutover_candidate_database_url must start with postgres:// or postgresql:// when provided"
+            exit 1
+          fi
+
       - name: Validate rollback secrets accessibility
         if: ${{ github.event.inputs.run_post_rollback_smoke == 'true' }}
         env:
@@ -138,10 +149,18 @@ jobs:
           done
 
       - name: Setup Node.js
-        if: ${{ github.event.inputs.run_post_rollback_smoke == 'true' }}
+        if: ${{ github.event.inputs.run_post_rollback_smoke == 'true' || github.event.inputs.cutover_candidate_database_url != '' }}
         uses: actions/setup-node@v5
         with:
           node-version: 20
+
+      - name: Run candidate Postgres cutover preflight
+        if: ${{ github.event.inputs.cutover_candidate_database_url != '' }}
+        env:
+          DATABASE_URL_VALUE: ${{ github.event.inputs.cutover_candidate_database_url }}
+        run: |
+          echo "::add-mask::$DATABASE_URL_VALUE"
+          node scripts/check-postgres-cutover-readiness.mjs --strict
 
       - name: Select rollback revision
         env:

@@ -67,6 +67,7 @@ Manual CI option:
 - Workflow performs fail-fast input validation (no wildcard CORS, non-empty required secret names, valid boolean flags).
 - Workflow validates Artifact Registry repository existence and required Secret Manager values before build/deploy.
 - Workflow can enforce release-owner assignment readiness (`require_release_owner_assignments=true`).
+- Optional workflow input `cutover_candidate_database_url` runs strict candidate DB preflight (`check-postgres-cutover-readiness.mjs --strict`) before runtime config validation and migrations.
 
 Set deployment variables in your shell:
 
@@ -197,3 +198,4 @@ Manual CI rollback option:
 - Run workflow `.github/workflows/rollback-google-run.yml`.
 - Leave `target_revision` empty to auto-pick previous revision.
 - Keep `run_post_rollback_smoke=true` to validate rollback.
+- Optional workflow input `cutover_candidate_database_url` runs strict candidate DB preflight (`check-postgres-cutover-readiness.mjs --strict`) before rollback smoke.

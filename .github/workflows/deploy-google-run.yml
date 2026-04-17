@@ -95,6 +95,11 @@ on:
         required: false
         default: "true"
         type: string
+      cutover_candidate_database_url:
+        description: Optional candidate Postgres DATABASE_URL for strict cutover preflight before deploy
+        required: false
+        default: ""
+        type: string
       db_connection_timeout_ms:
         description: PostgreSQL connection timeout in milliseconds
         required: false
@@ -168,6 +173,7 @@ jobs:
           RUN_DB_SEED: ${{ github.event.inputs.run_db_seed }}
           RUN_POST_DEPLOY_SMOKE: ${{ github.event.inputs.run_post_deploy_smoke }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          CUTOVER_CANDIDATE_DATABASE_URL: ${{ github.event.inputs.cutover_candidate_database_url }}
           DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
           DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
           DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
@@ -214,6 +220,11 @@ jobs:
               exit 1
             fi
           done
+
+          if [ -n "$CUTOVER_CANDIDATE_DATABASE_URL" ] && [[ "$CUTOVER_CANDIDATE_DATABASE_URL" != postgres://* && "$CUTOVER_CANDIDATE_DATABASE_URL" != postgresql://* ]]; then
+            echo "cutover_candidate_database_url must start with postgres:// or postgresql:// when provided"
+            exit 1
+          fi
 
           if [ -z "$RUNTIME_SERVICE_ACCOUNT" ]; then
             echo "Using default runtime service account: github-actions-deployer@$GCP_PROJECT_ID.iam.gserviceaccount.com"
@@ -269,6 +280,14 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 20
+
+      - name: Run candidate Postgres cutover preflight
+        if: ${{ github.event.inputs.cutover_candidate_database_url != '' }}
+        env:
+          DATABASE_URL_VALUE: ${{ github.event.inputs.cutover_candidate_database_url }}
+        run: |
+          echo "::add-mask::$DATABASE_URL_VALUE"
+          node scripts/check-postgres-cutover-readiness.mjs --strict
 
       - name: Validate runtime config from secrets
         env:

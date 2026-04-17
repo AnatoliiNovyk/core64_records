@@ -105,6 +105,7 @@ CI alternative (single gate run):
 - Ensure repository secret `CORE64_ADMIN_PASSWORD` is configured for smoke auth.
 - Ensure repository secret `BRANCH_PROTECTION_TOKEN` is configured.
 - Use `core64_admin_password` input only as temporary fallback (deprecated).
+- Optionally provide `core64_cutover_candidate_database_url` to run strict DB cutover preflight (`check-postgres-cutover-readiness.mjs --strict`) before smoke/contract checks.
 - Ensure release owner diversity check is green (or explicitly overridden for emergency only).
 - Ensure changelog coverage check is green for the selected commit range.
 - Ensure changelog format check is green for changed changelog files in the selected commit range.
