@@ -68,6 +68,11 @@ Manual CI option:
 - Workflow validates Artifact Registry repository existence and required Secret Manager values before build/deploy.
 - Workflow can enforce release-owner assignment readiness (`require_release_owner_assignments=true`).
 - Optional workflow input `cutover_candidate_database_url` runs strict candidate DB preflight (`check-postgres-cutover-readiness.mjs --strict`) before runtime config validation and migrations.
+- Pre-flight order in workflow is fixed and intentional:
+  1. Validate deploy inputs and release-owner assignment readiness.
+  2. Validate Artifact Registry repository and required Secret Manager values.
+  3. Run optional candidate DB preflight when `cutover_candidate_database_url` is provided.
+  4. Validate runtime config and continue with migrate/seed/deploy steps.
 
 Set deployment variables in your shell:
 
@@ -152,6 +157,12 @@ Note:
 - If captcha is disabled, keep `CONTACT_CAPTCHA_PROVIDER=none`; do not bind `CONTACT_CAPTCHA_SECRET` in deploy command.
 - Backend container source is `backend/Dockerfile`.
 - When using a VPC connector with `--vpc-egress private-ranges-only`, only traffic to private IP ranges (RFC 1918) is routed through the connector; public traffic exits directly. Use `all-traffic` to route all outbound traffic through the connector.
+
+Cutover troubleshooting:
+
+- If deploy fails at `Validate GCP resources and secrets`, the candidate preflight step is not executed. Resolve GCP prerequisites first (`gcp_project_id`, `gcp_region`, `artifact_repo`, Secret Manager access).
+- For `core64records`, the expected Artifact Registry settings are `artifact_repo=core64` and `gcp_region=europe-west1`.
+- If deploy reaches `Run candidate Postgres cutover preflight` and fails, inspect DNS/TCP reachability for candidate DB host/port before any runtime cutover.
 
 ## 4. Database Migration (Supabase)
 

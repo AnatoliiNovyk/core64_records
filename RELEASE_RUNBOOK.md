@@ -120,6 +120,12 @@ CI alternative (single gate run):
 - Ensure API error contract check is green.
 - Proceed only when workflow finishes successfully.
 
+Deploy cutover troubleshooting notes:
+
+- In `.github/workflows/deploy-google-run.yml`, candidate DB preflight runs only after deploy input validation, release-owner check, and GCP resources/secrets validation.
+- If deploy fails at `Validate GCP resources and secrets`, treat it as infrastructure/IAM blocker (not candidate DB preflight failure) and fix GCP prerequisites first.
+- For earliest candidate DB signal independent from deploy prerequisites, use `Pre-Release Gate` with `core64_cutover_candidate_database_url`.
+
 Local alternative (single gate command):
 
 ```powershell
