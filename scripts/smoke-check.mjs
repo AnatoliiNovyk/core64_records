@@ -208,6 +208,10 @@ function deriveHealthDbHint(kind, dbCode, durationMs, connectionTimeoutMs, probe
         return "DB connection could not be established. Check DB endpoint, network path, and server availability.";
     }
 
+    if (normalizedKind === "storage_limit" || normalizedCode === "53100") {
+        return "Database quota/storage limit has been reached. Restore DB quota or upgrade plan, then re-run health/full smoke checks.";
+    }
+
     return null;
 }
 
