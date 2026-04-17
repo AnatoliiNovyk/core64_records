@@ -246,6 +246,7 @@ async function run() {
 
   let token = "";
   let originalSettings = null;
+  let originalSettingsEn = null;
 
   try {
     const login = await requestJson("/auth/login", {
@@ -279,15 +280,25 @@ async function run() {
     const currentSettings = await requestJson("/settings", { headers: authHeaders });
     ensureOk(currentSettings, "GET /settings");
 
+    const currentSettingsEn = await requestJson("/settings?lang=en", { headers: authHeaders });
+    ensureOk(currentSettingsEn, "GET /settings?lang=en");
+
     originalSettings = getSettingsPayload(currentSettings.json?.data);
+    originalSettingsEn = getSettingsPayload(currentSettingsEn.json?.data);
 
     const marker = Date.now();
     const expectedValues = buildExpectedContractValues(marker);
     const updatedSettings = {
       ...originalSettings,
       title: expectedValues.title,
+      titleUk: expectedValues.title,
+      titleEn: expectedValues.title,
       about: expectedValues.about,
+      aboutUk: expectedValues.about,
+      aboutEn: expectedValues.about,
       mission: expectedValues.mission,
+      missionUk: expectedValues.mission,
+      missionEn: expectedValues.mission,
       heroSubtitleUk: expectedValues.heroSubtitleUk,
       heroSubtitleEn: expectedValues.heroSubtitleEn,
       headerLogoUrl: expectedValues.headerLogoUrl,
@@ -376,15 +387,29 @@ async function run() {
       "about",
       "mission",
       "headerLogoUrl",
-      "footerLogoUrl",
-      "contactCaptchaErrorMessage",
-      "contactCaptchaMissingTokenMessage",
-      "contactCaptchaInvalidDomainMessage"
+      "footerLogoUrl"
     ];
 
     for (const field of mirroredFields) {
       ensureFieldMatches(report, "expected", "publicUk", field, expectedValues[field], publicUkSettings[field]);
       ensureFieldMatches(report, "expected", "publicEn", field, expectedValues[field], publicEnSettings[field]);
+    }
+
+    const localizedCaptchaFields = [
+      "contactCaptchaErrorMessage",
+      "contactCaptchaMissingTokenMessage",
+      "contactCaptchaInvalidDomainMessage"
+    ];
+    for (const field of localizedCaptchaFields) {
+      ensureFieldMatches(report, "expected.uk", "publicUk", field, expectedValues[field], publicUkSettings[field]);
+      ensureFieldMatches(
+        report,
+        "original.en",
+        "publicEn",
+        field,
+        originalSettingsEn[field],
+        publicEnSettings[field]
+      );
     }
 
     ensureFieldMatches(report, "expected.heroSubtitleUk", "publicUk.heroSubtitle", "heroSubtitle", expectedValues.heroSubtitleUk, publicUkSettings.heroSubtitle);
