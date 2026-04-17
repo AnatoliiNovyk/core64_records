@@ -1762,9 +1762,13 @@ export async function listAuditLogs({
           left(details::text, 512)
         )
         ELSE jsonb_strip_nulls(jsonb_build_object(
-          'isCompact', true,
+          'isCompact', false,
           'source', CASE
             WHEN jsonb_typeof(details->'source') = 'string' THEN left(details->>'source', 120)
+            ELSE NULL
+          END,
+          'diff', CASE
+            WHEN jsonb_typeof(details->'diff') = 'object' THEN details->'diff'
             ELSE NULL
           END,
           'hasDiff', CASE
