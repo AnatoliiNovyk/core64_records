@@ -1,11 +1,14 @@
 name: Smoke Check
 
 on:
+  pull_request:
+    branches:
+      - main
   workflow_dispatch:
     inputs:
       core64_api_base:
         description: API base URL for smoke-check
-        required: true
+        required: false
         type: string
       core64_admin_password:
         description: Deprecated fallback admin password for smoke-check auth flow (prefer secret CORE64_ADMIN_PASSWORD)
@@ -65,10 +68,10 @@ jobs:
 
       - name: Validate required inputs
         env:
-          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base || vars.CORE64_API_BASE }}
         run: |
           if [ -z "$CORE64_API_BASE" ]; then
-            echo "Missing required input: core64_api_base"
+            echo "Missing required input: core64_api_base. Set workflow input or configure repository variable CORE64_API_BASE."
             exit 1
           fi
 
@@ -79,7 +82,7 @@ jobs:
 
       - name: Run smoke-check
         env:
-          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base }}
-          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
-          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
+          CORE64_API_BASE: ${{ github.event.inputs.core64_api_base || vars.CORE64_API_BASE }}
+          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms || '15000' }}
+          CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact || 'false' }}
         run: node scripts/smoke-check.mjs
