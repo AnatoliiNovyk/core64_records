@@ -6243,7 +6243,7 @@ function generateFields(type, item) {
     };
 
     const imagePreview = imageValue ? `<img src="${imageValue}" class="image-preview preview-img mt-2 rounded ${type === 'artist' ? 'w-24 h-24 object-cover' : (type === 'event' ? 'h-32 w-full object-cover' : '')}" style="max-height: 200px;">` : '<img src="" class="image-preview preview-img mt-2 rounded hidden" style="max-height: 200px;">';
-    
+
     const fields = {
         release: `
             <div>
@@ -6424,7 +6424,7 @@ function generateFields(type, item) {
             </div>
         `
     };
-    
+
     return fields[type] || '';
 }
 
