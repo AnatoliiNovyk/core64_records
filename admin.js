@@ -228,7 +228,7 @@ const ADMIN_I18N = {
         saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
         saveRecordNotFound: "Запис не знайдено в базі даних. Можливо, він був видалений — оновіть сторінку і спробуйте ще раз.",
         saveRecordDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте зберегти запис пізніше.",
-        saveRecordStorageLimit: "Неможливо зберегти запис: досягнуто ліміт квоти бази даних.",
+        saveRecordStorageLimit: "Не вдалося зберегти запис: API недоступний і браузерне сховище переповнене. Оновіть сторінку — дані завантажаться з сервера.",
         saveRecordSessionExpired: "Сесія адміна завершилась. Увійдіть повторно.",
         saveRecordRateLimited: "Забагато змін підряд. Зачекайте кілька секунд і спробуйте знову.",
         saveRecordPayloadTooLarge: "Дані завеликі для збереження. Зменште розмір завантажених файлів.",
@@ -583,7 +583,7 @@ const ADMIN_I18N = {
         saveRecordFailed: "Failed to save record. Check data and try again.",
         saveRecordNotFound: "Record not found in database. It may have been deleted — refresh the page and try again.",
         saveRecordDatabaseUnavailable: "Database is temporarily unavailable. Please try to save again later.",
-        saveRecordStorageLimit: "Unable to save record: database quota limit has been reached.",
+        saveRecordStorageLimit: "Unable to save record: the API is unreachable and browser storage is full. Refresh the page to reload data from the server.",
         saveRecordSessionExpired: "Admin session expired. Please sign in again.",
         saveRecordRateLimited: "Too many updates in a short time. Wait a few seconds and try again.",
         saveRecordPayloadTooLarge: "Payload is too large to save. Reduce uploaded file size and try again.",
@@ -910,7 +910,8 @@ function isDatabaseUnavailableError(error) {
 function isDatabaseStorageLimitError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
-    return code === "DB_STORAGE_LIMIT_REACHED" || status === 507;
+    const message = String(error && error.message ? error.message : "");
+    return code === "DB_STORAGE_LIMIT_REACHED" || code === "LOCAL_STORAGE_QUOTA_EXCEEDED" || status === 507 || /quota/i.test(message);
 }
 
 function isPayloadTooLargeError(error) {

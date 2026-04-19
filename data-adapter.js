@@ -526,7 +526,18 @@
     }
 
     function saveLocalData(data) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        } catch (e) {
+            const isQuota = e && (e.name === "QuotaExceededError" || e.code === 22 || (e.message && /quota/i.test(e.message)));
+            if (isQuota) {
+                const err = new Error("Failed to execute 'setItem' on 'Storage': localStorage quota exceeded");
+                err.code = "LOCAL_STORAGE_QUOTA_EXCEEDED";
+                err.status = 507;
+                throw err;
+            }
+            throw e;
+        }
     }
 
     function extractValidationErrorMessage(payload) {
