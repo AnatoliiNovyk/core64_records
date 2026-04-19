@@ -130,6 +130,20 @@ on:
         required: false
         default: "true"
         type: string
+      data_backend:
+        description: Data backend mode (postgres|dual|firestore)
+        required: false
+        default: "postgres"
+        type: choice
+        options:
+          - postgres
+          - dual
+          - firestore
+      firestore_project_id:
+        description: Firestore GCP project ID (required when data_backend is firestore or dual)
+        required: false
+        default: "core64records"
+        type: string
 
 jobs:
   deploy:
@@ -179,6 +193,8 @@ jobs:
           DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
           AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
           REQUIRE_RELEASE_OWNER_ASSIGNMENTS: ${{ github.event.inputs.require_release_owner_assignments }}
+          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
+          FIRESTORE_PROJECT_ID_INPUT: ${{ github.event.inputs.firestore_project_id }}
         run: |
           if [ -z "$CORS_ORIGIN" ]; then
             echo "Missing required input: cors_origin"
@@ -230,6 +246,14 @@ jobs:
             echo "Using default runtime service account: github-actions-deployer@$GCP_PROJECT_ID.iam.gserviceaccount.com"
           fi
 
+          if [ "$DATA_BACKEND" = "firestore" ] || [ "$DATA_BACKEND" = "dual" ]; then
+            if [ -z "$FIRESTORE_PROJECT_ID_INPUT" ]; then
+              echo "firestore_project_id is required when data_backend is firestore or dual"
+              exit 1
+            fi
+            echo "Firestore mode enabled: project=$FIRESTORE_PROJECT_ID_INPUT"
+          fi
+
       - name: Validate release owner assignments
         if: ${{ github.event.inputs.require_release_owner_assignments == 'true' }}
         run: |
@@ -256,13 +280,18 @@ jobs:
           JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
+          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
         run: |
           if ! gcloud artifacts repositories describe "$ARTIFACT_REPO" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
             echo "Artifact Registry repository not found: $ARTIFACT_REPO in $GCP_REGION"
             exit 1
           fi
 
-          for secret_name in "$DATABASE_URL_SECRET_NAME" "$JWT_SECRET_NAME" "$ADMIN_PASSWORD_SECRET_NAME"; do
+          required_secrets=("$JWT_SECRET_NAME" "$ADMIN_PASSWORD_SECRET_NAME")
+          if [ "$DATA_BACKEND" != "firestore" ]; then
+            required_secrets=("$DATABASE_URL_SECRET_NAME" "${required_secrets[@]}")
+          fi
+          for secret_name in "${required_secrets[@]}"; do
             if ! gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$secret_name" >/dev/null 2>&1; then
               echo "Secret missing or inaccessible: $secret_name"
               exit 1
@@ -302,6 +331,8 @@ jobs:
           DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
           DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
           AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
+          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
+          FIRESTORE_PROJECT_ID_INPUT: ${{ github.event.inputs.firestore_project_id }}
         run: |
           export NODE_ENV=production
           export DB_SSL=true
@@ -310,13 +341,20 @@ jobs:
           export DB_CONNECTION_TIMEOUT_MS
           export DB_QUERY_TIMEOUT_MS
           export DB_STATEMENT_TIMEOUT_MS
+          export DATA_BACKEND
+          export FIRESTORE_PROJECT_ID="$FIRESTORE_PROJECT_ID_INPUT"
 
-          export DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+          if [ "$DATA_BACKEND" != "firestore" ]; then
+            export DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+          else
+            export DATABASE_URL=""
+          fi
           export JWT_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$JWT_SECRET_NAME")
           export ADMIN_PASSWORD=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$ADMIN_PASSWORD_SECRET_NAME")
           export CONTACT_CAPTCHA_PROVIDER
           export CORS_ORIGIN
 
+          if [ "$DATA_BACKEND" != "firestore" ]; then
           POLICY_JSON=$(DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs)
           POLICY_VALID=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(Boolean(p.valid)));});")
           POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
@@ -359,6 +397,7 @@ jobs:
 
           echo "DATABASE_URL target snapshot (safe metadata):"
           DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict
+          fi
 
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             export CONTACT_CAPTCHA_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$CONTACT_CAPTCHA_SECRET_NAME")
@@ -476,13 +515,18 @@ jobs:
           DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
           DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
           VPC_CONNECTOR: ${{ github.event.inputs.vpc_connector }}
+          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
+          FIRESTORE_PROJECT_ID: ${{ github.event.inputs.firestore_project_id }}
         run: |
           RUNTIME_SERVICE_ACCOUNT="$RUNTIME_SERVICE_ACCOUNT_INPUT"
           if [ -z "$RUNTIME_SERVICE_ACCOUNT" ]; then
             RUNTIME_SERVICE_ACCOUNT="github-actions-deployer@$GCP_PROJECT_ID.iam.gserviceaccount.com"
           fi
 
-          SECRET_FLAGS="DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest"
+          SECRET_FLAGS="JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest"
+          if [ "$DATA_BACKEND" != "firestore" ]; then
+            SECRET_FLAGS="DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,$SECRET_FLAGS"
+          fi
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             SECRET_FLAGS="$SECRET_FLAGS,CONTACT_CAPTCHA_SECRET=$CONTACT_CAPTCHA_SECRET_NAME:latest"
           fi
@@ -500,7 +544,7 @@ jobs:
             --allow-unauthenticated \
             --no-use-http2 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,DB_CONNECTION_TIMEOUT_MS=$DB_CONNECTION_TIMEOUT_MS,DB_QUERY_TIMEOUT_MS=$DB_QUERY_TIMEOUT_MS,DB_STATEMENT_TIMEOUT_MS=$DB_STATEMENT_TIMEOUT_MS,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER" \
+            --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,DB_CONNECTION_TIMEOUT_MS=$DB_CONNECTION_TIMEOUT_MS,DB_QUERY_TIMEOUT_MS=$DB_QUERY_TIMEOUT_MS,DB_STATEMENT_TIMEOUT_MS=$DB_STATEMENT_TIMEOUT_MS,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER,DATA_BACKEND=$DATA_BACKEND,FIRESTORE_PROJECT_ID=$FIRESTORE_PROJECT_ID" \
             --set-secrets "$SECRET_FLAGS" \
             --port 3000 \
             --cpu 1 \
@@ -534,6 +578,7 @@ jobs:
           CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
           CORE64_SMOKE_MODE: health
+          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
         run: |
           SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
           if [ -z "$SERVICE_URL" ]; then
@@ -556,20 +601,22 @@ jobs:
             exit 1
           fi
 
-          DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
-          if [ -z "$DATABASE_URL" ]; then
-            echo "Unable to read DATABASE_URL from Secret Manager"
-            exit 1
-          fi
+          if [ "$DATA_BACKEND" != "firestore" ]; then
+            DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+            if [ -z "$DATABASE_URL" ]; then
+              echo "Unable to read DATABASE_URL from Secret Manager"
+              exit 1
+            fi
 
-          SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)
-          if [ -z "$SERVICE_JSON" ]; then
-            echo "Unable to fetch Cloud Run service JSON for DB route compatibility check"
-            exit 1
-          fi
+            SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)
+            if [ -z "$SERVICE_JSON" ]; then
+              echo "Unable to fetch Cloud Run service JSON for DB route compatibility check"
+              exit 1
+            fi
 
-          echo "Pre-smoke DB route compatibility verdict (strict mode):"
-          CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-cloud-run-db-route-verdict.mjs --strict
+            echo "Pre-smoke DB route compatibility verdict (strict mode):"
+            CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-cloud-run-db-route-verdict.mjs --strict
+          fi
 
           attempt=1
           until [ "$attempt" -gt "$RETRIES" ]; do
@@ -619,6 +666,7 @@ jobs:
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
           DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
+          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
         run: |
           set +e
 
@@ -628,7 +676,9 @@ jobs:
           echo "Diagnostic: service URL = $SERVICE_URL"
           echo "Diagnostic: latest ready revision = $REVISION"
 
-          DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+          if [ "$DATA_BACKEND" != "firestore" ]; then
+            DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
+          fi
           if [ -n "$DATABASE_URL" ]; then
             echo "Diagnostic: DATABASE_URL target snapshot (safe metadata)"
             DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs
