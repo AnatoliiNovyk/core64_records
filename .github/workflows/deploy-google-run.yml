@@ -80,16 +80,6 @@ on:
         required: false
         default: "true"
         type: string
-      core64_smoke_timeout_ms:
-        description: Smoke-check timeout in milliseconds
-        required: false
-        default: "60000"
-        type: string
-      core64_smoke_retries:
-        description: Post-deploy smoke-check retry attempts
-        required: false
-        default: "3"
-        type: string
       core64_smoke_contact:
         description: Enable optional contact endpoint check in post-deploy smoke (true/false)
         required: false
@@ -574,8 +564,8 @@ jobs:
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
           DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
-          CORE64_SMOKE_TIMEOUT_MS: ${{ github.event.inputs.core64_smoke_timeout_ms }}
-          CORE64_SMOKE_RETRIES: ${{ github.event.inputs.core64_smoke_retries }}
+          CORE64_SMOKE_TIMEOUT_MS: "60000"
+          CORE64_SMOKE_RETRIES: "3"
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
           CORE64_SMOKE_MODE: health
           DATA_BACKEND: ${{ github.event.inputs.data_backend }}
