@@ -129,9 +129,9 @@ export const settingsSchema = z.object({
   aboutEn: z.string().optional().default(""),
   missionUk: z.string().optional().default(""),
   missionEn: z.string().optional().default(""),
-  heroSubtitleUk: z.string().trim().min(1).max(160).optional().default("Neurofunk • Drum & Bass • Breakbeat • Techstep"),
-  heroSubtitleEn: z.string().trim().min(1).max(160).optional().default("Neurofunk • Drum & Bass • Breakbeat • Techstep"),
-  email: z.string().email(),
+  heroSubtitleUk: z.string().trim().max(160).optional().default("Neurofunk • Drum & Bass • Breakbeat • Techstep"),
+  heroSubtitleEn: z.string().trim().max(160).optional().default("Neurofunk • Drum & Bass • Breakbeat • Techstep"),
+  email: z.string().email().or(z.literal("")).optional().default(""),
   headerLogoUrl: z.string().trim().max(4000000).optional().default(""),
   footerLogoUrl: z.string().trim().max(4000000).optional().default(""),
   heroMainLogoDataUrl: z.string().trim().max(4000000).optional().default("").refine(isBrandImageDataUrlOrEmpty, {

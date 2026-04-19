@@ -293,7 +293,7 @@ async function runCollectionsDynamicRateLimitCheck({ token, attempts, expectedSt
 
     const idsTested = normalizedReleases.slice(0, 2).map((release) => release.id);
 
-    if (!releasesResponse.response.ok || idsTested.length < 2) {
+    if (!releasesResponse.response.ok) {
         return {
             enabled: true,
             target: "collections_release_update_dynamic_ids",
@@ -304,10 +304,29 @@ async function runCollectionsDynamicRateLimitCheck({ token, attempts, expectedSt
             expectedCode,
             status: releasesResponse.response.status,
             code: releasesResponse.json?.code || null,
-            error: "Collections rate-limit check requires at least two releases with numeric ids.",
+            error: "Collections rate-limit check failed: releases payload unavailable.",
             retryAfterSeconds: null,
             observedAtAttempt: null,
             ok: false
+        };
+    }
+
+    if (idsTested.length < 2) {
+        return {
+            enabled: true,
+            target: "collections_release_update_dynamic_ids",
+            endpointTemplate: "/releases/:id",
+            idsTested,
+            attempts,
+            expectedStatus,
+            expectedCode,
+            status: releasesResponse.response.status,
+            code: releasesResponse.json?.code || null,
+            error: "Collections rate-limit check skipped: requires at least two releases with numeric ids.",
+            retryAfterSeconds: null,
+            observedAtAttempt: null,
+            ok: true,
+            skipped: true
         };
     }
 
