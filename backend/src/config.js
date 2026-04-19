@@ -42,6 +42,7 @@ export const config = {
     .filter(Boolean),
   databaseUrl: readEnvString("DATABASE_URL"),
   firestoreProjectId: readEnvString("FIRESTORE_PROJECT_ID"),
+  firestoreDatabaseId: readEnvString("FIRESTORE_DATABASE_ID", "(default)"),
   dbConnectionTimeoutMs: toNumber(process.env.DB_CONNECTION_TIMEOUT_MS, 15000),
   dbQueryTimeoutMs: toNumber(process.env.DB_QUERY_TIMEOUT_MS, 10000),
   dbStatementTimeoutMs: toNumber(process.env.DB_STATEMENT_TIMEOUT_MS, 10000),
