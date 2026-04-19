@@ -214,7 +214,7 @@
     const STORAGE_API_BASE_KEY = "core64_api_base_url";
     const DEFAULT_API_TIMEOUT_MS = 15000;
     const API_READINESS_CACHE_TTL_MS = 30000;
-    const API_READINESS_PROBE_TIMEOUT_MS = 1200;
+    const API_READINESS_PROBE_TIMEOUT_MS = 5000;
     let runtimeApiBaseUrl = "";
     let apiReadinessCachedValue = null;
     let apiReadinessCheckedAtMs = 0;

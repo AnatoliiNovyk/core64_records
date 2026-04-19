@@ -2934,6 +2934,7 @@ async function handleLogin(e) {
         return;
     }
     const password = passwordInput.value;
+    let loginSucceeded = false;
 
     try {
         const success = await loginMethod.call(adapter, password);
@@ -2951,6 +2952,7 @@ async function handleLogin(e) {
             throw error;
         }
 
+        loginSucceeded = true;
         loginScreen.classList.add("hidden");
         errorEl.classList.add("hidden");
         passwordInput.value = "";
@@ -2967,17 +2969,19 @@ async function handleLogin(e) {
             console.error("Login failed", error);
             return;
         }
+        console.error("Login failed", error);
+        if (loginSucceeded) {
+            showApiStatus(tAdmin("loadDataApiError"));
+            return;
+        }
         if (!loginScreen.isConnected) {
-            console.error("Login failed", error);
             return;
         }
         if (!errorEl.isConnected) {
-            console.error("Login failed", error);
             return;
         }
         errorEl.textContent = resolveLoginErrorMessage(error);
         errorEl.classList.remove("hidden");
-        console.error("Login failed", error);
     }
 }
 
