@@ -305,6 +305,7 @@ const ADMIN_I18N = {
         settingsSaveMissingAdapter: "Не вдалося зберегти налаштування: відсутній метод adapter.",
         settingsSaveSuccess: "Налаштування збережено",
         settingsSaveFailed: "Не вдалося зберегти налаштування",
+        settingsSaveFailedDetails: "Не вдалося зберегти налаштування: {details}",
         settingsSaveTooLarge: "Не вдалося зберегти: логотипи завеликі для одного запиту. Зменште розмір файлів або стискніть зображення.",
         activitySettingsUpdated: "Оновлено налаштування сайту",
         activitySectionSettingsUpdated: "Оновлено заголовки секцій, назви меню, порядок і видимість",
@@ -660,6 +661,7 @@ const ADMIN_I18N = {
         settingsSaveMissingAdapter: "Failed to save settings: adapter method is missing.",
         settingsSaveSuccess: "Settings saved",
         settingsSaveFailed: "Failed to save settings",
+        settingsSaveFailedDetails: "Failed to save settings: {details}",
         settingsSaveTooLarge: "Failed to save: logos are too large for one request. Reduce file size or compress images.",
         activitySettingsUpdated: "Site settings updated",
         activitySectionSettingsUpdated: "Section titles, menu labels, order, and visibility updated",
@@ -964,6 +966,34 @@ function resolveCrudSaveErrorMessage(error) {
     }
 
     return tAdmin("saveRecordFailed");
+}
+
+function resolveSettingsSaveErrorMessage(error) {
+    const details = normalizeUiErrorDetails(error && error.message ? error.message : "");
+    const status = Number(error && error.status);
+    const code = String(error && error.code ? error.code : "").trim();
+
+    if (isUnauthorizedApiError(error)) {
+        return tAdmin("saveRecordSessionExpired");
+    }
+
+    if (isPayloadTooLargeError(error)) {
+        return tAdmin("settingsSaveTooLarge");
+    }
+
+    if (status === 429 || /_RATE_LIMITED$/i.test(code)) {
+        return tAdmin("saveRecordRateLimited");
+    }
+
+    if (isDatabaseUnavailableError(error)) {
+        return tAdmin("databaseTemporarilyUnavailable");
+    }
+
+    if (details) {
+        return tAdminFormat("settingsSaveFailedDetails", { details });
+    }
+
+    return tAdmin("settingsSaveFailed");
 }
 
 function applyAdminStaticTranslations() {
@@ -7079,9 +7109,7 @@ async function saveSettings(options = {}) {
         if (currentSection !== "settings") return false;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return false;
-        const errorMessage = isDatabaseUnavailableError(error)
-            ? tAdmin("databaseTemporarilyUnavailable")
-            : (isPayloadTooLargeError(error) ? tAdmin("settingsSaveTooLarge") : tAdmin("settingsSaveFailed"));
+        const errorMessage = resolveSettingsSaveErrorMessage(error);
         alert(errorMessage);
         return false;
     }
