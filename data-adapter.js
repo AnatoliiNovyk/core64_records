@@ -1394,6 +1394,38 @@
 
         async createItem(type, item) {
             const collection = normalizeCollectionName(type);
+            const mode = getDataMode();
+            if (mode === "api") {
+                try {
+                    const response = await apiRequest(`/${collection}`, { method: "POST", body: item });
+                    return response.data;
+                } catch (error) {
+                    if (shouldAllowOfflineAdminAccess()) {
+                        const status = Number(error && error.status);
+                        const code = String(error && error.code ? error.code : "").trim();
+                        const canFallbackOffline = status === 0
+                            || status === 404
+                            || status === 405
+                            || status === 503
+                            || status === 507
+                            || code === "API_NETWORK_ERROR"
+                            || code === "API_NETWORK_TIMEOUT"
+                            || code === "API_ROUTE_NOT_FOUND"
+                            || code === "DB_UNAVAILABLE"
+                            || code === "DB_STORAGE_LIMIT_REACHED";
+                        if (canFallbackOffline) {
+                            const data = getLocalData();
+                            if (!data[collection]) data[collection] = [];
+                            data[collection].push(item);
+                            saveLocalData(data);
+                            return item;
+                        }
+                    }
+
+                    throw error;
+                }
+            }
+
             if (await shouldUseApi()) {
                 const response = await apiRequest(`/${collection}`, { method: "POST", body: item });
                 return response.data;
@@ -1408,6 +1440,39 @@
 
         async updateItem(type, id, item) {
             const collection = normalizeCollectionName(type);
+            const mode = getDataMode();
+            if (mode === "api") {
+                try {
+                    const response = await apiRequest(`/${collection}/${id}`, { method: "PUT", body: item });
+                    return response.data;
+                } catch (error) {
+                    if (shouldAllowOfflineAdminAccess()) {
+                        const status = Number(error && error.status);
+                        const code = String(error && error.code ? error.code : "").trim();
+                        const canFallbackOffline = status === 0
+                            || status === 404
+                            || status === 405
+                            || status === 503
+                            || status === 507
+                            || code === "API_NETWORK_ERROR"
+                            || code === "API_NETWORK_TIMEOUT"
+                            || code === "API_ROUTE_NOT_FOUND"
+                            || code === "DB_UNAVAILABLE"
+                            || code === "DB_STORAGE_LIMIT_REACHED";
+                        if (canFallbackOffline) {
+                            const data = getLocalData();
+                            const index = (data[collection] || []).findIndex((entry) => Number(entry.id) === Number(id));
+                            if (index === -1) throw new Error("Item not found");
+                            data[collection][index] = item;
+                            saveLocalData(data);
+                            return item;
+                        }
+                    }
+
+                    throw error;
+                }
+            }
+
             if (await shouldUseApi()) {
                 const response = await apiRequest(`/${collection}/${id}`, { method: "PUT", body: item });
                 return response.data;
@@ -1423,6 +1488,37 @@
 
         async deleteItem(type, id) {
             const collection = normalizeCollectionName(type);
+            const mode = getDataMode();
+            if (mode === "api") {
+                try {
+                    await apiRequest(`/${collection}/${id}`, { method: "DELETE" });
+                    return;
+                } catch (error) {
+                    if (shouldAllowOfflineAdminAccess()) {
+                        const status = Number(error && error.status);
+                        const code = String(error && error.code ? error.code : "").trim();
+                        const canFallbackOffline = status === 0
+                            || status === 404
+                            || status === 405
+                            || status === 503
+                            || status === 507
+                            || code === "API_NETWORK_ERROR"
+                            || code === "API_NETWORK_TIMEOUT"
+                            || code === "API_ROUTE_NOT_FOUND"
+                            || code === "DB_UNAVAILABLE"
+                            || code === "DB_STORAGE_LIMIT_REACHED";
+                        if (canFallbackOffline) {
+                            const data = getLocalData();
+                            data[collection] = (data[collection] || []).filter((entry) => Number(entry.id) !== Number(id));
+                            saveLocalData(data);
+                            return;
+                        }
+                    }
+
+                    throw error;
+                }
+            }
+
             if (await shouldUseApi()) {
                 await apiRequest(`/${collection}/${id}`, { method: "DELETE" });
                 return;
