@@ -43,7 +43,8 @@ async function initializeFirestoreDb() {
     }
   }
 
-  return getFirestore();
+  const databaseId = String(config.firestoreDatabaseId || "(default)").trim();
+  return databaseId && databaseId !== "(default)" ? getFirestore(getApps()[0], databaseId) : getFirestore();
 }
 
 export async function getFirestoreDb() {
