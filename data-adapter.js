@@ -1538,29 +1538,40 @@
         },
 
         async login(password) {
-            if (await shouldUseApi()) {
-                const response = await apiRequest("/auth/login", {
-                    method: "POST",
-                    body: { password }
-                });
-                sessionStorage.setItem(STORAGE_TOKEN_KEY, response.data.token);
-                sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
-                return true;
-            }
-
             const mode = getDataMode();
-            if (mode === "api" && !shouldAllowOfflineAdminAccess()) {
-                sessionStorage.removeItem(STORAGE_TOKEN_KEY);
-                sessionStorage.removeItem(STORAGE_AUTH_KEY);
-                const error = new Error("Invalid credentials");
-                error.code = "AUTH_INVALID_CREDENTIALS";
-                error.status = 401;
-                throw error;
-            }
+            if (mode === "api") {
+                try {
+                    const response = await apiRequest("/auth/login", {
+                        method: "POST",
+                        body: { password }
+                    });
+                    sessionStorage.setItem(STORAGE_TOKEN_KEY, response.data.token);
+                    sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                    return true;
+                } catch (error) {
+                    if (shouldAllowOfflineAdminAccess()) {
+                        const status = Number(error && error.status);
+                        const code = String(error && error.code ? error.code : "").trim();
+                        const canFallbackOffline = status === 0
+                            || status === 404
+                            || status === 405
+                            || status === 503
+                            || status === 507
+                            || code === "API_NETWORK_ERROR"
+                            || code === "API_NETWORK_TIMEOUT"
+                            || code === "API_ROUTE_NOT_FOUND"
+                            || code === "DB_UNAVAILABLE"
+                            || code === "DB_STORAGE_LIMIT_REACHED";
+                        if (canFallbackOffline) {
+                            sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                            return true;
+                        }
+                    }
 
-            if (mode === "api" && shouldAllowOfflineAdminAccess()) {
-                sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
-                return true;
+                    sessionStorage.removeItem(STORAGE_TOKEN_KEY);
+                    sessionStorage.removeItem(STORAGE_AUTH_KEY);
+                    throw error;
+                }
             }
 
             const localPassword = localStorage.getItem("core64_admin_password") || "core64admin";
@@ -1581,19 +1592,38 @@
         },
 
         async isAuthenticated() {
-            if (await shouldUseApi()) {
+            const mode = getDataMode();
+            if (mode === "api") {
                 try {
                     await apiRequest("/auth/me");
                     sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
                     return true;
-                } catch (_error) {
+                } catch (error) {
+                    if (shouldAllowOfflineAdminAccess()) {
+                        const status = Number(error && error.status);
+                        const code = String(error && error.code ? error.code : "").trim();
+                        const canFallbackOffline = status === 0
+                            || status === 404
+                            || status === 405
+                            || status === 503
+                            || status === 507
+                            || code === "API_NETWORK_ERROR"
+                            || code === "API_NETWORK_TIMEOUT"
+                            || code === "API_ROUTE_NOT_FOUND"
+                            || code === "DB_UNAVAILABLE"
+                            || code === "DB_STORAGE_LIMIT_REACHED";
+                        if (canFallbackOffline) {
+                            sessionStorage.setItem(STORAGE_AUTH_KEY, "true");
+                            return true;
+                        }
+                    }
+
                     sessionStorage.removeItem(STORAGE_TOKEN_KEY);
                     sessionStorage.removeItem(STORAGE_AUTH_KEY);
                     return false;
                 }
             }
 
-            const mode = getDataMode();
             if (mode === "api" && !shouldAllowOfflineAdminAccess()) {
                 sessionStorage.removeItem(STORAGE_TOKEN_KEY);
                 sessionStorage.removeItem(STORAGE_AUTH_KEY);
