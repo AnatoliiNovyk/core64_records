@@ -949,12 +949,18 @@ function resolveCrudSaveErrorMessage(error) {
         return tAdmin("saveRecordNotFound");
     }
 
-    if (Number.isFinite(status) && status >= 500) {
-        return tAdmin("saveRecordFailed");
+    if ((status === 400 && code === "VALIDATION_FAILED") || code === "RELEASE_TRACKS_VALIDATION_FAILED") {
+        return details
+            ? tAdminFormat("saveRecordFailedDetails", { details })
+            : tAdmin("saveRecordFailed");
     }
 
     if (details) {
         return tAdminFormat("saveRecordFailedDetails", { details });
+    }
+
+    if (Number.isFinite(status) && status >= 500) {
+        return tAdmin("saveRecordFailed");
     }
 
     return tAdmin("saveRecordFailed");
@@ -1292,11 +1298,29 @@ function extractIsoDatePrefix(value) {
 
 function normalizeReleaseDateValue(value, fallback = "") {
     if (typeof value !== "string") return fallback;
-    const normalizedIso = normalizeIsoDateFilter(value);
+    const normalizedValue = value.trim();
+    const normalizedIso = normalizeIsoDateFilter(normalizedValue);
     if (normalizedIso) return normalizedIso;
-    const parsedLocalIso = formatDateToLocalIso(new Date(value), "");
+
+    // Accept day-first dotted dates regardless of active UI language, e.g. 25.03.2026.
+    const dayFirstMatch = normalizedValue.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
+    if (dayFirstMatch) {
+        const dayFirstIso = buildIsoDateFromParts(
+            Number(dayFirstMatch[3]),
+            Number(dayFirstMatch[2]),
+            Number(dayFirstMatch[1])
+        );
+        if (dayFirstIso) return dayFirstIso;
+    }
+
+    const parsedByActiveLocale = parseLocaleDateFilter(normalizedValue, getActiveLanguage());
+    if (parsedByActiveLocale) return parsedByActiveLocale;
+    const parsedByDayFirstLocale = parseLocaleDateFilter(normalizedValue, "uk");
+    if (parsedByDayFirstLocale) return parsedByDayFirstLocale;
+
+    const parsedLocalIso = formatDateToLocalIso(new Date(normalizedValue), "");
     if (parsedLocalIso) return parsedLocalIso;
-    const prefixedIso = extractIsoDatePrefix(value);
+    const prefixedIso = extractIsoDatePrefix(normalizedValue);
     if (prefixedIso) return prefixedIso;
     return fallback;
 }
