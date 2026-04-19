@@ -226,6 +226,7 @@ const ADMIN_I18N = {
         saveMissingAdapter: "Не вдалося виконати збереження: відсутній метод adapter.",
         saveRecordFailedDetails: "Не вдалося зберегти запис: {details}",
         saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
+        saveRecordNotFound: "Запис не знайдено в базі даних. Можливо, він був видалений — оновіть сторінку і спробуйте ще раз.",
         saveRecordDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте зберегти запис пізніше.",
         saveRecordStorageLimit: "Неможливо зберегти запис: досягнуто ліміт квоти бази даних.",
         saveRecordSessionExpired: "Сесія адміна завершилась. Увійдіть повторно.",
@@ -580,6 +581,7 @@ const ADMIN_I18N = {
         saveMissingAdapter: "Failed to save: adapter method is missing.",
         saveRecordFailedDetails: "Failed to save record: {details}",
         saveRecordFailed: "Failed to save record. Check data and try again.",
+        saveRecordNotFound: "Record not found in database. It may have been deleted — refresh the page and try again.",
         saveRecordDatabaseUnavailable: "Database is temporarily unavailable. Please try to save again later.",
         saveRecordStorageLimit: "Unable to save record: database quota limit has been reached.",
         saveRecordSessionExpired: "Admin session expired. Please sign in again.",
@@ -940,6 +942,10 @@ function resolveCrudSaveErrorMessage(error) {
 
     if (isDatabaseUnavailableError(error)) {
         return tAdmin("saveRecordDatabaseUnavailable");
+    }
+
+    if (status === 404 && (code === "COLLECTION_ITEM_NOT_FOUND" || code === "RELEASE_NOT_FOUND" || code === "RELEASE_TRACK_NOT_FOUND")) {
+        return tAdmin("saveRecordNotFound");
     }
 
     if (Number.isFinite(status) && status >= 500) {
