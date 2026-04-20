@@ -1,4 +1,0 @@
-ALTER TABLE IF EXISTS contact_requests
-    ADD COLUMN IF NOT EXISTS attachment_name TEXT NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS attachment_type TEXT NOT NULL DEFAULT '',
-    ADD COLUMN IF NOT EXISTS attachment_data TEXT NOT NULL DEFAULT '';
