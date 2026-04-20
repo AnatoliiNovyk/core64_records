@@ -70,6 +70,7 @@ const RELEASE_TRACK_AUDIO_CHUNK_SIZE_CHARS = 240000;
 const RELEASE_TRACK_AUDIO_BATCH_MAX_WRITES = 32;
 const RELEASE_TRACK_AUDIO_BATCH_MAX_ESTIMATED_BYTES = 7 * 1024 * 1024;
 const RELEASE_TRACK_AUDIO_BATCH_WRITE_OVERHEAD_BYTES = 2048;
+const RELEASE_TRACK_REPLACE_MAX_WRITE_OPERATIONS = 450;
 const RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION = "release_track_audio_chunks";
 
 const ENTITY_TRANSLATED_FIELDS = {
@@ -1470,6 +1471,11 @@ export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload =
   const existingTracks = existingSnapshot.docs.map((doc) => normalizeReleaseTrackRow(doc.data(), doc.id));
 
   const payloadRows = Array.isArray(tracksPayload) ? tracksPayload : [];
+  const estimatedWriteOperations = existingSnapshot.docs.length + payloadRows.length;
+  if (estimatedWriteOperations > RELEASE_TRACK_REPLACE_MAX_WRITE_OPERATIONS) {
+    throw new Error(`Release track replace exceeds maximum 500 writes allowed in a single request (estimated writes: ${estimatedWriteOperations}).`);
+  }
+
   const now = nowIsoString();
   const batch = db.batch();
 
