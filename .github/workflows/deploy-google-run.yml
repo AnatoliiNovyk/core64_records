@@ -83,7 +83,7 @@ on:
       firestore_database_id:
         description: Firestore database ID
         required: false
-        default: "(default)"
+        default: core64recordsdb
         type: string
       vpc_connector:
         description: Optional VPC connector resource name (empty -> disabled)

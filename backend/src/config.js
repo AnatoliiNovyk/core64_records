@@ -1,5 +1,13 @@
 import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const backendEnvPath = path.resolve(__dirname, "../.env");
+
+dotenv.config({ path: backendEnvPath });
+// Keep optional root-level .env compatibility for local tooling, without overriding loaded values.
 dotenv.config();
 
 const toNumber = (value, fallback) => {

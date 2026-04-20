@@ -40,7 +40,7 @@ Set Firestore runtime values in `backend/.env`:
 ```dotenv
 DATA_BACKEND=firestore
 FIRESTORE_PROJECT_ID=<your-gcp-project-id>
-FIRESTORE_DATABASE_ID=(default)
+FIRESTORE_DATABASE_ID=core64recordsdb
 ```
 
 If local ADC credentials are required, set:

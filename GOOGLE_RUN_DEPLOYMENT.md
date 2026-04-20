@@ -17,7 +17,7 @@ Prepare the following values before deployment:
 - `ARTIFACT_REPO` (Artifact Registry repo for container images)
 - `IMAGE_TAG` (for example: git SHA, release tag)
 - `FIRESTORE_PROJECT_ID` (usually equal to `GCP_PROJECT_ID`)
-- `FIRESTORE_DATABASE_ID` (usually `(default)`)
+- `FIRESTORE_DATABASE_ID` (for this project: `core64recordsdb`)
 - `JWT_SECRET` (strong random secret)
 - `ADMIN_PASSWORD` (strong random password)
 - `CORS_ORIGIN` (production frontend domains, comma-separated)
