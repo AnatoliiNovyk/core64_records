@@ -1,74 +1,14 @@
 import { config } from "../config.js";
-import { logger } from "../utils/logger.js";
-import * as postgresRepository from "./repository.js";
 import * as firestoreRepository from "./repository.firestore.js";
 
-const FIRESTORE_NOT_IMPLEMENTED_CODE = "FIRESTORE_NOT_IMPLEMENTED";
-
-function isDualMode() {
-  return config.dataBackend === "dual";
-}
-
-function getReadRepository() {
-  if (config.dataBackend === "firestore") {
-    return firestoreRepository;
-  }
-  return postgresRepository;
-}
-
-function getPrimaryWriteRepository() {
-  if (config.dataBackend === "firestore") {
-    return firestoreRepository;
-  }
-  return postgresRepository;
-}
-
-function getShadowWriteRepository() {
-  if (!isDualMode()) {
-    return null;
-  }
-  return firestoreRepository;
-}
+const repository = firestoreRepository;
 
 async function executeRead(operationName, args) {
-  const repository = getReadRepository();
   return repository[operationName](...args);
 }
 
 async function executeWrite(operationName, args) {
-  const repository = getPrimaryWriteRepository();
-  const result = await repository[operationName](...args);
-
-  const shadowRepository = getShadowWriteRepository();
-  if (!shadowRepository) {
-    return result;
-  }
-
-  try {
-    await shadowRepository[operationName](...args);
-    logger.debug("db.shadow_write.completed", {
-      operationName,
-      backend: "firestore"
-    });
-  } catch (error) {
-    const code = String(error?.code || "").trim().toUpperCase();
-    if (code === FIRESTORE_NOT_IMPLEMENTED_CODE) {
-      logger.info("db.shadow_write.skipped", {
-        operationName,
-        backend: "firestore",
-        reason: code
-      });
-      return result;
-    }
-
-    logger.warn("db.shadow_write.failed", {
-      operationName,
-      backend: "firestore",
-      error
-    });
-  }
-
-  return result;
+  return repository[operationName](...args);
 }
 
 export async function listByType(type, requestedLanguage = config.defaultLanguage) {

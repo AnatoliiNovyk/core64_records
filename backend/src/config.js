@@ -31,7 +31,7 @@ const readEnvString = (name, fallback = "") => {
 export const config = {
   port: toNumber(process.env.PORT, 3000),
   nodeEnv: readEnvString("NODE_ENV", "development") || "development",
-  dataBackend: readEnvString("DATA_BACKEND", "postgres").toLowerCase(),
+  dataBackend: readEnvString("DATA_BACKEND", "firestore").toLowerCase(),
   logLevel: readEnvString("LOG_LEVEL", "info").toLowerCase(),
   requestLoggingEnabled: toBoolean(process.env.REQUEST_LOGGING_ENABLED, true),
   requestLoggingMaxBodyChars: toNumber(process.env.REQUEST_LOGGING_MAX_BODY_CHARS, 2048),
@@ -82,51 +82,15 @@ const isWeakSecret = (value) => {
   return !normalized || weakSecrets.has(normalized);
 };
 
-const validateDatabaseUrl = (value) => {
-  const raw = String(value || "").trim();
-  if (!raw) {
-    return "DATABASE_URL is required.";
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    return "DATABASE_URL must be a valid postgres URL. If password contains special characters (@, #, %, !), URL-encode them (for example @ -> %40, # -> %23).";
-  }
-
-  const protocol = String(parsed.protocol || "").toLowerCase();
-  if (protocol !== "postgres:" && protocol !== "postgresql:") {
-    return "DATABASE_URL must start with postgres:// or postgresql://.";
-  }
-
-  if (!String(parsed.hostname || "").trim()) {
-    return "DATABASE_URL must include a database host.";
-  }
-
-  const dbName = String(parsed.pathname || "").replace(/^\//, "").trim();
-  if (!dbName) {
-    return "DATABASE_URL must include a database name path (for example /postgres).";
-  }
-
-  if (String(parsed.hash || "").trim()) {
-    return "DATABASE_URL must not contain URL fragment/hash. URL-encode password special characters instead of raw '#' or '@'.";
-  }
-
-  return null;
-};
-
 export const validateConfig = () => {
   const errors = [];
   const isProduction = config.nodeEnv === "production";
-  const isPostgresEnabled = config.dataBackend === "postgres" || config.dataBackend === "dual";
-  const isFirestoreEnabled = config.dataBackend === "firestore" || config.dataBackend === "dual";
-  const allowedDataBackends = new Set(["postgres", "dual", "firestore"]);
+  const allowedDataBackends = new Set(["firestore"]);
   const allowedLogLevels = new Set(["debug", "info", "warn", "error"]);
   const allowedCspModes = new Set(["enforce", "report-only", "both"]);
 
   if (!allowedDataBackends.has(config.dataBackend)) {
-    errors.push("DATA_BACKEND must be one of: postgres, dual, firestore.");
+    errors.push("DATA_BACKEND must be: firestore.");
   }
 
   if (!allowedLogLevels.has(config.logLevel)) {
@@ -139,17 +103,6 @@ export const validateConfig = () => {
 
   if (!config.supportedLanguages.includes(config.defaultLanguage)) {
     errors.push("DEFAULT_LANGUAGE must be included in SUPPORTED_LANGUAGES.");
-  }
-
-  if (isPostgresEnabled) {
-    const databaseUrlError = validateDatabaseUrl(config.databaseUrl);
-    if (databaseUrlError) {
-      errors.push(databaseUrlError);
-    }
-  }
-
-  if (isFirestoreEnabled && !String(config.firestoreProjectId || "").trim()) {
-    errors.push("FIRESTORE_PROJECT_ID is required when DATA_BACKEND is firestore or dual.");
   }
 
   if (!Number.isInteger(config.dbConnectionTimeoutMs) || config.dbConnectionTimeoutMs < 1000) {
@@ -223,16 +176,6 @@ export const validateConfig = () => {
   if (isProduction) {
     if (config.corsOrigin.includes("*")) {
       errors.push("CORS_ORIGIN must not include '*' in production.");
-    }
-
-    if (!config.dbSsl) {
-      errors.push("DB_SSL must be true in production.");
-    }
-
-    if (!config.dbSslRejectUnauthorized && !config.dbSslAllowSelfSigned) {
-      errors.push(
-        "In production, set DB_SSL_REJECT_UNAUTHORIZED=true or explicitly opt-in DB_SSL_ALLOW_SELF_SIGNED=true for managed DB certificate chains."
-      );
     }
 
     if (isWeakSecret(config.jwtSecret) || String(config.jwtSecret).trim().length < 24) {

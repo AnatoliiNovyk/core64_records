@@ -1,11 +1,8 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
-import { pool } from "../db/pool.js";
 import { config } from "../config.js";
 import { createToken, requireAuth } from "../middleware/auth.js";
 import { createRateLimiter } from "../middleware/security.js";
 import { sendApiError } from "../utils/apiError.js";
-import { isDatabaseStorageLimitError, sanitizeDatabaseErrorCode } from "../utils/dbError.js";
 import { logger } from "../utils/logger.js";
 
 const router = Router();
@@ -29,26 +26,7 @@ router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
       });
     }
 
-    // Emergency path: if ADMIN_PASSWORD matches, allow login even when DB is degraded.
-    if (password && password === config.adminPassword) {
-      const token = createToken({ sub: "env-admin", username: "admin" });
-      return res.json({ data: { token } });
-    }
-
-    const userResult = await pool.query("SELECT id, username, password_hash FROM admin_users LIMIT 1");
-
-    if (!userResult.rows[0]) {
-      return sendApiError(res, {
-        status: 500,
-        code: "AUTH_ADMIN_NOT_INITIALIZED",
-        error: "Admin user is not initialized"
-      });
-    }
-
-    const user = userResult.rows[0];
-    const isValid = await bcrypt.compare(password, user.password_hash);
-
-    if (!isValid) {
+    if (!config.adminPassword || password !== config.adminPassword) {
       return sendApiError(res, {
         status: 401,
         code: "AUTH_INVALID_CREDENTIALS",
@@ -56,31 +34,15 @@ router.post("/auth/login", authLoginRateLimiter, async (req, res) => {
       });
     }
 
-    const token = createToken({ sub: user.id, username: user.username });
+    const token = createToken({ sub: "env-admin", username: "admin" });
     return res.json({ data: { token } });
   } catch (error) {
-    const dbCode = sanitizeDatabaseErrorCode(error);
-    const storageLimitExceeded = isDatabaseStorageLimitError(error);
-
     logger.error("auth.login.failed", {
       requestId: String(res.getHeader("x-request-id") || ""),
       method: req.method,
       path: req.path,
-      dbCode,
-      storageLimitExceeded,
       error
     });
-
-    if (storageLimitExceeded) {
-      return sendApiError(res, {
-        status: 503,
-        code: "AUTH_DB_STORAGE_LIMIT_REACHED",
-        error: "Authentication is temporarily unavailable due to database quota limits",
-        details: {
-          dbCode
-        }
-      });
-    }
 
     return sendApiError(res, {
       status: 503,
