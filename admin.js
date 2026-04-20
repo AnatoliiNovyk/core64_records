@@ -3600,6 +3600,64 @@ function getSectionSettingsDraftFromForm() {
     });
 }
 
+function normalizeSettingsStateForSaveComparison(source = {}, activeLanguage = getActiveLanguage()) {
+    const safeSource = source && typeof source === "object" ? source : {};
+    const normalizedLanguage = activeLanguage === "en" ? "en" : "uk";
+    const titleUk = normalizeSettingsPlainText(safeSource.titleUk, "");
+    const titleEn = normalizeSettingsPlainText(safeSource.titleEn, "");
+    const aboutUk = normalizeSettingsPlainText(safeSource.aboutUk, "");
+    const aboutEn = normalizeSettingsPlainText(safeSource.aboutEn, "");
+    const missionUk = normalizeSettingsPlainText(safeSource.missionUk, "");
+    const missionEn = normalizeSettingsPlainText(safeSource.missionEn, "");
+    const thresholds = getNormalizedLatencyThresholds(safeSource);
+    const contactCaptchaEnabled = safeSource.contactCaptchaEnabled === true
+        || String(safeSource.contactCaptchaEnabled || "0") === "1";
+
+    return {
+        titleUk,
+        titleEn,
+        aboutUk,
+        aboutEn,
+        missionUk,
+        missionEn,
+        title: normalizedLanguage === "en" ? (titleEn || titleUk) : (titleUk || titleEn),
+        about: normalizedLanguage === "en" ? (aboutEn || aboutUk) : (aboutUk || aboutEn),
+        mission: normalizedLanguage === "en" ? (missionEn || missionUk) : (missionUk || missionEn),
+        heroSubtitleUk: normalizeSettingsPlainText(safeSource.heroSubtitleUk, tAdmin("settingsHeroSubtitlePlaceholder")),
+        heroSubtitleEn: normalizeSettingsPlainText(safeSource.heroSubtitleEn, tAdmin("settingsHeroSubtitlePlaceholder")),
+        email: normalizeSettingsPlainText(safeSource.email, ""),
+        heroMainLogoDataUrl: normalizeSettingsPlainText(safeSource.heroMainLogoDataUrl, ""),
+        headerLogoUrl: normalizeSettingsPlainText(safeSource.headerLogoUrl, ""),
+        footerLogoUrl: normalizeSettingsPlainText(safeSource.footerLogoUrl, ""),
+        instagramUrl: normalizeSettingsUrlInput(safeSource.instagramUrl, { platform: "instagram" }),
+        youtubeUrl: normalizeSettingsUrlInput(safeSource.youtubeUrl, { platform: "youtube" }),
+        soundcloudUrl: normalizeSettingsUrlInput(safeSource.soundcloudUrl, { platform: "soundcloud" }),
+        radioUrl: normalizeSettingsUrlInput(safeSource.radioUrl, { platform: "radio" }),
+        contactCaptchaEnabled,
+        contactCaptchaActiveProvider: normalizeCaptchaProviderValue(safeSource.contactCaptchaActiveProvider),
+        contactCaptchaHcaptchaSiteKey: normalizeSettingsPlainText(safeSource.contactCaptchaHcaptchaSiteKey, ""),
+        contactCaptchaHcaptchaSecretKey: normalizeSettingsPlainText(safeSource.contactCaptchaHcaptchaSecretKey, ""),
+        contactCaptchaRecaptchaSiteKey: normalizeSettingsPlainText(safeSource.contactCaptchaRecaptchaSiteKey, ""),
+        contactCaptchaRecaptchaSecretKey: normalizeSettingsPlainText(safeSource.contactCaptchaRecaptchaSecretKey, ""),
+        contactCaptchaErrorMessage: normalizeSettingsPlainText(safeSource.contactCaptchaErrorMessage, tAdmin("settingsCaptchaErrorDefault")),
+        contactCaptchaMissingTokenMessage: normalizeSettingsPlainText(safeSource.contactCaptchaMissingTokenMessage, tAdmin("settingsCaptchaMissingTokenDefault")),
+        contactCaptchaInvalidDomainMessage: normalizeSettingsPlainText(safeSource.contactCaptchaInvalidDomainMessage, tAdmin("settingsCaptchaInvalidDomainDefault")),
+        contactCaptchaAllowedDomain: normalizeSettingsHostname(safeSource.contactCaptchaAllowedDomain),
+        auditLatencyGoodMaxMs: thresholds.good,
+        auditLatencyWarnMaxMs: thresholds.warn
+    };
+}
+
+function areSettingsStatesEqualForSave(nextSettings, previousSettings, activeLanguage = getActiveLanguage()) {
+    const normalizedNext = normalizeSettingsStateForSaveComparison(nextSettings, activeLanguage);
+    const normalizedPrevious = normalizeSettingsStateForSaveComparison(previousSettings, activeLanguage);
+    return JSON.stringify(normalizedNext) === JSON.stringify(normalizedPrevious);
+}
+
+function areSectionSettingsEqualForSave(nextSections, previousSections) {
+    return JSON.stringify(normalizeSectionSettings(nextSections)) === JSON.stringify(normalizeSectionSettings(previousSections));
+}
+
 async function loadSectionSettings() {
     const getSectionSettingsMethod = getAdapterMethod("getSectionSettings");
     if (!getSectionSettingsMethod) {
@@ -7069,8 +7127,27 @@ async function saveSettings(options = {}) {
 
     try {
         const sectionSettingsDraft = getSectionSettingsDraftFromForm();
+        const saveSectionSettingsMethod = getAdapterMethod("saveSectionSettings");
+        const settingsChanged = !areSettingsStatesEqualForSave(settings, cache.settings || {}, activeLanguage);
+        const sectionSettingsChanged = !areSectionSettingsEqualForSave(sectionSettingsDraft, cache.sectionSettings);
+        let settingsPersisted = false;
+        let sectionSettingsPersisted = false;
 
-        if (saveSettingsBundleMethod) {
+        if (!settingsChanged && !sectionSettingsChanged) {
+            cache.sectionSettings = normalizeSectionSettings(cache.sectionSettings);
+        } else if (!settingsChanged && sectionSettingsChanged && saveSectionSettingsMethod) {
+            const savedSectionSettings = await saveSectionSettingsMethod.call(adapter, { sections: sectionSettingsDraft });
+            const rows = savedSectionSettings && Array.isArray(savedSectionSettings.sections)
+                ? savedSectionSettings.sections
+                : savedSectionSettings;
+            cache.sectionSettings = normalizeSectionSettings(rows);
+            sectionSettingsPersisted = true;
+        } else if (settingsChanged && !sectionSettingsChanged && saveCollectionMethod) {
+            const savedSettings = await saveCollectionMethod.call(adapter, "settings", settings);
+            cache.settings = savedSettings && typeof savedSettings === "object" ? savedSettings : settings;
+            cache.sectionSettings = normalizeSectionSettings(cache.sectionSettings);
+            settingsPersisted = true;
+        } else if (saveSettingsBundleMethod) {
             const savedBundle = await saveSettingsBundleMethod.call(adapter, {
                 settings,
                 sections: sectionSettingsDraft
@@ -7083,19 +7160,26 @@ async function saveSettings(options = {}) {
 
             cache.settings = savedSettings;
             cache.sectionSettings = normalizeSectionSettings(savedSectionSettings);
+            settingsPersisted = settingsChanged;
+            sectionSettingsPersisted = sectionSettingsChanged;
         } else {
             await saveCollectionMethod.call(adapter, "settings", settings);
-            const saveSectionSettingsMethod = getAdapterMethod("saveSectionSettings");
-            if (saveSectionSettingsMethod) {
+            cache.settings = settings;
+            settingsPersisted = settingsChanged;
+
+            if (sectionSettingsChanged && saveSectionSettingsMethod) {
                 const savedSectionSettings = await saveSectionSettingsMethod.call(adapter, { sections: sectionSettingsDraft });
                 const rows = savedSectionSettings && Array.isArray(savedSectionSettings.sections)
                     ? savedSectionSettings.sections
                     : savedSectionSettings;
                 cache.sectionSettings = normalizeSectionSettings(rows);
-            } else {
+            } else if (sectionSettingsChanged) {
                 cache.sectionSettings = normalizeSectionSettings(sectionSettingsDraft);
+            } else {
+                cache.sectionSettings = normalizeSectionSettings(cache.sectionSettings);
             }
-            cache.settings = settings;
+
+            sectionSettingsPersisted = sectionSettingsChanged;
         }
         renderSectionSettingsEditor();
         if (sectionNavigationSeq !== navigationSeqAtSave) return false;
@@ -7115,8 +7199,12 @@ async function saveSettings(options = {}) {
         if (currentSection !== "settings") return true;
         const settingsSectionEl = document.getElementById("section-settings");
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return true;
-        addActivity(tAdmin("activitySettingsUpdated"));
-        addActivity(tAdmin("activitySectionSettingsUpdated"));
+        if (settingsPersisted) {
+            addActivity(tAdmin("activitySettingsUpdated"));
+        }
+        if (sectionSettingsPersisted) {
+            addActivity(tAdmin("activitySectionSettingsUpdated"));
+        }
         if (notifySuccess) {
             alert(tAdmin("settingsSaveSuccess"));
         }
