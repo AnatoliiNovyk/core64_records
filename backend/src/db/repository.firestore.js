@@ -55,6 +55,8 @@ const COLLECTION_BY_TYPE = new Set(["releases", "artists", "events", "sponsors"]
 const RELEASE_TYPES = new Set(["single", "ep", "album", "remix"]);
 const CONTACT_REQUEST_STATUS = new Set(["new", "in_progress", "done"]);
 const AUDIT_LOG_DETAILS_MAX_CHARS = 8192;
+const AUDIT_LOG_CHANGED_FIELDS_PREVIEW_MAX = 40;
+const AUDIT_LOG_ORDER_PREVIEW_MAX = 20;
 const DEFAULT_AUDIT_LATENCY_SETTINGS = {
   auditLatencyGoodMaxMs: 300,
   auditLatencyWarnMaxMs: 800
@@ -407,12 +409,95 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
   };
 }
 
+function safeSerializeJson(value) {
+  try {
+    const serialized = JSON.stringify(value);
+    return typeof serialized === "string" ? serialized : "{}";
+  } catch (_error) {
+    return "{}";
+  }
+}
+
+function toStringArrayPreview(values, maxItems) {
+  if (!Array.isArray(values)) return [];
+  return values
+    .slice(0, maxItems)
+    .map((value) => toSafeString(value, ""))
+    .filter(Boolean);
+}
+
+function compactAuditDetailsSummary(details, originalLength) {
+  const source = toSafeString(details?.source, "").slice(0, 120) || null;
+  const settingsDiff = isObjectLike(details?.diff?.settings) ? details.diff.settings : null;
+  const sectionsDiff = isObjectLike(details?.diff?.sections) ? details.diff.sections : null;
+
+  const settingsChangedFields = toStringArrayPreview(
+    settingsDiff?.changedFields,
+    AUDIT_LOG_CHANGED_FIELDS_PREVIEW_MAX
+  );
+  const settingsRedactedFields = toStringArrayPreview(
+    settingsDiff?.redactedFields,
+    AUDIT_LOG_CHANGED_FIELDS_PREVIEW_MAX
+  );
+  const previousOrder = toStringArrayPreview(sectionsDiff?.previousOrder, AUDIT_LOG_ORDER_PREVIEW_MAX);
+  const nextOrder = toStringArrayPreview(sectionsDiff?.nextOrder, AUDIT_LOG_ORDER_PREVIEW_MAX);
+
+  const compactDiff = omitNilKeys({
+    ...(settingsDiff ? {
+      settings: omitNilKeys({
+        changedCount: toBoundedInteger(settingsDiff.changedCount, 0, 0, Number.MAX_SAFE_INTEGER),
+        changedFields: settingsChangedFields,
+        omittedChangedFields: Array.isArray(settingsDiff.changedFields)
+          ? Math.max(0, settingsDiff.changedFields.length - settingsChangedFields.length)
+          : null,
+        redactedFields: settingsRedactedFields,
+        omittedRedactedFields: Array.isArray(settingsDiff.redactedFields)
+          ? Math.max(0, settingsDiff.redactedFields.length - settingsRedactedFields.length)
+          : null
+      })
+    } : {}),
+    ...(sectionsDiff ? {
+      sections: omitNilKeys({
+        changedRowCount: toBoundedInteger(sectionsDiff.changedRowCount, 0, 0, Number.MAX_SAFE_INTEGER),
+        changedFieldCount: toBoundedInteger(sectionsDiff.changedFieldCount, 0, 0, Number.MAX_SAFE_INTEGER),
+        orderChanged: sectionsDiff.orderChanged === true,
+        previousOrder,
+        omittedPreviousOrder: Array.isArray(sectionsDiff.previousOrder)
+          ? Math.max(0, sectionsDiff.previousOrder.length - previousOrder.length)
+          : null,
+        nextOrder,
+        omittedNextOrder: Array.isArray(sectionsDiff.nextOrder)
+          ? Math.max(0, sectionsDiff.nextOrder.length - nextOrder.length)
+          : null,
+        addedCount: Array.isArray(sectionsDiff.added) ? sectionsDiff.added.length : null,
+        removedCount: Array.isArray(sectionsDiff.removed) ? sectionsDiff.removed.length : null,
+        updatedCount: Array.isArray(sectionsDiff.updated) ? sectionsDiff.updated.length : null
+      })
+    } : {})
+  });
+
+  return omitNilKeys({
+    isCompact: true,
+    truncated: true,
+    originalLength,
+    source,
+    hasDiff: Object.keys(compactDiff).length > 0 ? true : null,
+    diff: Object.keys(compactDiff).length > 0 ? compactDiff : null
+  });
+}
+
 function compactAuditDetailsForStorage(details) {
   const normalizedDetails = isObjectLike(details) ? details : {};
-  const serialized = JSON.stringify(normalizedDetails);
+  const serialized = safeSerializeJson(normalizedDetails);
 
   if (serialized.length <= AUDIT_LOG_DETAILS_MAX_CHARS) {
     return normalizedDetails;
+  }
+
+  const compactSummary = compactAuditDetailsSummary(normalizedDetails, serialized.length);
+  const compactSerialized = safeSerializeJson(compactSummary);
+  if (compactSerialized.length <= AUDIT_LOG_DETAILS_MAX_CHARS) {
+    return compactSummary;
   }
 
   return {

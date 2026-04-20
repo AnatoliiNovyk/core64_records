@@ -41,6 +41,7 @@ const SECTION_TRACKED_FIELDS = [
 ];
 
 const AUDIT_VALUE_MAX_LENGTH = 1024;
+const DATA_URL_PATTERN = /^data:([^;,]+)(?:;[^,]*)?,/i;
 
 function normalizePrimitive(value) {
   if (value === undefined || value === null) return null;
@@ -112,6 +113,13 @@ function toAuditSettingsValue(field, value) {
   const normalized = normalizePrimitive(value);
   if (typeof normalized !== "string") {
     return normalized;
+  }
+
+  const trimmed = normalized.trim();
+  const dataUrlMatch = trimmed.match(DATA_URL_PATTERN);
+  if (dataUrlMatch) {
+    const mimeType = String(dataUrlMatch[1] || "unknown").toLowerCase();
+    return `[DATA_URL:${mimeType};length=${trimmed.length}]`;
   }
 
   if (normalized.length <= AUDIT_VALUE_MAX_LENGTH) {
