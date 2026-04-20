@@ -337,7 +337,7 @@ const ADMIN_I18N = {
         activityContactsExported: "Експортовано {count} звернень у CSV",
         uploadSizeDetectFailed: "Не вдалося визначити розмір файлу.",
         uploadUnsupportedFormat: "Непідтримуваний формат. Дозволено JPG, PNG, WEBP, GIF.",
-        uploadTooLargeCollection: "Файл занадто великий. Максимальний розмір: 500KB",
+        uploadTooLargeCollection: "Файл занадто великий. Максимальний розмір: 700KB",
         uploadTooLarge: "Файл занадто великий. Максимальний розмір: 2MB",
         uploadReadError: "Помилка читання файлу",
         modalEditPrefix: "Редагувати",
@@ -695,7 +695,7 @@ const ADMIN_I18N = {
         activityContactsExported: "Exported {count} requests to CSV",
         uploadSizeDetectFailed: "Failed to detect file size.",
         uploadUnsupportedFormat: "Unsupported format. Allowed: JPG, PNG, WEBP, GIF.",
-        uploadTooLargeCollection: "File is too large. Maximum size: 500KB",
+        uploadTooLargeCollection: "File is too large. Maximum size: 700KB",
         uploadTooLarge: "File is too large. Maximum size: 2MB",
         uploadReadError: "File read error",
         modalEditPrefix: "Edit",
@@ -5717,7 +5717,7 @@ function closeModal() {
 }
 
 const MAX_SETTINGS_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
-const MAX_COLLECTION_UPLOAD_IMAGE_BYTES = 500 * 1024;
+const MAX_COLLECTION_UPLOAD_IMAGE_BYTES = 700 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
 const SETTINGS_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
@@ -6229,13 +6229,13 @@ function generateFields(type, item) {
             linkLabel: "Link",
             imageLabel: "Image",
             uploadPlaceholder: "URL or upload a file",
-            uploadHintRelease: "Max size: 500KB. Formats: JPG, PNG, GIF",
+            uploadHintRelease: "Max size: 700KB. Formats: JPG, PNG, GIF",
             artistNameLabel: "Artist name",
             instagramLabel: "Instagram",
             soundcloudLabel: "SoundCloud",
             bioLabel: "Biography",
             photoLabel: "Photo",
-            uploadHintArtist: "Max size: 500KB. Recommended: square image",
+            uploadHintArtist: "Max size: 700KB. Recommended: square image",
             eventTitleLabel: "Event title",
             dateLabel: "Date",
             timeLabel: "Time",
@@ -6243,7 +6243,7 @@ function generateFields(type, item) {
             venuePlaceholder: "City, Club",
             descriptionLabel: "Description",
             ticketLinkLabel: "Tickets link",
-            uploadHintEvent: "Max size: 500KB. Recommended: 640x360 or 16:9",
+            uploadHintEvent: "Max size: 700KB. Recommended: 640x360 or 16:9",
             sponsorNameLabel: "Name",
             sponsorShortDescriptionLabel: "Short description (3-5 words)",
             sponsorShortDescriptionPlaceholder: "Underground music support",
@@ -6262,13 +6262,13 @@ function generateFields(type, item) {
             linkLabel: "Посилання",
             imageLabel: "Зображення",
             uploadPlaceholder: "URL або завантажте файл",
-            uploadHintRelease: "Макс. розмір: 500KB. Формати: JPG, PNG, GIF",
+            uploadHintRelease: "Макс. розмір: 700KB. Формати: JPG, PNG, GIF",
             artistNameLabel: "Ім'я артиста",
             instagramLabel: "Instagram",
             soundcloudLabel: "SoundCloud",
             bioLabel: "Біографія",
             photoLabel: "Фото",
-            uploadHintArtist: "Макс. розмір: 500KB. Рекомендовано: квадратне фото",
+            uploadHintArtist: "Макс. розмір: 700KB. Рекомендовано: квадратне фото",
             eventTitleLabel: "Назва події",
             dateLabel: "Дата",
             timeLabel: "Час",
@@ -6276,7 +6276,7 @@ function generateFields(type, item) {
             venuePlaceholder: "Місто, Клуб",
             descriptionLabel: "Опис",
             ticketLinkLabel: "Посилання на квитки",
-            uploadHintEvent: "Макс. розмір: 500KB. Рекомендовано: 640x360 або 16:9",
+            uploadHintEvent: "Макс. розмір: 700KB. Рекомендовано: 640x360 або 16:9",
             sponsorNameLabel: "Назва",
             sponsorShortDescriptionLabel: "Короткий опис (3-5 слів)",
             sponsorShortDescriptionPlaceholder: "Підтримка андерграунд музики",

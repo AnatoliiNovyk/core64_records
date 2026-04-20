@@ -29,7 +29,8 @@ const sponsorTranslationSchema = z.object({
 
 const brandImageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
 const releaseTrackAudioDataUrlPattern = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
-const INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS = 700000;
+const INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES = 700 * 1024;
+const INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS = Math.ceil((INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES * 4) / 3) + 64;
 const COLLECTION_IMAGE_URL_MAX_CHARS = 4096;
 
 function isBrandImageDataUrlOrEmpty(value) {
@@ -64,7 +65,7 @@ export const releaseSchema = z.object({
   releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   year: z.string().optional().default(""),
   image: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
-    message: "Image is too large. Inline image uploads are limited to 500KB."
+    message: "Image is too large. Inline image uploads are limited to 700KB."
   }),
   link: z.string().optional().default("#"),
   ticketLink: z.string().optional().default(""),
@@ -101,7 +102,7 @@ export const artistSchema = z.object({
   genre: z.string().optional().default(""),
   bio: z.string().optional().default(""),
   image: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
-    message: "Image is too large. Inline image uploads are limited to 500KB."
+    message: "Image is too large. Inline image uploads are limited to 700KB."
   }),
   soundcloud: z.string().optional().default("#"),
   instagram: z.string().optional().default("#"),
@@ -116,7 +117,7 @@ export const eventSchema = z.object({
   venue: z.string().optional().default(""),
   description: z.string().optional().default(""),
   image: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
-    message: "Image is too large. Inline image uploads are limited to 500KB."
+    message: "Image is too large. Inline image uploads are limited to 700KB."
   }),
   ticketLink: z.string().optional().default(""),
   i18n: z.record(languageCodeSchema, eventTranslationSchema).optional().default({})
@@ -133,7 +134,7 @@ export const sponsorSchema = z.object({
     message: "shortDescription must contain 3 to 5 words"
   }).optional().default(""),
   logo: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
-    message: "Image is too large. Inline image uploads are limited to 500KB."
+    message: "Image is too large. Inline image uploads are limited to 700KB."
   }),
   link: z.string().optional().default("#"),
   sortOrder: z.number().int().min(0).max(9999).optional().default(0),
