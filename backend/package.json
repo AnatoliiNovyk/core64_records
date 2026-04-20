@@ -7,7 +7,8 @@
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
     "migrate": "node src/db/migrate.js",
-    "seed": "node src/db/seed.js"
+    "seed": "node src/db/seed.js",
+    "db:cleanup:inline-assets": "node scripts/cleanup-inline-assets.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
