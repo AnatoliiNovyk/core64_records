@@ -67,6 +67,9 @@ const DEFAULT_AUDIT_LATENCY_SETTINGS = {
 const RELEASE_TRACK_AUDIO_DATA_URL_PATTERN = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,([a-z0-9+/=\s]+)$/i;
 const RELEASE_TRACK_INLINE_AUDIO_DATA_URL_MAX_CHARS = 700000;
 const RELEASE_TRACK_AUDIO_CHUNK_SIZE_CHARS = 240000;
+const RELEASE_TRACK_AUDIO_BATCH_MAX_WRITES = 32;
+const RELEASE_TRACK_AUDIO_BATCH_MAX_ESTIMATED_BYTES = 7 * 1024 * 1024;
+const RELEASE_TRACK_AUDIO_BATCH_WRITE_OVERHEAD_BYTES = 2048;
 const RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION = "release_track_audio_chunks";
 
 const ENTITY_TRANSLATED_FIELDS = {
@@ -517,6 +520,14 @@ function selectReleaseTrackAudioChunks(chunks = []) {
   return Array.from(byChunkIndex.values()).sort((left, right) => left.chunkIndex - right.chunkIndex);
 }
 
+function estimateReleaseTrackAudioChunkWriteBytes({ docId, chunkSetId, mimeType, base64Chunk }) {
+  const idBytes = Buffer.byteLength(toSafeString(docId, ""), "utf8");
+  const chunkSetIdBytes = Buffer.byteLength(toSafeString(chunkSetId, ""), "utf8");
+  const mimeTypeBytes = Buffer.byteLength(toSafeString(mimeType, ""), "utf8");
+  const chunkBytes = Buffer.byteLength(toSafeString(base64Chunk, ""), "utf8");
+  return idBytes + chunkSetIdBytes + mimeTypeBytes + chunkBytes + RELEASE_TRACK_AUDIO_BATCH_WRITE_OVERHEAD_BYTES;
+}
+
 async function writeReleaseTrackAudioChunks({
   releaseId,
   trackId,
@@ -536,11 +547,29 @@ async function writeReleaseTrackAudioChunks({
   const db = await getFirestoreDb();
   const chunksCollection = db.collection(RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION);
   let batch = db.batch();
-  let pending = 0;
+  let pendingWrites = 0;
+  let pendingEstimatedBytes = 0;
 
   for (let index = 0; index < normalizedChunks.length; index += 1) {
     const chunkIndex = index + 1;
+    const base64Chunk = normalizedChunks[index];
     const docId = `${normalizedTrackId}_${normalizedChunkSetId}_${chunkIndex}`;
+    const estimatedWriteBytes = estimateReleaseTrackAudioChunkWriteBytes({
+      docId,
+      chunkSetId: normalizedChunkSetId,
+      mimeType: resolvedMimeType,
+      base64Chunk
+    });
+
+    const wouldExceedWriteCount = (pendingWrites + 1) > RELEASE_TRACK_AUDIO_BATCH_MAX_WRITES;
+    const wouldExceedEstimatedBytes = (pendingEstimatedBytes + estimatedWriteBytes) > RELEASE_TRACK_AUDIO_BATCH_MAX_ESTIMATED_BYTES;
+    if (pendingWrites > 0 && (wouldExceedWriteCount || wouldExceedEstimatedBytes)) {
+      await batch.commit();
+      batch = db.batch();
+      pendingWrites = 0;
+      pendingEstimatedBytes = 0;
+    }
+
     batch.set(chunksCollection.doc(docId), {
       id: docId,
       releaseId: normalizedReleaseId,
@@ -549,20 +578,16 @@ async function writeReleaseTrackAudioChunks({
       chunkIndex,
       totalChunks: normalizedChunks.length,
       mimeType: resolvedMimeType,
-      base64Chunk: normalizedChunks[index],
+      base64Chunk,
       createdAt: now,
       updatedAt: now
     }, { merge: true });
 
-    pending += 1;
-    if (pending >= 300) {
-      await batch.commit();
-      batch = db.batch();
-      pending = 0;
-    }
+    pendingWrites += 1;
+    pendingEstimatedBytes += estimatedWriteBytes;
   }
 
-  if (pending > 0) {
+  if (pendingWrites > 0) {
     await batch.commit();
   }
 }

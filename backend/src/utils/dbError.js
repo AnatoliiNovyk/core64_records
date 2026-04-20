@@ -22,7 +22,14 @@ const STORAGE_LIMIT_MESSAGE_HINTS = [
   "upgrade your plan to increase limits",
   "maximum document size",
   "is longer than 1048487 bytes",
-  "exceeds the maximum size"
+  "exceeds the maximum size",
+  "transaction too large",
+  "maximum request size",
+  "request payload size exceeds",
+  "request entity too large",
+  "exceeds the maximum allowed size of 10 mib",
+  "maximum 500 writes allowed",
+  "too many writes in a single request"
 ];
 
 const hasStorageLimitMessage = (message) => STORAGE_LIMIT_MESSAGE_HINTS.some((hint) => message.includes(hint));
