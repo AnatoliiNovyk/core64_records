@@ -19,7 +19,10 @@ const STORAGE_LIMIT_MESSAGE_HINTS = [
   "data transfer quota",
   "exceeded the data transfer quota",
   "quota exceeded",
-  "upgrade your plan to increase limits"
+  "upgrade your plan to increase limits",
+  "maximum document size",
+  "is longer than 1048487 bytes",
+  "exceeds the maximum size"
 ];
 
 const hasStorageLimitMessage = (message) => STORAGE_LIMIT_MESSAGE_HINTS.some((hint) => message.includes(hint));

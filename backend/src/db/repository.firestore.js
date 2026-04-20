@@ -64,6 +64,10 @@ const DEFAULT_AUDIT_LATENCY_SETTINGS = {
   auditLatencyGoodMaxMs: 300,
   auditLatencyWarnMaxMs: 800
 };
+const RELEASE_TRACK_AUDIO_DATA_URL_PATTERN = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,([a-z0-9+/=\s]+)$/i;
+const RELEASE_TRACK_INLINE_AUDIO_DATA_URL_MAX_CHARS = 700000;
+const RELEASE_TRACK_AUDIO_CHUNK_SIZE_CHARS = 240000;
+const RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION = "release_track_audio_chunks";
 
 const ENTITY_TRANSLATED_FIELDS = {
   releases: ["title", "artist", "genre"],
@@ -344,14 +348,240 @@ function normalizeReleaseTrackPayload(payload, fallbackSortOrder = 0) {
   };
 }
 
+function normalizeReleaseTrackAudioMimeType(value) {
+  const normalized = toSafeString(value, "").toLowerCase();
+  if (!normalized) return "";
+
+  if (normalized === "audio/mpeg" || normalized === "audio/mp3" || normalized === "mp3" || normalized === "mpeg") {
+    return "audio/mpeg";
+  }
+
+  if (normalized === "audio/wav" || normalized === "wav" || normalized === "x-wav" || normalized === "wave") {
+    return "audio/wav";
+  }
+
+  return "";
+}
+
+function parseReleaseTrackAudioDataUrl(value) {
+  const normalized = toSafeString(value, "");
+  const match = normalized.match(RELEASE_TRACK_AUDIO_DATA_URL_PATTERN);
+  if (!match) return null;
+
+  const mimeType = normalizeReleaseTrackAudioMimeType(match[1]);
+  if (!mimeType) return null;
+
+  const base64Payload = toSafeString(match[2], "").replace(/\s+/g, "");
+  if (!base64Payload) return null;
+
+  return {
+    mimeType,
+    base64Payload,
+    dataUrl: `data:${mimeType};base64,${base64Payload}`
+  };
+}
+
+function splitTextByChunkSize(value, chunkSize) {
+  const normalized = toSafeString(value, "");
+  const normalizedChunkSize = toBoundedInteger(chunkSize, RELEASE_TRACK_AUDIO_CHUNK_SIZE_CHARS, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalized) return [];
+
+  const chunks = [];
+  for (let cursor = 0; cursor < normalized.length; cursor += normalizedChunkSize) {
+    chunks.push(normalized.slice(cursor, cursor + normalizedChunkSize));
+  }
+  return chunks;
+}
+
+function buildReleaseTrackAudioStoragePayload(audioDataUrl) {
+  const parsed = parseReleaseTrackAudioDataUrl(audioDataUrl);
+  if (!parsed) {
+    return {
+      audioDataUrl: "",
+      audioStorage: "inline",
+      audioMimeType: "",
+      audioChunkCount: 0,
+      audioBase64Length: 0,
+      chunks: []
+    };
+  }
+
+  if (parsed.dataUrl.length <= RELEASE_TRACK_INLINE_AUDIO_DATA_URL_MAX_CHARS) {
+    return {
+      audioDataUrl: parsed.dataUrl,
+      audioStorage: "inline",
+      audioMimeType: parsed.mimeType,
+      audioChunkCount: 0,
+      audioBase64Length: parsed.base64Payload.length,
+      chunks: []
+    };
+  }
+
+  const chunks = splitTextByChunkSize(parsed.base64Payload, RELEASE_TRACK_AUDIO_CHUNK_SIZE_CHARS);
+  return {
+    audioDataUrl: "",
+    audioStorage: "chunked",
+    audioMimeType: parsed.mimeType,
+    audioChunkCount: chunks.length,
+    audioBase64Length: parsed.base64Payload.length,
+    chunks
+  };
+}
+
+function buildReleaseTrackAudioDataUrlFromChunks(mimeType, chunks) {
+  const resolvedMimeType = normalizeReleaseTrackAudioMimeType(mimeType) || "audio/mpeg";
+  const payload = Array.isArray(chunks) ? chunks.map((chunk) => toSafeString(chunk, "")).join("") : "";
+  if (!payload) return "";
+  return `data:${resolvedMimeType};base64,${payload}`;
+}
+
+function isChunkedReleaseTrackAudioStorage(trackRow) {
+  if (!trackRow || typeof trackRow !== "object") return false;
+  if (toSafeString(trackRow.audioStorage, "") === "chunked") return true;
+  return toBoundedInteger(trackRow.audioChunkCount, 0, 0, Number.MAX_SAFE_INTEGER) > 0;
+}
+
+async function deleteDocumentsInBatches(snapshots = []) {
+  const docs = Array.isArray(snapshots) ? snapshots.filter(Boolean) : [];
+  if (docs.length === 0) return;
+
+  const db = await getFirestoreDb();
+  let batch = db.batch();
+  let pending = 0;
+
+  for (let index = 0; index < docs.length; index += 1) {
+    batch.delete(docs[index].ref);
+    pending += 1;
+    if (pending >= 400) {
+      await batch.commit();
+      batch = db.batch();
+      pending = 0;
+    }
+  }
+
+  if (pending > 0) {
+    await batch.commit();
+  }
+}
+
+async function listReleaseTrackAudioChunksByTrackId(trackId) {
+  const normalizedTrackId = toBoundedInteger(trackId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedTrackId) return [];
+
+  const db = await getFirestoreDb();
+  const snapshot = await db.collection(RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION)
+    .where("trackId", "==", normalizedTrackId)
+    .get();
+
+  return snapshot.docs
+    .map((doc) => {
+      const row = clonePlainObject(doc.data());
+      return {
+        ref: doc.ref,
+        chunkIndex: toBoundedInteger(readRawField(row, ["chunkIndex", "chunk_index"]), 0, 0, Number.MAX_SAFE_INTEGER),
+        mimeType: normalizeReleaseTrackAudioMimeType(readRawField(row, ["mimeType", "mime_type"])),
+        base64Chunk: toSafeString(readRawField(row, ["base64Chunk", "base64_chunk"]), "")
+      };
+    })
+    .sort((left, right) => left.chunkIndex - right.chunkIndex);
+}
+
+async function writeReleaseTrackAudioChunks({
+  releaseId,
+  trackId,
+  mimeType,
+  chunks,
+  timestamp
+}) {
+  const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
+  const normalizedTrackId = toBoundedInteger(trackId, 0, 1, Number.MAX_SAFE_INTEGER);
+  const resolvedMimeType = normalizeReleaseTrackAudioMimeType(mimeType);
+  const normalizedChunks = Array.isArray(chunks) ? chunks.map((chunk) => toSafeString(chunk, "")).filter(Boolean) : [];
+  if (!normalizedReleaseId || !normalizedTrackId || !resolvedMimeType || normalizedChunks.length === 0) return;
+
+  const now = toIsoString(timestamp, nowIsoString()) || nowIsoString();
+  const db = await getFirestoreDb();
+  const chunksCollection = db.collection(RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION);
+  let batch = db.batch();
+  let pending = 0;
+
+  for (let index = 0; index < normalizedChunks.length; index += 1) {
+    const chunkIndex = index + 1;
+    const docId = `${normalizedTrackId}_${chunkIndex}`;
+    batch.set(chunksCollection.doc(docId), {
+      id: docId,
+      releaseId: normalizedReleaseId,
+      trackId: normalizedTrackId,
+      chunkIndex,
+      totalChunks: normalizedChunks.length,
+      mimeType: resolvedMimeType,
+      base64Chunk: normalizedChunks[index],
+      createdAt: now,
+      updatedAt: now
+    }, { merge: true });
+
+    pending += 1;
+    if (pending >= 300) {
+      await batch.commit();
+      batch = db.batch();
+      pending = 0;
+    }
+  }
+
+  if (pending > 0) {
+    await batch.commit();
+  }
+}
+
+async function deleteReleaseTrackAudioChunksByTrackId(trackId) {
+  const chunks = await listReleaseTrackAudioChunksByTrackId(trackId);
+  if (chunks.length === 0) return;
+  await deleteDocumentsInBatches(chunks);
+}
+
+async function hydrateReleaseTrackAudioDataUrl(row) {
+  const normalizedRow = normalizeReleaseTrackRow(row, String(readRawField(row, ["id"]) || ""));
+  if (!isChunkedReleaseTrackAudioStorage(normalizedRow)) {
+    return normalizedRow.audioDataUrl;
+  }
+
+  const chunks = await listReleaseTrackAudioChunksByTrackId(normalizedRow.id);
+  if (chunks.length === 0) return "";
+
+  const mimeType = chunks.find((chunk) => !!chunk.mimeType)?.mimeType || normalizedRow.audioMimeType;
+  return buildReleaseTrackAudioDataUrlFromChunks(mimeType, chunks.map((chunk) => chunk.base64Chunk));
+}
+
 function normalizeReleaseTrackRow(source, fallbackDocId = "") {
   const row = clonePlainObject(source);
   const id = normalizeEntityId(readRawField(row, ["id"]), fallbackDocId, 0);
+  const normalizedAudioDataUrl = toSafeString(readRawField(row, ["audioDataUrl", "audio_data_url"]), "");
+  const normalizedAudioStorage = toSafeString(readRawField(row, ["audioStorage", "audio_storage"]), "").toLowerCase() === "chunked"
+    ? "chunked"
+    : "inline";
+  const normalizedAudioMimeType = normalizeReleaseTrackAudioMimeType(readRawField(row, ["audioMimeType", "audio_mime_type"]));
+  const parsedAudio = parseReleaseTrackAudioDataUrl(normalizedAudioDataUrl);
+  const normalizedAudioBase64Length = toBoundedInteger(
+    readRawField(row, ["audioBase64Length", "audio_base64_length"]),
+    parsedAudio ? parsedAudio.base64Payload.length : 0,
+    0,
+    Number.MAX_SAFE_INTEGER
+  );
+
   return {
     id,
     releaseId: toBoundedInteger(readRawField(row, ["releaseId", "release_id"]), 0, 1, Number.MAX_SAFE_INTEGER),
     title: toSafeString(readRawField(row, ["title"]), ""),
-    audioDataUrl: toSafeString(readRawField(row, ["audioDataUrl", "audio_data_url"]), ""),
+    audioDataUrl: normalizedAudioDataUrl,
+    audioStorage: normalizedAudioStorage,
+    audioMimeType: normalizedAudioMimeType,
+    audioChunkCount: toBoundedInteger(
+      readRawField(row, ["audioChunkCount", "audio_chunk_count"]),
+      normalizedAudioStorage === "chunked" ? 1 : 0,
+      0,
+      Number.MAX_SAFE_INTEGER
+    ),
+    audioBase64Length: normalizedAudioBase64Length,
     durationSeconds: toBoundedInteger(readRawField(row, ["durationSeconds", "duration_seconds"]), 0, 0, 86400),
     sortOrder: toBoundedInteger(readRawField(row, ["sortOrder", "sort_order"]), 0, 0, 9999),
     createdAt: toIsoString(readRawField(row, ["createdAt", "created_at"]), ""),
@@ -1123,10 +1353,16 @@ export async function getReleaseTrackById(releaseId, trackId) {
   const normalizedTrack = normalizeReleaseTrackRow(found.data, found.snapshot.id);
   if (normalizedTrack.releaseId !== normalizedReleaseId) return null;
 
+   let resolvedAudioDataUrl = normalizedTrack.audioDataUrl;
+   if (!resolvedAudioDataUrl && isChunkedReleaseTrackAudioStorage(normalizedTrack)) {
+     resolvedAudioDataUrl = await hydrateReleaseTrackAudioDataUrl(normalizedTrack);
+   }
+
   return mapReleaseTrackToApi({
     ...found.data,
     id: normalizedTrack.id,
     releaseId: normalizedTrack.releaseId,
+    audioDataUrl: resolvedAudioDataUrl,
     updatedAt: normalizedTrack.updatedAt
   }, {
     includeAudioDataUrl: true,
@@ -1146,19 +1382,34 @@ export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload =
   const now = nowIsoString();
   const batch = db.batch();
 
+  const existingTrackIds = existingSnapshot.docs
+    .map((doc) => normalizeReleaseTrackRow(doc.data(), doc.id))
+    .map((track) => toBoundedInteger(track.id, 0, 1, Number.MAX_SAFE_INTEGER))
+    .filter((trackId) => !!trackId);
+
+  for (let index = 0; index < existingTrackIds.length; index += 1) {
+    await deleteReleaseTrackAudioChunksByTrackId(existingTrackIds[index]);
+  }
+
   existingSnapshot.docs.forEach((doc) => {
     batch.delete(doc.ref);
   });
 
   const createdRows = [];
+  const audioChunkWrites = [];
   for (let index = 0; index < payloadRows.length; index += 1) {
     const normalizedPayload = normalizeReleaseTrackPayload(payloadRows[index], index + 1);
+    const audioStorage = buildReleaseTrackAudioStoragePayload(normalizedPayload.audioDataUrl);
     const id = await getNextNumericId("release_tracks", "release_tracks");
     const row = {
       id,
       releaseId: normalizedReleaseId,
       title: normalizedPayload.title,
-      audioDataUrl: normalizedPayload.audioDataUrl,
+      audioDataUrl: audioStorage.audioDataUrl,
+      audioStorage: audioStorage.audioStorage,
+      audioMimeType: audioStorage.audioMimeType,
+      audioChunkCount: audioStorage.audioChunkCount,
+      audioBase64Length: audioStorage.audioBase64Length,
       durationSeconds: normalizedPayload.durationSeconds,
       sortOrder: normalizedPayload.sortOrder,
       createdAt: now,
@@ -1166,10 +1417,25 @@ export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload =
     };
 
     batch.set(tracksCollection.doc(String(id)), row, { merge: true });
+    if (audioStorage.audioStorage === "chunked") {
+      audioChunkWrites.push({
+        releaseId: normalizedReleaseId,
+        trackId: id,
+        mimeType: audioStorage.audioMimeType,
+        chunks: audioStorage.chunks,
+        timestamp: now
+      });
+    }
+
     createdRows.push(mapReleaseTrackToApi(row, { includeAudioDataUrl: true }));
   }
 
   await batch.commit();
+
+  for (let index = 0; index < audioChunkWrites.length; index += 1) {
+    await writeReleaseTrackAudioChunks(audioChunkWrites[index]);
+  }
+
   return createdRows.sort((left, right) => {
     if (left.sortOrder !== right.sortOrder) return left.sortOrder - right.sortOrder;
     return left.id - right.id;
@@ -1183,13 +1449,18 @@ export async function createReleaseTrackByReleaseId(releaseId, trackPayload = {}
   const db = await getFirestoreDb();
   const id = await getNextNumericId("release_tracks", "release_tracks");
   const normalizedPayload = normalizeReleaseTrackPayload(trackPayload, 0);
+  const audioStorage = buildReleaseTrackAudioStoragePayload(normalizedPayload.audioDataUrl);
   const now = nowIsoString();
 
   const row = {
     id,
     releaseId: normalizedReleaseId,
     title: normalizedPayload.title,
-    audioDataUrl: normalizedPayload.audioDataUrl,
+    audioDataUrl: audioStorage.audioDataUrl,
+    audioStorage: audioStorage.audioStorage,
+    audioMimeType: audioStorage.audioMimeType,
+    audioChunkCount: audioStorage.audioChunkCount,
+    audioBase64Length: audioStorage.audioBase64Length,
     durationSeconds: normalizedPayload.durationSeconds,
     sortOrder: normalizedPayload.sortOrder,
     createdAt: now,
@@ -1197,6 +1468,16 @@ export async function createReleaseTrackByReleaseId(releaseId, trackPayload = {}
   };
 
   await db.collection("release_tracks").doc(String(id)).set(row, { merge: true });
+  if (audioStorage.audioStorage === "chunked") {
+    await writeReleaseTrackAudioChunks({
+      releaseId: normalizedReleaseId,
+      trackId: id,
+      mimeType: audioStorage.audioMimeType,
+      chunks: audioStorage.chunks,
+      timestamp: now
+    });
+  }
+
   return mapReleaseTrackToApi(row, { includeAudioDataUrl: true });
 }
 
@@ -1213,6 +1494,7 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
 
   const normalizedPayload = normalizeReleaseTrackPayload(trackPayload, existingRow.sortOrder);
   const now = nowIsoString();
+  let nextAudioChunkWrite = null;
 
   const patch = {
     title: normalizedPayload.title,
@@ -1222,10 +1504,35 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
   };
 
   if (normalizedPayload.hasAudioDataUrl) {
-    patch.audioDataUrl = normalizedPayload.audioDataUrl;
+    const audioStorage = buildReleaseTrackAudioStoragePayload(normalizedPayload.audioDataUrl);
+    patch.audioDataUrl = audioStorage.audioDataUrl;
+    patch.audioStorage = audioStorage.audioStorage;
+    patch.audioMimeType = audioStorage.audioMimeType;
+    patch.audioChunkCount = audioStorage.audioChunkCount;
+    patch.audioBase64Length = audioStorage.audioBase64Length;
+
+    if (audioStorage.audioStorage === "chunked") {
+      nextAudioChunkWrite = {
+        releaseId: normalizedReleaseId,
+        trackId: normalizedTrackId,
+        mimeType: audioStorage.audioMimeType,
+        chunks: audioStorage.chunks,
+        timestamp: now
+      };
+    }
   }
 
   await found.ref.set(patch, { merge: true });
+
+  if (normalizedPayload.hasAudioDataUrl) {
+    if (nextAudioChunkWrite) {
+      await deleteReleaseTrackAudioChunksByTrackId(normalizedTrackId);
+      await writeReleaseTrackAudioChunks(nextAudioChunkWrite);
+    } else {
+      await deleteReleaseTrackAudioChunksByTrackId(normalizedTrackId);
+    }
+  }
+
   const nextRow = {
     ...(found.data || {}),
     ...patch,
@@ -1249,6 +1556,7 @@ export async function deleteReleaseTrackById(releaseId, trackId) {
   if (existingRow.releaseId !== normalizedReleaseId) return false;
 
   await found.ref.delete();
+  await deleteReleaseTrackAudioChunksByTrackId(normalizedTrackId);
   return true;
 }
 
