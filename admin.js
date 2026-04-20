@@ -337,6 +337,7 @@ const ADMIN_I18N = {
         activityContactsExported: "Експортовано {count} звернень у CSV",
         uploadSizeDetectFailed: "Не вдалося визначити розмір файлу.",
         uploadUnsupportedFormat: "Непідтримуваний формат. Дозволено JPG, PNG, WEBP, GIF.",
+        uploadTooLargeCollection: "Файл занадто великий. Максимальний розмір: 500KB",
         uploadTooLarge: "Файл занадто великий. Максимальний розмір: 2MB",
         uploadReadError: "Помилка читання файлу",
         modalEditPrefix: "Редагувати",
@@ -694,6 +695,7 @@ const ADMIN_I18N = {
         activityContactsExported: "Exported {count} requests to CSV",
         uploadSizeDetectFailed: "Failed to detect file size.",
         uploadUnsupportedFormat: "Unsupported format. Allowed: JPG, PNG, WEBP, GIF.",
+        uploadTooLargeCollection: "File is too large. Maximum size: 500KB",
         uploadTooLarge: "File is too large. Maximum size: 2MB",
         uploadReadError: "File read error",
         modalEditPrefix: "Edit",
@@ -5714,7 +5716,8 @@ function closeModal() {
     releaseModalTracksLoadFailed = false;
 }
 
-const MAX_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_SETTINGS_UPLOAD_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_COLLECTION_UPLOAD_IMAGE_BYTES = 500 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
 const SETTINGS_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
@@ -6094,7 +6097,7 @@ function handleSettingsLogoUpload(logoType, fileInputEl) {
         return;
     }
 
-    if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+    if (file.size > MAX_SETTINGS_UPLOAD_IMAGE_BYTES) {
         if (currentSection === sectionAtUpload && settingsSectionEl.isConnected) {
             alert(tAdmin("uploadTooLarge"));
         }
@@ -6164,10 +6167,10 @@ function handleFileUpload(input) {
         return;
     }
 
-    if (file.size > MAX_UPLOAD_IMAGE_BYTES) {
+    if (file.size > MAX_COLLECTION_UPLOAD_IMAGE_BYTES) {
         if (currentSection === sectionAtUpload) {
             if (sectionEl && sectionEl.isConnected) {
-                alert(tAdmin("uploadTooLarge"));
+                alert(tAdmin("uploadTooLargeCollection"));
             }
         }
         if (input.isConnected) {

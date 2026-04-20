@@ -29,6 +29,8 @@ const sponsorTranslationSchema = z.object({
 
 const brandImageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
 const releaseTrackAudioDataUrlPattern = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
+const INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS = 700000;
+const COLLECTION_IMAGE_URL_MAX_CHARS = 4096;
 
 function isBrandImageDataUrlOrEmpty(value) {
   const normalized = String(value || "").trim();
@@ -42,6 +44,17 @@ function isReleaseTrackAudioDataUrl(value) {
   return releaseTrackAudioDataUrlPattern.test(normalized);
 }
 
+function isCollectionImageValueWithinLimit(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return false;
+
+  if (brandImageDataUrlPattern.test(normalized)) {
+    return normalized.length <= INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS;
+  }
+
+  return normalized.length <= COLLECTION_IMAGE_URL_MAX_CHARS;
+}
+
 export const releaseSchema = z.object({
   id: z.union([z.number(), z.string()]).optional(),
   title: z.string().min(1),
@@ -50,7 +63,9 @@ export const releaseSchema = z.object({
   releaseType: z.enum(["single", "ep", "album", "remix"]).optional().default("single"),
   releaseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   year: z.string().optional().default(""),
-  image: z.string().min(1),
+  image: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
+    message: "Image is too large. Inline image uploads are limited to 500KB."
+  }),
   link: z.string().optional().default("#"),
   ticketLink: z.string().optional().default(""),
   i18n: z.record(languageCodeSchema, releaseTranslationSchema).optional().default({})
@@ -85,7 +100,9 @@ export const artistSchema = z.object({
   name: z.string().min(1),
   genre: z.string().optional().default(""),
   bio: z.string().optional().default(""),
-  image: z.string().min(1),
+  image: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
+    message: "Image is too large. Inline image uploads are limited to 500KB."
+  }),
   soundcloud: z.string().optional().default("#"),
   instagram: z.string().optional().default("#"),
   i18n: z.record(languageCodeSchema, artistTranslationSchema).optional().default({})
@@ -98,7 +115,9 @@ export const eventSchema = z.object({
   time: z.string().optional().default(""),
   venue: z.string().optional().default(""),
   description: z.string().optional().default(""),
-  image: z.string().min(1),
+  image: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
+    message: "Image is too large. Inline image uploads are limited to 500KB."
+  }),
   ticketLink: z.string().optional().default(""),
   i18n: z.record(languageCodeSchema, eventTranslationSchema).optional().default({})
 });
@@ -113,7 +132,9 @@ export const sponsorSchema = z.object({
   }, {
     message: "shortDescription must contain 3 to 5 words"
   }).optional().default(""),
-  logo: z.string().min(1),
+  logo: z.string().trim().min(1).refine(isCollectionImageValueWithinLimit, {
+    message: "Image is too large. Inline image uploads are limited to 500KB."
+  }),
   link: z.string().optional().default("#"),
   sortOrder: z.number().int().min(0).max(9999).optional().default(0),
   i18n: z.record(languageCodeSchema, sponsorTranslationSchema).optional().default({})
