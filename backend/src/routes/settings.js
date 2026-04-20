@@ -13,6 +13,7 @@ import { buildSettingsDiff, buildSectionSettingsDiff } from "../utils/settingsAu
 import { config } from "../config.js";
 import { createRateLimiter } from "../middleware/security.js";
 import { resolveLanguage } from "../i18n/language.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 const settingsMutationRateLimiter = createRateLimiter({
@@ -39,13 +40,22 @@ async function writeSettingsAuditEntry({ action, actor, source, settingsDiff = n
     }
   };
 
-  await writeAuditLog({
-    entityType: "settings",
-    entityId: null,
-    action,
-    actor,
-    details
-  });
+  try {
+    await writeAuditLog({
+      entityType: "settings",
+      entityId: null,
+      action,
+      actor,
+      details
+    });
+  } catch (error) {
+    logger.warn("settings.audit_write_failed", {
+      action,
+      actor,
+      source,
+      error
+    });
+  }
 }
 
 router.get("/settings", requireAuth, async (_req, res, next) => {

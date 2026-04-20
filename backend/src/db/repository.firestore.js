@@ -60,6 +60,8 @@ const AUDIT_LOG_ORDER_PREVIEW_MAX = 20;
 const AUDIT_LOG_LIST_CHANGED_FIELDS_MAX = 120;
 const AUDIT_LOG_LIST_VALUE_MAX_CHARS = 256;
 const AUDIT_LOG_DATA_URL_PATTERN = /^data:([^;,]+)(?:;[^,]*)?,/i;
+const FIRESTORE_DOCUMENT_MAX_BYTES = 1_048_487;
+const FIRESTORE_SAFE_DOCUMENT_WRITE_BYTES = 950_000;
 const DEFAULT_AUDIT_LATENCY_SETTINGS = {
   auditLatencyGoodMaxMs: 300,
   auditLatencyWarnMaxMs: 800
@@ -830,6 +832,14 @@ function compactAuditDetailsForStorage(details) {
     originalLength: serialized.length,
     preview: serialized.slice(0, AUDIT_LOG_DETAILS_MAX_CHARS)
   };
+}
+
+function assertFirestoreDocumentSizeWithinSafeLimit(value, label = "document") {
+  const serialized = safeSerializeJson(value);
+  const estimatedBytes = Buffer.byteLength(serialized, "utf8");
+  if (estimatedBytes <= FIRESTORE_SAFE_DOCUMENT_WRITE_BYTES) return;
+
+  throw new Error(`${toSafeString(label, "document")} exceeds the maximum document size for Firestore (estimated ${estimatedBytes} bytes; max ${FIRESTORE_DOCUMENT_MAX_BYTES} bytes).`);
 }
 
 function compactAuditListValue(value) {
@@ -2045,6 +2055,7 @@ export async function saveSettings(payload, requestedLanguage = config.defaultLa
     ? record.ref
     : db.collection("settings").doc("public");
 
+  assertFirestoreDocumentSizeWithinSafeLimit(nextDoc, "settings document");
   await settingsRef.set(nextDoc, { merge: true });
   return getAdminSettings(language);
 }

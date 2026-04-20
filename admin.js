@@ -999,6 +999,10 @@ function resolveSettingsSaveErrorMessage(error) {
         return tAdmin("saveRecordRateLimited");
     }
 
+    if (isDatabaseStorageLimitError(error)) {
+        return tAdmin("saveRecordDatabaseStorageLimit");
+    }
+
     if (isDatabaseUnavailableError(error)) {
         return tAdmin("databaseTemporarilyUnavailable");
     }
