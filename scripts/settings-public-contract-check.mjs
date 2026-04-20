@@ -230,6 +230,89 @@ function getAuditItems(value) {
   return value && Array.isArray(value.items) ? value.items : [];
 }
 
+function toTimestamp(value) {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : NaN;
+}
+
+function waitMs(durationMs) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, durationMs);
+  });
+}
+
+function summarizeAuditCandidate(candidate) {
+  if (!candidate) return null;
+
+  return {
+    source: candidate.source,
+    createdAt: candidate.createdAt,
+    changedCount: candidate.changedCount,
+    changedFields: candidate.changedFields,
+    missingRequiredFields: candidate.missingRequiredFields,
+    hasStructuredChanges: candidate.hasStructuredChanges,
+    markerMatched: candidate.markerMatched,
+    nearPutWindow: candidate.nearPutWindow,
+    score: candidate.score
+  };
+}
+
+function evaluateSettingsAuditCandidate(entry, { markerText, putStartedAt }) {
+  const details = entry && typeof entry.details === "object" ? entry.details : null;
+  if (details?.source !== "/settings") return null;
+
+  const settingsDiff = details?.diff?.settings;
+  const changedFields = Array.isArray(settingsDiff?.changedFields) ? settingsDiff.changedFields : [];
+  const missingRequiredFields = REQUIRED_AUDIT_SETTINGS_FIELDS.filter((field) => !changedFields.includes(field));
+  const hasStructuredChanges = settingsDiff && typeof settingsDiff.changes === "object" && Number(settingsDiff.changedCount) > 0;
+  const createdAt = String(entry?.created_at || "");
+  const createdAtMs = toTimestamp(createdAt);
+  const nearPutWindow = Number.isFinite(createdAtMs)
+    ? createdAtMs >= (putStartedAt - 15000)
+    : false;
+
+  const markerMatched = REQUIRED_AUDIT_SETTINGS_FIELDS.some((field) => {
+    const afterValue = normalizeText(settingsDiff?.changes?.[field]?.after);
+    return afterValue.includes(markerText);
+  });
+
+  let score = 0;
+  if (hasStructuredChanges) score += 2;
+  if (missingRequiredFields.length === 0) score += 4;
+  if (nearPutWindow) score += 2;
+  if (markerMatched) score += 8;
+
+  return {
+    entry,
+    source: details?.source || null,
+    createdAt,
+    createdAtMs,
+    changedCount: Number(settingsDiff?.changedCount || 0),
+    changedFields,
+    missingRequiredFields,
+    hasStructuredChanges,
+    markerMatched,
+    nearPutWindow,
+    score,
+    isExpected: hasStructuredChanges && missingRequiredFields.length === 0 && (markerMatched || nearPutWindow)
+  };
+}
+
+function findBestSettingsAuditCandidate(auditItems, context) {
+  const candidates = auditItems
+    .map((entry) => evaluateSettingsAuditCandidate(entry, context))
+    .filter(Boolean)
+    .sort((left, right) => {
+      if (right.score !== left.score) return right.score - left.score;
+      return toTimestamp(right.createdAt) - toTimestamp(left.createdAt);
+    });
+
+  const matched = candidates.find((candidate) => candidate.isExpected) || null;
+  const topCandidate = candidates[0] || null;
+
+  return { matched, topCandidate };
+}
+
 async function run() {
   const envAdminPassword = String(process.env.CORE64_ADMIN_PASSWORD || "").trim();
   const backendEnvAdminPassword = readAdminPasswordFromBackendEnv();
@@ -308,6 +391,7 @@ async function run() {
       contactCaptchaInvalidDomainMessage: expectedValues.contactCaptchaInvalidDomainMessage
     };
 
+    const putStartedAt = Date.now();
     const saveSettings = await requestJson("/settings", {
       method: "PUT",
       headers: authHeaders,
@@ -315,17 +399,40 @@ async function run() {
     });
     ensureOk(saveSettings, "PUT /settings");
 
-    const auditResult = await requestJson("/audit-logs?limit=50&page=1&action=settings_updated&entity=settings", {
-      headers: { authorization: `Bearer ${token}` }
-    });
-    ensureOk(auditResult, "GET /audit-logs?action=settings_updated&entity=settings");
+    const markerText = String(marker);
+    const auditPollAttempts = [];
+    let matchingAuditCandidate = null;
 
-    const auditItems = getAuditItems(auditResult.json?.data);
-    const matchingAuditEntry = auditItems.find((entry) => {
-      const details = entry && typeof entry.details === "object" ? entry.details : null;
-      return details?.source === "/settings";
-    }) || null;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      const auditResult = await requestJson("/audit-logs?limit=100&page=1&action=settings_updated&entity=settings", {
+        headers: { authorization: `Bearer ${token}` }
+      });
+      ensureOk(auditResult, "GET /audit-logs?action=settings_updated&entity=settings");
 
+      const auditItems = getAuditItems(auditResult.json?.data);
+      const { matched, topCandidate } = findBestSettingsAuditCandidate(auditItems, {
+        markerText,
+        putStartedAt
+      });
+
+      auditPollAttempts.push({
+        attempt,
+        checkedItems: auditItems.length,
+        matched: Boolean(matched),
+        topCandidate: summarizeAuditCandidate(topCandidate)
+      });
+
+      if (matched) {
+        matchingAuditCandidate = matched;
+        break;
+      }
+
+      if (attempt < 3) {
+        await waitMs(1200);
+      }
+    }
+
+    const matchingAuditEntry = matchingAuditCandidate?.entry || null;
     const settingsDiff = matchingAuditEntry?.details?.diff?.settings;
     const changedFields = Array.isArray(settingsDiff?.changedFields) ? settingsDiff.changedFields : [];
     const missingAuditFields = REQUIRED_AUDIT_SETTINGS_FIELDS.filter((field) => !changedFields.includes(field));
@@ -339,7 +446,10 @@ async function run() {
       changedCount: Number(settingsDiff?.changedCount || 0),
       changedFields,
       missingRequiredFields: missingAuditFields,
-      hasStructuredChanges
+      hasStructuredChanges,
+      markerMatched: matchingAuditCandidate?.markerMatched || false,
+      nearPutWindow: matchingAuditCandidate?.nearPutWindow || false,
+      auditPollAttempts
     };
 
     if (!matchingAuditEntry || missingAuditFields.length > 0 || !hasStructuredChanges) {
