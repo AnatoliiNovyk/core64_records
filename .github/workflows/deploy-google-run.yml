@@ -25,7 +25,7 @@ on:
       artifact_repo:
         description: Artifact Registry repository name
         required: false
-        default: core64_records
+        default: core64
         type: string
       image_tag:
         description: Image tag
@@ -45,11 +45,6 @@ on:
           - none
           - hcaptcha
           - recaptcha_v2
-      database_url_secret_name:
-        description: GCP Secret Manager secret name for DATABASE_URL
-        required: false
-        default: DATABASE_URL
-        type: string
       jwt_secret_name:
         description: GCP Secret Manager secret name for JWT_SECRET
         required: false
@@ -65,16 +60,6 @@ on:
         required: false
         default: CONTACT_CAPTCHA_SECRET
         type: string
-      run_db_migrate:
-        description: Run backend database migration before deploy (true/false)
-        required: false
-        default: "true"
-        type: string
-      run_db_seed:
-        description: Run backend seed after migration (true/false)
-        required: false
-        default: "false"
-        type: string
       run_post_deploy_smoke:
         description: Run smoke-check after deploy (true/false)
         required: false
@@ -85,54 +70,25 @@ on:
         required: false
         default: "true"
         type: string
-      cutover_candidate_database_url:
-        description: Optional candidate Postgres DATABASE_URL for strict cutover preflight before deploy
-        required: false
-        default: ""
-        type: string
-      db_connection_timeout_ms:
-        description: PostgreSQL connection timeout in milliseconds
-        required: false
-        default: "15000"
-        type: string
-      db_query_timeout_ms:
-        description: PostgreSQL query timeout in milliseconds
-        required: false
-        default: "10000"
-        type: string
-      db_statement_timeout_ms:
-        description: PostgreSQL statement timeout in milliseconds
-        required: false
-        default: "10000"
-        type: string
-      auto_fix_pooler_sslmode:
-        description: Auto-fix DATABASE_URL pooler sslmode in Secret Manager before strict validation (true/false)
-        required: false
-        default: "false"
-        type: string
-      vpc_connector:
-        description: VPC connector resource name for private DB routing (empty -> no VPC connector; when set, egress is private-ranges-only)
-        required: false
-        default: ""
-        type: string
       require_release_owner_assignments:
         description: Require RELEASE_OWNERS_AND_ESCALATION.md to have real names (true/false)
         required: false
         default: "true"
         type: string
-      data_backend:
-        description: Data backend mode (postgres|dual|firestore)
-        required: false
-        default: "postgres"
-        type: choice
-        options:
-          - postgres
-          - dual
-          - firestore
       firestore_project_id:
-        description: Firestore GCP project ID (required when data_backend is firestore or dual)
+        description: Firestore GCP project ID
+        required: true
+        default: core64records
+        type: string
+      firestore_database_id:
+        description: Firestore database ID
         required: false
-        default: "core64records"
+        default: "(default)"
+        type: string
+      vpc_connector:
+        description: Optional VPC connector resource name (empty -> disabled)
+        required: false
+        default: ""
         type: string
 
 jobs:
@@ -169,22 +125,14 @@ jobs:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           RUNTIME_SERVICE_ACCOUNT: ${{ github.event.inputs.runtime_service_account }}
           CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
-          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
-          RUN_DB_MIGRATE: ${{ github.event.inputs.run_db_migrate }}
-          RUN_DB_SEED: ${{ github.event.inputs.run_db_seed }}
           RUN_POST_DEPLOY_SMOKE: ${{ github.event.inputs.run_post_deploy_smoke }}
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
-          CUTOVER_CANDIDATE_DATABASE_URL: ${{ github.event.inputs.cutover_candidate_database_url }}
-          DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
-          DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
-          DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
-          AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
           REQUIRE_RELEASE_OWNER_ASSIGNMENTS: ${{ github.event.inputs.require_release_owner_assignments }}
-          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
           FIRESTORE_PROJECT_ID_INPUT: ${{ github.event.inputs.firestore_project_id }}
+          FIRESTORE_DATABASE_ID_INPUT: ${{ github.event.inputs.firestore_database_id }}
         run: |
           if [ -z "$CORS_ORIGIN" ]; then
             echo "Missing required input: cors_origin"
@@ -196,9 +144,9 @@ jobs:
             exit 1
           fi
 
-          for secret_name in "$DATABASE_URL_SECRET_NAME" "$JWT_SECRET_NAME" "$ADMIN_PASSWORD_SECRET_NAME"; do
+          for secret_name in "$JWT_SECRET_NAME" "$ADMIN_PASSWORD_SECRET_NAME"; do
             if [ -z "$secret_name" ]; then
-              echo "Secret name inputs for database/jwt/admin must not be empty"
+              echo "Secret name inputs for jwt/admin must not be empty"
               exit 1
             fi
           done
@@ -208,7 +156,7 @@ jobs:
             exit 1
           fi
 
-          for flag in "$RUN_DB_MIGRATE" "$RUN_DB_SEED" "$RUN_POST_DEPLOY_SMOKE" "$CORE64_SMOKE_CONTACT" "$AUTO_FIX_POOLER_SSLMODE"; do
+          for flag in "$RUN_POST_DEPLOY_SMOKE" "$CORE64_SMOKE_CONTACT"; do
             if [ "$flag" != "true" ] && [ "$flag" != "false" ]; then
               echo "Boolean inputs must be 'true' or 'false'"
               exit 1
@@ -220,28 +168,18 @@ jobs:
             exit 1
           fi
 
-          for timeout_value in "$DB_CONNECTION_TIMEOUT_MS" "$DB_QUERY_TIMEOUT_MS" "$DB_STATEMENT_TIMEOUT_MS"; do
-            if ! [[ "$timeout_value" =~ ^[0-9]+$ ]] || [ "$timeout_value" -lt 1000 ]; then
-              echo "DB timeout inputs must be integers >= 1000"
-              exit 1
-            fi
-          done
+          if [ -z "$FIRESTORE_PROJECT_ID_INPUT" ]; then
+            echo "firestore_project_id is required"
+            exit 1
+          fi
 
-          if [ -n "$CUTOVER_CANDIDATE_DATABASE_URL" ] && [[ "$CUTOVER_CANDIDATE_DATABASE_URL" != postgres://* && "$CUTOVER_CANDIDATE_DATABASE_URL" != postgresql://* ]]; then
-            echo "cutover_candidate_database_url must start with postgres:// or postgresql:// when provided"
+          if [ -z "$FIRESTORE_DATABASE_ID_INPUT" ]; then
+            echo "firestore_database_id must not be empty"
             exit 1
           fi
 
           if [ -z "$RUNTIME_SERVICE_ACCOUNT" ]; then
             echo "Using default runtime service account: github-actions-deployer@$GCP_PROJECT_ID.iam.gserviceaccount.com"
-          fi
-
-          if [ "$DATA_BACKEND" = "firestore" ] || [ "$DATA_BACKEND" = "dual" ]; then
-            if [ -z "$FIRESTORE_PROJECT_ID_INPUT" ]; then
-              echo "firestore_project_id is required when data_backend is firestore or dual"
-              exit 1
-            fi
-            echo "Firestore mode enabled: project=$FIRESTORE_PROJECT_ID_INPUT"
           fi
 
       - name: Validate release owner assignments
@@ -266,11 +204,9 @@ jobs:
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           ARTIFACT_REPO: ${{ github.event.inputs.artifact_repo }}
           CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
-          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
-          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
         run: |
           if ! gcloud artifacts repositories describe "$ARTIFACT_REPO" --project "$GCP_PROJECT_ID" --location "$GCP_REGION" >/dev/null 2>&1; then
             echo "Artifact Registry repository not found: $ARTIFACT_REPO in $GCP_REGION"
@@ -278,9 +214,6 @@ jobs:
           fi
 
           required_secrets=("$JWT_SECRET_NAME" "$ADMIN_PASSWORD_SECRET_NAME")
-          if [ "$DATA_BACKEND" != "firestore" ]; then
-            required_secrets=("$DATABASE_URL_SECRET_NAME" "${required_secrets[@]}")
-          fi
           for secret_name in "${required_secrets[@]}"; do
             if ! gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$secret_name" >/dev/null 2>&1; then
               echo "Secret missing or inaccessible: $secret_name"
@@ -300,94 +233,25 @@ jobs:
         with:
           node-version: 20
 
-      - name: Run candidate Postgres cutover preflight
-        if: ${{ github.event.inputs.cutover_candidate_database_url != '' }}
-        env:
-          DATABASE_URL_VALUE: ${{ github.event.inputs.cutover_candidate_database_url }}
-        run: |
-          echo "::add-mask::$DATABASE_URL_VALUE"
-          node scripts/check-postgres-cutover-readiness.mjs --strict
-
       - name: Validate runtime config from secrets
         env:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
-          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
           CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
-          DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
-          DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
-          DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
-          AUTO_FIX_POOLER_SSLMODE: ${{ github.event.inputs.auto_fix_pooler_sslmode }}
-          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
           FIRESTORE_PROJECT_ID_INPUT: ${{ github.event.inputs.firestore_project_id }}
+          FIRESTORE_DATABASE_ID_INPUT: ${{ github.event.inputs.firestore_database_id }}
         run: |
           export NODE_ENV=production
-          export DB_SSL=true
-          export DB_SSL_REJECT_UNAUTHORIZED=false
-          export DB_SSL_ALLOW_SELF_SIGNED=true
-          export DB_CONNECTION_TIMEOUT_MS
-          export DB_QUERY_TIMEOUT_MS
-          export DB_STATEMENT_TIMEOUT_MS
-          export DATA_BACKEND
+          export DATA_BACKEND=firestore
           export FIRESTORE_PROJECT_ID="$FIRESTORE_PROJECT_ID_INPUT"
-
-          if [ "$DATA_BACKEND" != "firestore" ]; then
-            export DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
-          else
-            export DATABASE_URL=""
-          fi
+          export FIRESTORE_DATABASE_ID="$FIRESTORE_DATABASE_ID_INPUT"
           export JWT_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$JWT_SECRET_NAME")
           export ADMIN_PASSWORD=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$ADMIN_PASSWORD_SECRET_NAME")
           export CONTACT_CAPTCHA_PROVIDER
           export CORS_ORIGIN
-
-          if [ "$DATA_BACKEND" != "firestore" ]; then
-          POLICY_JSON=$(DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs)
-          POLICY_VALID=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(Boolean(p.valid)));});")
-          POLICY_REASON=$(printf '%s' "$POLICY_JSON" | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>{const p=JSON.parse(d);process.stdout.write(String(p.reason||''));});")
-          DATABASE_URL_POLICY_ARGS=(--strict --emit-remediation-command)
-
-          if [ "$AUTO_FIX_POOLER_SSLMODE" = "true" ]; then
-            echo "Checking DATABASE_URL for optional pooler sslmode auto-remediation..."
-            if [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
-              UPDATED_DATABASE_URL=$(DATABASE_URL_VALUE="$DATABASE_URL" DB_POOLER_SSLMODE=require node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)
-              if [ "$UPDATED_DATABASE_URL" != "$DATABASE_URL" ]; then
-                if ! printf '%s' "$UPDATED_DATABASE_URL" | gcloud secrets versions add "$DATABASE_URL_SECRET_NAME" --project "$GCP_PROJECT_ID" --data-file=- >/dev/null; then
-                  echo "Failed to add a new version for secret '$DATABASE_URL_SECRET_NAME' during auto-fix."
-                  echo "Ensure the deploy identity has Secret Manager write access (for example roles/secretmanager.secretVersionAdder on this secret)."
-                  exit 1
-                fi
-                VERIFIED_DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
-                if [ "$VERIFIED_DATABASE_URL" = "$UPDATED_DATABASE_URL" ]; then
-                  DATABASE_URL="$VERIFIED_DATABASE_URL"
-                  echo "Applied pooler sslmode auto-remediation to DATABASE_URL secret."
-                else
-                  echo "Failed to verify DATABASE_URL secret update after remediation"
-                  exit 1
-                fi
-              fi
-            fi
-          elif [ "$POLICY_VALID" != "true" ] && [ "$POLICY_REASON" = "unsupported_sslmode_for_pooler_endpoint" ]; then
-            echo "Tip: detected unsupported pooler sslmode while auto_fix_pooler_sslmode=false."
-            echo "Tip: re-run this workflow with input auto_fix_pooler_sslmode=true, or update DATABASE_URL secret manually before strict validation."
-            echo "Manual remediation commands (safe; do not print secret value):"
-            echo "CURRENT_DATABASE_URL=\"\$(gcloud secrets versions access latest --project \"$GCP_PROJECT_ID\" --secret \"$DATABASE_URL_SECRET_NAME\")\""
-            echo "UPDATED_DATABASE_URL=\"\$(DATABASE_URL_VALUE=\"\$CURRENT_DATABASE_URL\" DB_POOLER_SSLMODE=\"require\" node scripts/set-database-url-pooler-sslmode.mjs --raw-url --strict)\""
-            echo "printf '%s' \"\$UPDATED_DATABASE_URL\" | gcloud secrets versions add \"$DATABASE_URL_SECRET_NAME\" --project \"$GCP_PROJECT_ID\" --data-file=-"
-            echo "PowerShell one-shot (Windows): pwsh -NoProfile -File scripts/set-database-url-pooler-sslmode-secret.ps1 -ProjectId \"$GCP_PROJECT_ID\" -SecretName \"$DATABASE_URL_SECRET_NAME\" -DesiredSslMode \"require\""
-            echo "DATABASE_URL_VALUE=\"\$(gcloud secrets versions access latest --project \"$GCP_PROJECT_ID\" --secret \"$DATABASE_URL_SECRET_NAME\")\" node scripts/check-database-url-policy.mjs --strict"
-            DATABASE_URL_POLICY_ARGS=(--strict)
-          fi
-
-          echo "DATABASE_URL policy verdict (strict mode, safe metadata):"
-          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs "${DATABASE_URL_POLICY_ARGS[@]}"
-
-          echo "DATABASE_URL target snapshot (safe metadata):"
-          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict
-          fi
 
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             export CONTACT_CAPTCHA_SECRET=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$CONTACT_CAPTCHA_SECRET_NAME")
@@ -398,81 +262,6 @@ jobs:
           cd backend
           npm ci
           node -e "import('./src/config.js').then((m) => { m.validateConfig(); console.log('Runtime config validation passed.'); })"
-
-      - name: Run database migration/seed
-        if: ${{ github.event.inputs.run_db_migrate == 'true' || github.event.inputs.run_db_seed == 'true' }}
-        env:
-          GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
-          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
-          RUN_DB_MIGRATE: ${{ github.event.inputs.run_db_migrate }}
-          RUN_DB_SEED: ${{ github.event.inputs.run_db_seed }}
-          DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
-          DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
-          DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
-        run: |
-          export DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
-          if [ -z "$DATABASE_URL" ]; then
-            echo "Unable to read DATABASE_URL from Secret Manager"
-            exit 1
-          fi
-
-          echo "Pre-migrate DATABASE_URL policy verdict (strict, safe metadata):"
-          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/check-database-url-policy.mjs --strict
-
-          echo "Pre-migrate DATABASE_URL target snapshot (safe metadata):"
-          DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs --strict
-
-          echo "Pre-migrate runtime TLS hint (safe metadata):"
-          DATABASE_URL_VALUE="$DATABASE_URL" DB_SSL=true DB_SSL_REJECT_UNAUTHORIZED=false DB_SSL_ALLOW_SELF_SIGNED=true node scripts/print-db-runtime-tls-hint.mjs --strict
-
-          export DB_SSL=true
-          export DB_SSL_REJECT_UNAUTHORIZED=false
-          export DB_SSL_ALLOW_SELF_SIGNED=true
-          export DB_CONNECTION_TIMEOUT_MS
-          export DB_QUERY_TIMEOUT_MS
-          export DB_STATEMENT_TIMEOUT_MS
-
-          cd backend
-          npm ci
-
-          retry_db_command() {
-            local label="$1"
-            shift
-
-            local max_attempts=3
-            local attempt=1
-            local tmp_log
-            tmp_log=$(mktemp)
-
-            while [ "$attempt" -le "$max_attempts" ]; do
-              echo "$label attempt $attempt/$max_attempts"
-              if "$@" 2>&1 | tee "$tmp_log"; then
-                rm -f "$tmp_log"
-                return 0
-              fi
-
-              if grep -Eiq 'Connection terminated due to connection timeout|Connection terminated unexpectedly|SELF_SIGNED_CERT_IN_CHAIN' "$tmp_log" && [ "$attempt" -lt "$max_attempts" ]; then
-                echo "$label transient DB connectivity/TLS error detected; retrying in 10s..."
-                sleep 10
-                attempt=$((attempt + 1))
-                continue
-              fi
-
-              rm -f "$tmp_log"
-              return 1
-            done
-
-            rm -f "$tmp_log"
-            return 1
-          }
-
-          if [ "$RUN_DB_MIGRATE" = "true" ]; then
-            retry_db_command "Migration" npm run migrate
-          fi
-
-          if [ "$RUN_DB_SEED" = "true" ]; then
-            retry_db_command "Seed" npm run seed
-          fi
 
       - name: Configure Docker auth for Artifact Registry
         run: gcloud auth configure-docker ${{ github.event.inputs.gcp_region }}-docker.pkg.dev --quiet
@@ -497,17 +286,12 @@ jobs:
           RUNTIME_SERVICE_ACCOUNT_INPUT: ${{ github.event.inputs.runtime_service_account }}
           CORS_ORIGIN: ${{ github.event.inputs.cors_origin }}
           CONTACT_CAPTCHA_PROVIDER: ${{ github.event.inputs.contact_captcha_provider }}
-          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           JWT_SECRET_NAME: ${{ github.event.inputs.jwt_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CONTACT_CAPTCHA_SECRET_NAME: ${{ github.event.inputs.contact_captcha_secret_name }}
-          DB_CONNECTION_TIMEOUT_MS: ${{ github.event.inputs.db_connection_timeout_ms }}
-          DB_QUERY_TIMEOUT_MS: ${{ github.event.inputs.db_query_timeout_ms }}
-          DB_STATEMENT_TIMEOUT_MS: ${{ github.event.inputs.db_statement_timeout_ms }}
-          VPC_CONNECTOR: ${{ github.event.inputs.vpc_connector }}
-          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
           FIRESTORE_PROJECT_ID: ${{ github.event.inputs.firestore_project_id }}
-          FIRESTORE_DATABASE_ID: core64recordsdb
+          FIRESTORE_DATABASE_ID: ${{ github.event.inputs.firestore_database_id }}
+          VPC_CONNECTOR: ${{ github.event.inputs.vpc_connector }}
         run: |
           RUNTIME_SERVICE_ACCOUNT="$RUNTIME_SERVICE_ACCOUNT_INPUT"
           if [ -z "$RUNTIME_SERVICE_ACCOUNT" ]; then
@@ -515,9 +299,6 @@ jobs:
           fi
 
           SECRET_FLAGS="JWT_SECRET=$JWT_SECRET_NAME:latest,ADMIN_PASSWORD=$ADMIN_PASSWORD_SECRET_NAME:latest"
-          if [ "$DATA_BACKEND" != "firestore" ]; then
-            SECRET_FLAGS="DATABASE_URL=$DATABASE_URL_SECRET_NAME:latest,$SECRET_FLAGS"
-          fi
           if [ "$CONTACT_CAPTCHA_PROVIDER" != "none" ]; then
             SECRET_FLAGS="$SECRET_FLAGS,CONTACT_CAPTCHA_SECRET=$CONTACT_CAPTCHA_SECRET_NAME:latest"
           fi
@@ -535,7 +316,7 @@ jobs:
             --allow-unauthenticated \
             --no-use-http2 \
             --service-account "$RUNTIME_SERVICE_ACCOUNT" \
-            --set-env-vars "NODE_ENV=production,DB_SSL=true,DB_SSL_REJECT_UNAUTHORIZED=false,DB_SSL_ALLOW_SELF_SIGNED=true,DB_CONNECTION_TIMEOUT_MS=$DB_CONNECTION_TIMEOUT_MS,DB_QUERY_TIMEOUT_MS=$DB_QUERY_TIMEOUT_MS,DB_STATEMENT_TIMEOUT_MS=$DB_STATEMENT_TIMEOUT_MS,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER,DATA_BACKEND=$DATA_BACKEND,FIRESTORE_PROJECT_ID=$FIRESTORE_PROJECT_ID,FIRESTORE_DATABASE_ID=$FIRESTORE_DATABASE_ID" \
+            --set-env-vars "NODE_ENV=production,DATA_BACKEND=firestore,FIRESTORE_PROJECT_ID=$FIRESTORE_PROJECT_ID,FIRESTORE_DATABASE_ID=$FIRESTORE_DATABASE_ID,CORS_ORIGIN=$CORS_ORIGIN,CONTACT_CAPTCHA_PROVIDER=$CONTACT_CAPTCHA_PROVIDER" \
             --set-secrets "$SECRET_FLAGS" \
             --port 3000 \
             --cpu 1 \
@@ -563,13 +344,11 @@ jobs:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
-          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
           ADMIN_PASSWORD_SECRET_NAME: ${{ github.event.inputs.admin_password_secret_name }}
           CORE64_SMOKE_TIMEOUT_MS: "60000"
           CORE64_SMOKE_RETRIES: "3"
           CORE64_SMOKE_CONTACT: ${{ github.event.inputs.core64_smoke_contact }}
           CORE64_SMOKE_MODE: health
-          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
         run: |
           SERVICE_URL=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format='value(status.url)')
           if [ -z "$SERVICE_URL" ]; then
@@ -592,44 +371,13 @@ jobs:
             exit 1
           fi
 
-          if [ "$DATA_BACKEND" != "firestore" ]; then
-            DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
-            if [ -z "$DATABASE_URL" ]; then
-              echo "Unable to read DATABASE_URL from Secret Manager"
-              exit 1
-            fi
-
-            SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)
-            if [ -z "$SERVICE_JSON" ]; then
-              echo "Unable to fetch Cloud Run service JSON for DB route compatibility check"
-              exit 1
-            fi
-
-            echo "Pre-smoke DB route compatibility verdict (strict mode):"
-            CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-cloud-run-db-route-verdict.mjs --strict
-          fi
-
           attempt=1
           until [ "$attempt" -gt "$RETRIES" ]; do
             echo "Running post-deploy smoke-check against $CORE64_API_BASE (attempt $attempt/$RETRIES)"
-            SMOKE_OUTPUT_FILE=$(mktemp)
-            if node scripts/smoke-check.mjs | tee "$SMOKE_OUTPUT_FILE"; then
-              rm -f "$SMOKE_OUTPUT_FILE"
+            if node scripts/smoke-check.mjs; then
               echo "Post-deploy smoke-check passed on attempt $attempt."
               exit 0
             fi
-
-            HEALTH_DB_KIND=$(node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(String(d?.checks?.healthDb?.kind||'').toLowerCase());}catch{process.stdout.write('');}" "$SMOKE_OUTPUT_FILE")
-            HEALTH_DB_CODE=$(node -e "const fs=require('fs');try{const d=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));process.stdout.write(String(d?.checks?.healthDb?.dbCode||'').toUpperCase());}catch{process.stdout.write('');}" "$SMOKE_OUTPUT_FILE")
-
-            if [ "$HEALTH_DB_KIND" = "auth" ] || [ "$HEALTH_DB_KIND" = "config" ] || [ "$HEALTH_DB_CODE" = "28P01" ]; then
-              rm -f "$SMOKE_OUTPUT_FILE"
-              echo "Smoke-check failed with non-transient DB error (kind=$HEALTH_DB_KIND, dbCode=$HEALTH_DB_CODE)."
-              echo "Fail-fast: retry is skipped. Verify DATABASE_URL credentials/encoding and secret value in Secret Manager."
-              exit 1
-            fi
-
-            rm -f "$SMOKE_OUTPUT_FILE"
 
             if [ "$attempt" -lt "$RETRIES" ]; then
               echo "Smoke-check failed on attempt $attempt; waiting 15s before retry."
@@ -656,8 +404,6 @@ jobs:
           GCP_PROJECT_ID: ${{ github.event.inputs.gcp_project_id }}
           GCP_REGION: ${{ github.event.inputs.gcp_region }}
           SERVICE_NAME: ${{ github.event.inputs.service_name }}
-          DATABASE_URL_SECRET_NAME: ${{ github.event.inputs.database_url_secret_name }}
-          DATA_BACKEND: ${{ github.event.inputs.data_backend }}
         run: |
           set +e
 
@@ -666,14 +412,6 @@ jobs:
 
           echo "Diagnostic: service URL = $SERVICE_URL"
           echo "Diagnostic: latest ready revision = $REVISION"
-
-          if [ "$DATA_BACKEND" != "firestore" ]; then
-            DATABASE_URL=$(gcloud secrets versions access latest --project "$GCP_PROJECT_ID" --secret "$DATABASE_URL_SECRET_NAME")
-          fi
-          if [ -n "$DATABASE_URL" ]; then
-            echo "Diagnostic: DATABASE_URL target snapshot (safe metadata)"
-            DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-db-target-snapshot.mjs
-          fi
 
           if [ -n "$SERVICE_URL" ]; then
             echo "Diagnostic: GET $SERVICE_URL/api/health"
@@ -698,14 +436,3 @@ jobs:
             --project "$GCP_PROJECT_ID" \
             --region "$GCP_REGION" \
             --format='yaml(spec.template.metadata.annotations)' || true
-
-          SERVICE_JSON=$(gcloud run services describe "$SERVICE_NAME" --project "$GCP_PROJECT_ID" --region "$GCP_REGION" --format=json)
-          if [ -n "$SERVICE_JSON" ]; then
-            echo "Diagnostic: Cloud Run network routing hint"
-            CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" node scripts/print-cloud-run-network-hint.mjs || true
-
-            if [ -n "$DATABASE_URL" ]; then
-              echo "Diagnostic: Cloud Run and DB route compatibility verdict"
-              CLOUD_RUN_SERVICE_JSON="$SERVICE_JSON" DATABASE_URL_VALUE="$DATABASE_URL" node scripts/print-cloud-run-db-route-verdict.mjs || true
-            fi
-          fi

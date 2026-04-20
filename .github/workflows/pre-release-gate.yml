@@ -36,11 +36,6 @@ on:
         required: false
         default: "35"
         type: string
-      core64_cutover_candidate_database_url:
-        description: Optional candidate Postgres DATABASE_URL for strict cutover preflight
-        required: false
-        default: ""
-        type: string
       core64_override_role_diversity:
         description: Override release owner diversity requirement in emergency (true/false)
         required: false
@@ -144,7 +139,6 @@ jobs:
           CORE64_SMOKE_RATE_LIMIT_CHECK: ${{ github.event.inputs.core64_smoke_rate_limit_check }}
           CORE64_SMOKE_RATE_LIMIT_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_attempts }}
           CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS: ${{ github.event.inputs.core64_smoke_rate_limit_collections_attempts }}
-          CORE64_CUTOVER_CANDIDATE_DATABASE_URL: ${{ github.event.inputs.core64_cutover_candidate_database_url }}
           CORE64_OVERRIDE_ROLE_DIVERSITY: ${{ github.event.inputs.core64_override_role_diversity }}
           CORE64_CHANGELOG_BASE_REF: ${{ github.event.inputs.core64_changelog_base_ref }}
           CORE64_CHANGELOG_HEAD_REF: ${{ github.event.inputs.core64_changelog_head_ref }}
@@ -186,11 +180,6 @@ jobs:
 
           if ! [[ "$CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS" =~ ^[0-9]+$ ]] || [ "$CORE64_SMOKE_RATE_LIMIT_COLLECTIONS_ATTEMPTS" -lt 2 ]; then
             echo "core64_smoke_rate_limit_collections_attempts must be an integer >= 2"
-            exit 1
-          fi
-
-          if [ -n "$CORE64_CUTOVER_CANDIDATE_DATABASE_URL" ] && [[ "$CORE64_CUTOVER_CANDIDATE_DATABASE_URL" != postgres://* && "$CORE64_CUTOVER_CANDIDATE_DATABASE_URL" != postgresql://* ]]; then
-            echo "core64_cutover_candidate_database_url must start with postgres:// or postgresql:// when provided"
             exit 1
           fi
 
@@ -245,26 +234,8 @@ jobs:
             exit 1
           fi
 
-      - name: Validate DB snapshot helper
-        run: node scripts/test-print-db-target-snapshot.mjs
-
-      - name: Validate Postgres cutover preflight helper
-        run: node scripts/test-check-postgres-cutover-readiness.mjs
-
-      - name: Validate DATABASE_URL policy helper
-        run: node scripts/test-check-database-url-policy.mjs
-
-      - name: Validate DATABASE_URL pooler sslmode helper
-        run: node scripts/test-set-database-url-pooler-sslmode.mjs
-
       - name: Validate Cloud Run network hint helper
         run: node scripts/test-print-cloud-run-network-hint.mjs
-
-      - name: Validate Cloud Run DB route verdict helper
-        run: node scripts/test-print-cloud-run-db-route-verdict.mjs
-
-      - name: Validate DB runtime TLS hint helper
-        run: node scripts/test-print-db-runtime-tls-hint.mjs
 
       - name: Validate log sanitizer helper
         run: node scripts/test-log-sanitizer.mjs
@@ -280,14 +251,6 @@ jobs:
 
       - name: Validate smoke-check helper
         run: node scripts/test-smoke-check.mjs
-
-      - name: Run candidate Postgres cutover preflight
-        if: ${{ github.event.inputs.core64_cutover_candidate_database_url != '' }}
-        env:
-          DATABASE_URL_VALUE: ${{ github.event.inputs.core64_cutover_candidate_database_url }}
-        run: |
-          echo "::add-mask::$DATABASE_URL_VALUE"
-          node scripts/check-postgres-cutover-readiness.mjs --strict
 
       - name: Run API error contract check
         env:

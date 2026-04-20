@@ -172,44 +172,48 @@ function deriveHealthDbHint(kind, dbCode, durationMs, connectionTimeoutMs, probe
     const hasConfiguredTimeout = Number.isFinite(configuredTimeout) && configuredTimeout > 0;
     const nearConfiguredTimeout = hasDuration && hasConfiguredTimeout && maybeDuration >= Math.max(1000, configuredTimeout - 1000);
 
+    if (normalizedKind === "firestore") {
+        return "Firestore connectivity check failed. Verify FIRESTORE_PROJECT_ID/FIRESTORE_DATABASE_ID, runtime service account permissions, and Firestore API availability.";
+    }
+
     if (normalizedKind === "timeout") {
         if (hasDuration) {
             if (nearConfiguredTimeout) {
                 if (probe?.attempted && probe?.dns?.resolved === false) {
-                    return `DB connection timed out after ~${Math.round(maybeDuration)}ms (near configured DB_CONNECTION_TIMEOUT_MS=${Math.round(configuredTimeout)}). DNS probe failed for DB host from runtime. Investigate Cloud Run DNS resolver and outbound egress path.`;
+                    return `Data backend request timed out after ~${Math.round(maybeDuration)}ms (near configured timeout ${Math.round(configuredTimeout)}ms). DNS probe failed from runtime. Investigate Cloud Run DNS resolver and outbound egress path.`;
                 }
                 if (probe?.attempted && probe?.dns?.resolved === true && probe?.tcp?.reachable === false) {
-                    return `DB connection timed out after ~${Math.round(maybeDuration)}ms (near configured DB_CONNECTION_TIMEOUT_MS=${Math.round(configuredTimeout)}). DNS resolves but TCP probe to DB host/port failed. Investigate egress/NAT/firewall/allowlist path.`;
+                    return `Data backend request timed out after ~${Math.round(maybeDuration)}ms (near configured timeout ${Math.round(configuredTimeout)}ms). DNS resolves but TCP probe failed. Investigate egress/NAT/firewall/allowlist path.`;
                 }
-                return `DB connection timed out after ~${Math.round(maybeDuration)}ms (near configured DB_CONNECTION_TIMEOUT_MS=${Math.round(configuredTimeout)}). This usually indicates network reachability issues from Cloud Run to DB host/port. If this persists after trying db_connection_timeout_ms=20000, investigate egress/NAT/allowlist/DNS path.`;
+                return `Data backend request timed out after ~${Math.round(maybeDuration)}ms near configured timeout (${Math.round(configuredTimeout)}ms). This usually indicates network reachability issues from Cloud Run.`;
             }
-            return `DB connection timed out after ~${Math.round(maybeDuration)}ms. Check Cloud Run egress path and DATABASE_URL host/port reachability. If this persists, re-run deploy with db_connection_timeout_ms=15000 (or 20000).`;
+            return `Data backend request timed out after ~${Math.round(maybeDuration)}ms. Check Cloud Run egress, DNS, and service account access to Firestore.`;
         }
-        return "DB connection timed out. Check Cloud Run egress path and DATABASE_URL host/port reachability. If this persists, re-run deploy with db_connection_timeout_ms=15000 (or 20000).";
+        return "Data backend request timed out. Check Cloud Run egress, DNS, and runtime permissions.";
     }
 
     if (normalizedKind === "dns") {
-        return "DB host lookup failed. Verify DATABASE_URL host name and DNS reachability from Cloud Run.";
+        return "DNS lookup failed from runtime. Verify Cloud Run DNS and outbound network path.";
     }
 
     if (normalizedKind === "tls") {
-        return "TLS/certificate issue while connecting to DB. Verify DB_SSL/DB_SSL_REJECT_UNAUTHORIZED and provider certificate requirements.";
+        return "TLS/certificate issue while connecting to backend dependency. Verify runtime certificate chain and outbound trust settings.";
     }
 
     if (normalizedKind === "auth" || normalizedCode === "28P01") {
-        return "DB authentication failed. Verify DATABASE_URL credentials and database role permissions.";
+        return "Authentication failed for backend dependency. Verify runtime identity and permissions.";
     }
 
     if (normalizedKind === "config") {
-        return "Invalid DB connection string format. Verify DATABASE_URL syntax and URL encoding.";
+        return "Invalid backend dependency configuration. Verify Firestore project and database settings.";
     }
 
     if (normalizedKind === "connection" || normalizedCode.startsWith("08")) {
-        return "DB connection could not be established. Check DB endpoint, network path, and server availability.";
+        return "Backend dependency connection could not be established. Check network path and service availability.";
     }
 
     if (normalizedKind === "storage_limit" || normalizedCode === "53100") {
-        return "Database quota/storage limit has been reached. Restore DB quota or upgrade plan, then re-run health/full smoke checks.";
+        return "Storage quota/limit has been reached. Restore quota, then re-run health/full smoke checks.";
     }
 
     return null;
@@ -581,9 +585,9 @@ async function run() {
 
     if (!login.response.ok || !token) {
         if (login.response.status === 401) {
-            adminChecks.hint = "Set CORE64_ADMIN_PASSWORD to match backend ADMIN_PASSWORD, or update backend/.env and rerun seed.";
+            adminChecks.hint = "Set CORE64_ADMIN_PASSWORD to match backend ADMIN_PASSWORD, or update backend/.env and restart backend.";
         } else if (login.response.status === 503) {
-            adminChecks.hint = "Auth service unavailable. Check /health/db and backend DB SSL settings (DB_SSL / DB_SSL_REJECT_UNAUTHORIZED).";
+            adminChecks.hint = "Auth service unavailable. Check /health/db and Firestore project credentials/permissions.";
         }
         report.passed = false;
     } else {

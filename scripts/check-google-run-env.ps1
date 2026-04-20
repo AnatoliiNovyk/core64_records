@@ -22,12 +22,12 @@ $requiredVars = @(
     "GCP_REGION",
     "GCP_SERVICE_NAME",
     "IMAGE_URI",
+    "FIRESTORE_PROJECT_ID",
     "CORS_ORIGIN",
     "CONTACT_CAPTCHA_PROVIDER"
 )
 
 $requiredSecrets = @(
-    "DATABASE_URL",
     "JWT_SECRET",
     "ADMIN_PASSWORD"
 )
@@ -75,47 +75,6 @@ if (-not [string]::IsNullOrWhiteSpace($adminPassword) -and $adminPassword.Trim()
 $corsOrigin = Get-EnvValue -Name "CORS_ORIGIN"
 if (-not [string]::IsNullOrWhiteSpace($corsOrigin) -and $corsOrigin.Contains("*")) {
     $errors.Add("CORS_ORIGIN must not include wildcard '*' for production")
-}
-
-$databaseUrl = Get-EnvValue -Name "DATABASE_URL"
-if (-not [string]::IsNullOrWhiteSpace($databaseUrl)) {
-    try {
-        $previousDatabaseUrlValue = $env:DATABASE_URL_VALUE
-        $env:DATABASE_URL_VALUE = $databaseUrl
-        $policyJson = & node scripts/check-database-url-policy.mjs
-        if ($null -eq $previousDatabaseUrlValue) {
-            Remove-Item Env:DATABASE_URL_VALUE -ErrorAction SilentlyContinue
-        }
-        else {
-            $env:DATABASE_URL_VALUE = $previousDatabaseUrlValue
-        }
-
-        $policy = $policyJson | ConvertFrom-Json
-        if (-not $policy.valid) {
-            $errors.Add("DATABASE_URL policy: $($policy.reason) - $($policy.hint)")
-        }
-    }
-    catch {
-        $errors.Add("DATABASE_URL policy check failed: $($_.Exception.Message)")
-    }
-}
-
-$dbTimeoutVars = @(
-    "DB_CONNECTION_TIMEOUT_MS",
-    "DB_QUERY_TIMEOUT_MS",
-    "DB_STATEMENT_TIMEOUT_MS"
-)
-
-foreach ($varName in $dbTimeoutVars) {
-    $rawValue = Get-EnvValue -Name $varName
-    if ([string]::IsNullOrWhiteSpace($rawValue)) {
-        continue
-    }
-
-    $parsedValue = 0
-    if (-not [int]::TryParse($rawValue.Trim(), [ref]$parsedValue) -or $parsedValue -lt 1000) {
-        $errors.Add("$varName must be an integer >= 1000 when provided")
-    }
 }
 
 if ($errors.Count -gt 0) {

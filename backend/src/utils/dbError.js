@@ -45,7 +45,7 @@ export const classifyDatabaseError = (error) => {
 
   if (STORAGE_LIMIT_CODES.has(code) || hasStorageLimitMessage(message)) return "storage_limit";
 
-  // PostgreSQL SQLSTATE class 08 = connection exception.
+  // SQLSTATE class 08 = connection exception.
   if (/^08[A-Z0-9]{3}$/.test(code)) return "connection";
 
   if (code === "57014" || message.includes("statement timeout") || message.includes("query timeout") || message.includes("timeout")) {

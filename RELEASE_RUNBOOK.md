@@ -2,7 +2,7 @@
 
 This runbook defines a minimal release process for CORE64 web + API.
 
-Google Run + Supabase deployment playbook:
+Google Run + Firestore deployment playbook:
 
 - See `GOOGLE_RUN_DEPLOYMENT.md`
 - See `RELEASE_OWNERS_AND_ESCALATION.md`
@@ -11,29 +11,14 @@ Google Run + Supabase deployment playbook:
 
 - Repository is on `main` and up to date.
 - Backend environment variables are configured.
-- PostgreSQL is reachable.
+- Firestore project and credentials are reachable.
 - Frontend static server is available.
 - Backend production env passes startup preflight:
-  - `DB_SSL=true`
-  - one of: `DB_SSL_REJECT_UNAUTHORIZED=true` or `DB_SSL_ALLOW_SELF_SIGNED=true`
+- `DATA_BACKEND=firestore`
+- `FIRESTORE_PROJECT_ID` is configured for target environment
   - non-default strong `JWT_SECRET`
   - non-default strong `ADMIN_PASSWORD`
   - `CORS_ORIGIN` without `*`
-
-Before rotating `DATABASE_URL` to a new Postgres target, run cutover preflight against the candidate URL:
-
-```bash
-DATABASE_URL_VALUE="postgresql://user:pass@host:5432/db?sslmode=require" node scripts/check-postgres-cutover-readiness.mjs --strict
-```
-
-PowerShell equivalent:
-
-```powershell
-$env:DATABASE_URL_VALUE = "postgresql://user:pass@host:5432/db?sslmode=require"
-node scripts/check-postgres-cutover-readiness.mjs --strict
-```
-
-The preflight is green only when URL policy validation, DNS lookup, and TCP connection checks all pass.
 
 ## 2. Start Services
 
@@ -105,7 +90,6 @@ CI alternative (single gate run):
 - Ensure repository secret `CORE64_ADMIN_PASSWORD` is configured for smoke auth.
 - Ensure repository secret `BRANCH_PROTECTION_TOKEN` is configured.
 - Use `core64_admin_password` input only as temporary fallback (deprecated).
-- Optionally provide `core64_cutover_candidate_database_url` to run strict DB cutover preflight (`check-postgres-cutover-readiness.mjs --strict`) before smoke/contract checks.
 - Ensure release owner diversity check is green (or explicitly overridden for emergency only).
 - Ensure changelog coverage check is green for the selected commit range.
 - Ensure changelog format check is green for changed changelog files in the selected commit range.
@@ -120,26 +104,12 @@ CI alternative (single gate run):
 - Ensure API error contract check is green.
 - Proceed only when workflow finishes successfully.
 
-Deploy cutover troubleshooting notes:
-
-- In `.github/workflows/deploy-google-run.yml`, candidate DB preflight runs only after deploy input validation, release-owner check, and GCP resources/secrets validation.
-- If deploy fails at `Validate GCP resources and secrets`, treat it as infrastructure/IAM blocker (not candidate DB preflight failure) and fix GCP prerequisites first.
-- For earliest candidate DB signal independent from deploy prerequisites, use `Pre-Release Gate` with `core64_cutover_candidate_database_url`.
-
 Local alternative (single gate command):
 
 ```powershell
 $env:GITHUB_TOKEN = "<github-pat-with-repo-admin-rights>"
 pwsh -File scripts/pre-release-gate-local.ps1
 ```
-
-Optional cutover preflight via local gate (when rotating `DATABASE_URL`):
-
-```powershell
-pwsh -File scripts/pre-release-gate-local.ps1 -Core64CutoverCandidateDatabaseUrl "postgresql://user:pass@host:5432/db?sslmode=require"
-```
-
-When this parameter is provided, the gate runs `scripts/check-postgres-cutover-readiness.mjs --strict` before API contract/smoke checks.
 
 Tokenless local/dev mode (explicit overrides):
 

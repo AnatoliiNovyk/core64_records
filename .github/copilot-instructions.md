@@ -3,7 +3,7 @@
 ## Architecture
 - Frontend is static files in repo root: `index.html`, `admin.html`, `app.js`, `admin.js`, `style.css`.
 - Shared data access is in `data-adapter.js` (API-first with local fallback).
-- Backend is in `backend/` (Node.js + Express + PostgreSQL).
+- Backend is in `backend/` (Node.js + Express + Firestore).
 - API entrypoint is `backend/src/server.js`; route modules are mounted from `backend/src/routes/`.
 - Collection CRUD routes are mounted as `/api/:type` (for example `/api/releases`, `/api/sponsors`).
 
@@ -15,8 +15,6 @@
   - `node scripts/smoke-check.mjs`
 - Backend dev and data setup:
   - `cd backend && npm run dev`
-  - `cd backend && npm run migrate`
-  - `cd backend && npm run seed`
 - Local release gate:
   - `pwsh -File scripts/pre-release-gate-local.ps1`
 
@@ -30,8 +28,7 @@
 
 ## Environment Pitfalls
 - If `ADMIN_PASSWORD` contains `#`, wrap it in quotes in `.env`.
-- If DB password contains special characters, URL-encode them in `DATABASE_URL`.
-- In production, backend startup validates strict config (non-wildcard `CORS_ORIGIN`, strong secrets, SSL settings).
+- In production, backend startup validates strict config (non-wildcard `CORS_ORIGIN`, strong secrets, Firestore backend mode).
 - Frontend can override API base via query params: `?apiBaseUrl=...` (or shorthand `?api=...`).
 
 ## References

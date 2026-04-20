@@ -1,15 +1,4 @@
 {
   "version": 1,
-  "skills": {
-    "neon-postgres": {
-      "source": "neondatabase/agent-skills",
-      "sourceType": "github",
-      "computedHash": "574cf4b7c901ebc7d88d34e2c3e3d08fdec127bd0047f888de148ff0af787d4e"
-    },
-    "supabase-postgres-best-practices": {
-      "source": "supabase/agent-skills",
-      "sourceType": "github",
-      "computedHash": "7e1a5a1e76805889b83b4c20bc4b9e25de70eff71b7c5b9c4789f98a77ef81ab"
-    }
-  }
+  "skills": {}
 }

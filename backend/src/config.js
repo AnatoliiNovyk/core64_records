@@ -40,12 +40,8 @@ export const config = {
     .split(",")
     .map((value) => String(value).trim().toLowerCase())
     .filter(Boolean),
-  databaseUrl: readEnvString("DATABASE_URL"),
   firestoreProjectId: readEnvString("FIRESTORE_PROJECT_ID"),
   firestoreDatabaseId: readEnvString("FIRESTORE_DATABASE_ID", "(default)"),
-  dbConnectionTimeoutMs: toNumber(process.env.DB_CONNECTION_TIMEOUT_MS, 15000),
-  dbQueryTimeoutMs: toNumber(process.env.DB_QUERY_TIMEOUT_MS, 10000),
-  dbStatementTimeoutMs: toNumber(process.env.DB_STATEMENT_TIMEOUT_MS, 10000),
   authRateLimitWindowMs: toNumber(process.env.AUTH_RATE_LIMIT_WINDOW_MS, 60000),
   authRateLimitMax: toNumber(process.env.AUTH_RATE_LIMIT_MAX, 10),
   contactRateLimitWindowMs: toNumber(process.env.CONTACT_RATE_LIMIT_WINDOW_MS, 60000),
@@ -58,9 +54,6 @@ export const config = {
   contactRequestUpdateRateLimitMax: toNumber(process.env.CONTACT_REQUEST_UPDATE_RATE_LIMIT_MAX, 50),
   cspMode: readEnvString("CSP_MODE", "enforce").toLowerCase(),
   cspReportUri: readEnvString("CSP_REPORT_URI", "/api/security/csp-report"),
-  dbSsl: toBoolean(process.env.DB_SSL, true),
-  dbSslRejectUnauthorized: toBoolean(process.env.DB_SSL_REJECT_UNAUTHORIZED, false),
-  dbSslAllowSelfSigned: toBoolean(process.env.DB_SSL_ALLOW_SELF_SIGNED, false),
   jwtSecret: readEnvString("JWT_SECRET", "change-me") || "change-me",
   corsOrigin: readEnvString("CORS_ORIGIN", "*").split(",").map((v) => v.trim()),
   adminPassword: readEnvString("ADMIN_PASSWORD", "core64admin") || "core64admin",
@@ -103,18 +96,6 @@ export const validateConfig = () => {
 
   if (!config.supportedLanguages.includes(config.defaultLanguage)) {
     errors.push("DEFAULT_LANGUAGE must be included in SUPPORTED_LANGUAGES.");
-  }
-
-  if (!Number.isInteger(config.dbConnectionTimeoutMs) || config.dbConnectionTimeoutMs < 1000) {
-    errors.push("DB_CONNECTION_TIMEOUT_MS must be an integer >= 1000.");
-  }
-
-  if (!Number.isInteger(config.dbQueryTimeoutMs) || config.dbQueryTimeoutMs < 1000) {
-    errors.push("DB_QUERY_TIMEOUT_MS must be an integer >= 1000.");
-  }
-
-  if (!Number.isInteger(config.dbStatementTimeoutMs) || config.dbStatementTimeoutMs < 1000) {
-    errors.push("DB_STATEMENT_TIMEOUT_MS must be an integer >= 1000.");
   }
 
   if (!Number.isInteger(config.authRateLimitWindowMs) || config.authRateLimitWindowMs < 1000) {

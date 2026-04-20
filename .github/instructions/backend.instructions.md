@@ -1,11 +1,10 @@
 ---
-description: "Use when editing backend API code, routes, DB migrations, validation, or environment config in backend/. Includes contracts, safety checks, and release-critical conventions."
+description: "Use when editing backend API code, routes, Firestore repository logic, validation, or environment config in backend/. Includes contracts, safety checks, and release-critical conventions."
 name: "CORE64 Backend Guidelines"
 applyTo:
   - "backend/src/**"
   - "backend/.env*"
   - "backend/package.json"
-  - "backend/src/db/migrations/**"
 ---
 
 # CORE64 Backend Guidelines
@@ -16,14 +15,13 @@ applyTo:
 - Keep DB to API mapping stable: snake_case in DB, camelCase in API payloads.
 - Keep releases.year as string at API boundary.
 - For schema or payload changes, update related parts in one batch:
-  - DB migration
-  - seed where needed
+  - Firestore repository mapping
   - validation schema
-  - repository mapping
+  - route and adapter contracts
 - Keep production startup guardrails intact in backend/src/config.js:
   - strict CORS_ORIGIN
   - strong non-default secrets
-  - DB SSL flags and timeout validation
+  - Firestore backend mode validation
 - When touching auth/admin bootstrap-sensitive backend endpoints, avoid behavior that can mask 401/503 diagnostics.
 - Prefer defensive error handling consistent with current patterns:
   - validation errors as 400

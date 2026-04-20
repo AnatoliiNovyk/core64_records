@@ -5,8 +5,6 @@
   "scripts": {
     "consistency-check:settings-i18n": "node scripts/check-settings-i18n-consistency.mjs",
     "contract-check:settings-public": "node scripts/settings-public-contract-check.mjs",
-    "db-cutover:preflight": "node scripts/check-postgres-cutover-readiness.mjs --strict",
-    "db-cutover:preflight:test": "node scripts/test-check-postgres-cutover-readiness.mjs",
     "ui-smoke": "node scripts/ui-smoke.mjs",
     "ui-smoke:install": "playwright install chromium"
   },

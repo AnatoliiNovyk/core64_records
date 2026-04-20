@@ -24,9 +24,6 @@ param(
     [int]$Core64ContractRetryDelayMs = 2000,
 
     [Parameter(Mandatory = $false)]
-    [string]$Core64CutoverCandidateDatabaseUrl = "",
-
-    [Parameter(Mandatory = $false)]
     [int]$Core64SmokeRateLimitAttempts = 25,
 
     [Parameter(Mandatory = $false)]
@@ -252,28 +249,6 @@ function Invoke-ApiErrorContractCheck {
     }
 }
 
-function Invoke-CutoverCandidateDbPreflight {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$DatabaseUrl
-    )
-
-    $previousDatabaseUrlValue = $env:DATABASE_URL_VALUE
-    $hadDatabaseUrlValue = Test-Path Env:DATABASE_URL_VALUE
-
-    try {
-        $env:DATABASE_URL_VALUE = $DatabaseUrl
-        node scripts/check-postgres-cutover-readiness.mjs --strict
-        return $LASTEXITCODE
-    } finally {
-        if ($hadDatabaseUrlValue) {
-            $env:DATABASE_URL_VALUE = $previousDatabaseUrlValue
-        } else {
-            Remove-Item Env:DATABASE_URL_VALUE -ErrorAction SilentlyContinue
-        }
-    }
-}
-
 if ([string]::IsNullOrWhiteSpace($Token)) {
     $Token = $env:GITHUB_TOKEN
 }
@@ -308,10 +283,6 @@ if ($Core64ContractRetries -lt 1) {
 
 if ($Core64ContractRetryDelayMs -lt 0) {
     throw "Core64ContractRetryDelayMs must be >= 0."
-}
-
-if (-not [string]::IsNullOrWhiteSpace($Core64CutoverCandidateDatabaseUrl)) {
-    $Core64CutoverCandidateDatabaseUrl = $Core64CutoverCandidateDatabaseUrl.Trim()
 }
 
 if ($MinimumApprovals -lt 1 -or $MinimumApprovals -gt 6) {
@@ -379,89 +350,43 @@ if ($LASTEXITCODE -ne 0) {
     throw "Contact smoke expectation helper self-test failed."
 }
 
-Write-Host "[7/22] Running DB snapshot helper self-test..."
-node scripts/test-print-db-target-snapshot.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "DB snapshot helper self-test failed."
-}
-
-Write-Host "Running Postgres cutover preflight helper self-test..."
-node scripts/test-check-postgres-cutover-readiness.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "Postgres cutover preflight helper self-test failed."
-}
-
-Write-Host "[8/22] Running DATABASE_URL policy helper self-test..."
-node scripts/test-check-database-url-policy.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "DATABASE_URL policy helper self-test failed."
-}
-
-Write-Host "[9/22] Running DATABASE_URL pooler sslmode helper self-test..."
-node scripts/test-set-database-url-pooler-sslmode.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "DATABASE_URL pooler sslmode helper self-test failed."
-}
-
-Write-Host "[10/22] Running Cloud Run network hint helper self-test..."
+Write-Host "[7/17] Running Cloud Run network hint helper self-test..."
 node scripts/test-print-cloud-run-network-hint.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Cloud Run network hint helper self-test failed."
 }
 
-Write-Host "[11/22] Running Cloud Run DB route verdict helper self-test..."
-node scripts/test-print-cloud-run-db-route-verdict.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "Cloud Run DB route verdict helper self-test failed."
-}
-
-Write-Host "[12/22] Running DB runtime TLS hint helper self-test..."
-node scripts/test-print-db-runtime-tls-hint.mjs
-if ($LASTEXITCODE -ne 0) {
-    throw "DB runtime TLS hint helper self-test failed."
-}
-
-Write-Host "[13/22] Running log sanitizer helper self-test..."
+Write-Host "[8/17] Running log sanitizer helper self-test..."
 node scripts/test-log-sanitizer.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Log sanitizer helper self-test failed."
 }
 
-Write-Host "[14/22] Running runtime console usage helper self-test..."
+Write-Host "[9/17] Running runtime console usage helper self-test..."
 node scripts/test-runtime-console-usage.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Runtime console usage helper self-test failed."
 }
 
-Write-Host "[15/22] Running API error contract helper self-test..."
+Write-Host "[10/17] Running API error contract helper self-test..."
 node scripts/test-verify-api-error-contract.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "API error contract helper self-test failed."
 }
 
-Write-Host "[16/22] Running settings i18n consistency helper self-test..."
+Write-Host "[11/17] Running settings i18n consistency helper self-test..."
 node scripts/test-check-settings-i18n-consistency.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings i18n consistency helper self-test failed."
 }
 
-Write-Host "[17/22] Running smoke-check helper self-test..."
+Write-Host "[12/17] Running smoke-check helper self-test..."
 node scripts/test-smoke-check.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Smoke-check helper self-test failed."
 }
 
-if (-not [string]::IsNullOrWhiteSpace($Core64CutoverCandidateDatabaseUrl)) {
-    Write-Host "Running candidate Postgres cutover preflight (--strict)..."
-    $cutoverPreflightExitCode = Invoke-CutoverCandidateDbPreflight -DatabaseUrl $Core64CutoverCandidateDatabaseUrl
-    if ($cutoverPreflightExitCode -ne 0) {
-        throw "Candidate Postgres cutover preflight failed."
-    }
-} else {
-    Write-Host "Skipping candidate Postgres cutover preflight (Core64CutoverCandidateDatabaseUrl is empty)."
-}
-
-Write-Host "[18/22] Running API error contract check..."
+Write-Host "[13/17] Running API error contract check..."
 $contractApiBase = $Core64ApiBase
 $contractResult = Invoke-ApiErrorContractCheck `
     -ApiBase $contractApiBase `
@@ -513,7 +438,7 @@ if ($contractResult.ExitCode -ne 0) {
     }
 }
 
-Write-Host "[19/22] Running smoke check..."
+Write-Host "[14/17] Running smoke check..."
 $smokeResult = Invoke-SmokeCheck `
     -ApiBase $Core64ApiBase `
     -AdminPassword $resolvedCore64AdminPassword `
@@ -542,21 +467,21 @@ if ($smokeResult.ExitCode -ne 0) {
     throw "Smoke check failed."
 }
 
-Write-Host "[20/22] Running settings/public contract check..."
+Write-Host "[15/17] Running settings/public contract check..."
 npm run contract-check:settings-public
 if ($LASTEXITCODE -ne 0) {
     throw "Settings/public contract check failed."
 }
 
-Write-Host "[21/22] Running settings i18n consistency check..."
+Write-Host "[16/17] Running settings i18n consistency check..."
 node scripts/check-settings-i18n-consistency.mjs
 if ($LASTEXITCODE -ne 0) {
     throw "Settings i18n consistency check failed."
 }
 
-Write-Host "[22/22] Running branch protection policy verification..."
+Write-Host "[17/17] Running branch protection policy verification..."
 if ($SkipBranchProtectionCheck) {
-    Write-Host "[22/22] Skipping branch protection policy verification by flag."
+    Write-Host "[17/17] Skipping branch protection policy verification by flag."
 } else {
     & pwsh -NoProfile -File scripts/verify-branch-protection.ps1 `
         -Owner $Owner `
