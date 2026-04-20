@@ -57,6 +57,9 @@ const CONTACT_REQUEST_STATUS = new Set(["new", "in_progress", "done"]);
 const AUDIT_LOG_DETAILS_MAX_CHARS = 8192;
 const AUDIT_LOG_CHANGED_FIELDS_PREVIEW_MAX = 40;
 const AUDIT_LOG_ORDER_PREVIEW_MAX = 20;
+const AUDIT_LOG_LIST_CHANGED_FIELDS_MAX = 120;
+const AUDIT_LOG_LIST_VALUE_MAX_CHARS = 256;
+const AUDIT_LOG_DATA_URL_PATTERN = /^data:([^;,]+)(?:;[^,]*)?,/i;
 const DEFAULT_AUDIT_LATENCY_SETTINGS = {
   auditLatencyGoodMaxMs: 300,
   auditLatencyWarnMaxMs: 800
@@ -508,6 +511,97 @@ function compactAuditDetailsForStorage(details) {
   };
 }
 
+function compactAuditListValue(value) {
+  if (value === null || value === undefined) return value;
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    const dataUrlMatch = trimmed.match(AUDIT_LOG_DATA_URL_PATTERN);
+    if (dataUrlMatch) {
+      const mimeType = toSafeString(dataUrlMatch[1], "unknown").toLowerCase();
+      return `[DATA_URL:${mimeType};length=${trimmed.length}]`;
+    }
+
+    if (value.length > AUDIT_LOG_LIST_VALUE_MAX_CHARS) {
+      const omittedChars = value.length - AUDIT_LOG_LIST_VALUE_MAX_CHARS;
+      return `${value.slice(0, AUDIT_LOG_LIST_VALUE_MAX_CHARS)}...[+${omittedChars} chars]`;
+    }
+
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.slice(0, AUDIT_LOG_ORDER_PREVIEW_MAX).map((item) => compactAuditListValue(item));
+  }
+
+  if (isObjectLike(value)) {
+    return { isCompact: true };
+  }
+
+  return value;
+}
+
+function compactAuditSettingsDiffForList(settingsDiff) {
+  if (!isObjectLike(settingsDiff)) return null;
+
+  const changedFields = toStringArrayPreview(settingsDiff.changedFields, AUDIT_LOG_LIST_CHANGED_FIELDS_MAX);
+  const redactedFields = toStringArrayPreview(settingsDiff.redactedFields, AUDIT_LOG_LIST_CHANGED_FIELDS_MAX);
+  const rawChanges = isObjectLike(settingsDiff.changes) ? settingsDiff.changes : {};
+
+  const effectiveFields = changedFields.length > 0
+    ? changedFields
+    : Object.keys(rawChanges)
+      .map((field) => toSafeString(field, ""))
+      .filter(Boolean)
+      .slice(0, AUDIT_LOG_LIST_CHANGED_FIELDS_MAX);
+
+  const changes = {};
+  effectiveFields.forEach((field) => {
+    const rawChange = rawChanges[field];
+    if (isObjectLike(rawChange)) {
+      changes[field] = {
+        before: compactAuditListValue(readRawField(rawChange, ["before"])),
+        after: compactAuditListValue(readRawField(rawChange, ["after"]))
+      };
+      return;
+    }
+
+    changes[field] = {
+      before: "[COMPACT]",
+      after: "[COMPACT]"
+    };
+  });
+
+  const changedCount = Number.isFinite(Number(settingsDiff.changedCount))
+    ? Number(settingsDiff.changedCount)
+    : effectiveFields.length;
+
+  return omitNilKeys({
+    changedCount,
+    changedFields: effectiveFields,
+    redactedFields,
+    changes
+  });
+}
+
+function compactAuditSectionsDiffForList(sectionsDiff) {
+  if (!isObjectLike(sectionsDiff)) return null;
+
+  const previousOrder = toStringArrayPreview(sectionsDiff.previousOrder, AUDIT_LOG_ORDER_PREVIEW_MAX);
+  const nextOrder = toStringArrayPreview(sectionsDiff.nextOrder, AUDIT_LOG_ORDER_PREVIEW_MAX);
+
+  return omitNilKeys({
+    changedRowCount: toBoundedInteger(sectionsDiff.changedRowCount, 0, 0, Number.MAX_SAFE_INTEGER),
+    changedFieldCount: toBoundedInteger(sectionsDiff.changedFieldCount, 0, 0, Number.MAX_SAFE_INTEGER),
+    orderChanged: sectionsDiff.orderChanged === true,
+    previousOrder,
+    nextOrder,
+    addedCount: Array.isArray(sectionsDiff.added) ? sectionsDiff.added.length : null,
+    removedCount: Array.isArray(sectionsDiff.removed) ? sectionsDiff.removed.length : null,
+    updatedCount: Array.isArray(sectionsDiff.updated) ? sectionsDiff.updated.length : null
+  });
+}
+
 function compactAuditDetailsForList(details) {
   if (!details) return { isCompact: true };
 
@@ -522,23 +616,25 @@ function compactAuditDetailsForList(details) {
     ? details.source.slice(0, 120)
     : null;
 
-  const settingsChangedCountRaw = details && details.diff && details.diff.settings
-    ? details.diff.settings.changedCount
+  const settingsDiff = compactAuditSettingsDiffForList(details?.diff?.settings);
+  const sectionsDiff = compactAuditSectionsDiffForList(details?.diff?.sections);
+  const compactDiff = omitNilKeys({
+    ...(settingsDiff ? { settings: settingsDiff } : {}),
+    ...(sectionsDiff ? { sections: sectionsDiff } : {})
+  });
+
+  const settingsChangedCount = Number.isFinite(Number(settingsDiff?.changedCount))
+    ? Number(settingsDiff.changedCount)
     : null;
-  const sectionsChangedRaw = details && details.diff && details.diff.sections
-    ? details.diff.sections.changedRowCount
-    : null;
-  const settingsChangedCount = Number.isFinite(Number(settingsChangedCountRaw))
-    ? Number(settingsChangedCountRaw)
-    : null;
-  const sectionsChangedRowCount = Number.isFinite(Number(sectionsChangedRaw))
-    ? Number(sectionsChangedRaw)
+  const sectionsChangedRowCount = Number.isFinite(Number(sectionsDiff?.changedRowCount))
+    ? Number(sectionsDiff.changedRowCount)
     : null;
 
   return omitNilKeys({
     isCompact: true,
     source,
-    hasDiff: Object.prototype.hasOwnProperty.call(details, "diff") ? true : null,
+    hasDiff: Object.keys(compactDiff).length > 0 || Object.prototype.hasOwnProperty.call(details, "diff") ? true : null,
+    diff: Object.keys(compactDiff).length > 0 ? compactDiff : null,
     settingsChangedCount,
     sectionsChangedRowCount
   });
