@@ -228,6 +228,7 @@ const ADMIN_I18N = {
         saveRecordFailed: "Не вдалося зберегти запис. Перевірте дані і спробуйте ще раз.",
         saveRecordNotFound: "Запис не знайдено в базі даних. Можливо, він був видалений — оновіть сторінку і спробуйте ще раз.",
         saveRecordDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте зберегти запис пізніше.",
+        saveRecordDatabaseStorageLimit: "Не вдалося зберегти запис: вичерпано ліміт сховища бази даних. Очистіть дані або збільште ліміт БД.",
         saveRecordStorageLimit: "Не вдалося зберегти запис: API недоступний і браузерне сховище переповнене. Оновіть сторінку — дані завантажаться з сервера.",
         saveRecordSessionExpired: "Сесія адміна завершилась. Увійдіть повторно.",
         saveRecordRateLimited: "Забагато змін підряд. Зачекайте кілька секунд і спробуйте знову.",
@@ -584,6 +585,7 @@ const ADMIN_I18N = {
         saveRecordFailed: "Failed to save record. Check data and try again.",
         saveRecordNotFound: "Record not found in database. It may have been deleted — refresh the page and try again.",
         saveRecordDatabaseUnavailable: "Database is temporarily unavailable. Please try to save again later.",
+        saveRecordDatabaseStorageLimit: "Unable to save record: database storage limit has been reached. Free up data or increase DB quota.",
         saveRecordStorageLimit: "Unable to save record: the API is unreachable and browser storage is full. Refresh the page to reload data from the server.",
         saveRecordSessionExpired: "Admin session expired. Please sign in again.",
         saveRecordRateLimited: "Too many updates in a short time. Wait a few seconds and try again.",
@@ -906,14 +908,20 @@ function resolveLoginErrorMessage(error) {
 function isDatabaseUnavailableError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
-    return code === "DB_UNAVAILABLE" || code === "DB_STORAGE_LIMIT_REACHED" || status === 503 || status === 507;
+    return code === "DB_UNAVAILABLE" || status === 503;
 }
 
 function isDatabaseStorageLimitError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
+    return code === "DB_STORAGE_LIMIT_REACHED" || (status === 507 && code !== "LOCAL_STORAGE_QUOTA_EXCEEDED");
+}
+
+function isLocalStorageQuotaError(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
     const message = String(error && error.message ? error.message : "");
-    return code === "DB_STORAGE_LIMIT_REACHED" || code === "LOCAL_STORAGE_QUOTA_EXCEEDED" || status === 507 || /quota/i.test(message);
+    return code === "LOCAL_STORAGE_QUOTA_EXCEEDED" || (status === 507 && code === "LOCAL_STORAGE_QUOTA_EXCEEDED") || /quota/i.test(message);
 }
 
 function isPayloadTooLargeError(error) {
@@ -939,8 +947,12 @@ function resolveCrudSaveErrorMessage(error) {
         return tAdmin("saveRecordRateLimited");
     }
 
-    if (isDatabaseStorageLimitError(error)) {
+    if (isLocalStorageQuotaError(error)) {
         return tAdmin("saveRecordStorageLimit");
+    }
+
+    if (isDatabaseStorageLimitError(error)) {
+        return tAdmin("saveRecordDatabaseStorageLimit");
     }
 
     if (isDatabaseUnavailableError(error)) {
