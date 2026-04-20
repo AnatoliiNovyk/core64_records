@@ -428,6 +428,12 @@ function buildReleaseTrackAudioStoragePayload(audioDataUrl) {
   };
 }
 
+function createReleaseTrackAudioChunkSetId() {
+  const timePart = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).slice(2, 10);
+  return `${timePart}_${randomPart}`;
+}
+
 function buildReleaseTrackAudioDataUrlFromChunks(mimeType, chunks) {
   const resolvedMimeType = normalizeReleaseTrackAudioMimeType(mimeType) || "audio/mpeg";
   const payload = Array.isArray(chunks) ? chunks.map((chunk) => toSafeString(chunk, "")).join("") : "";
@@ -464,9 +470,11 @@ async function deleteDocumentsInBatches(snapshots = []) {
   }
 }
 
-async function listReleaseTrackAudioChunksByTrackId(trackId) {
+async function listReleaseTrackAudioChunksByTrackId(trackId, options = {}) {
   const normalizedTrackId = toBoundedInteger(trackId, 0, 1, Number.MAX_SAFE_INTEGER);
   if (!normalizedTrackId) return [];
+
+  const normalizedChunkSetId = toSafeString(options.chunkSetId, "");
 
   const db = await getFirestoreDb();
   const snapshot = await db.collection(RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION)
@@ -479,25 +487,50 @@ async function listReleaseTrackAudioChunksByTrackId(trackId) {
       return {
         ref: doc.ref,
         chunkIndex: toBoundedInteger(readRawField(row, ["chunkIndex", "chunk_index"]), 0, 0, Number.MAX_SAFE_INTEGER),
+        chunkSetId: toSafeString(readRawField(row, ["chunkSetId", "chunk_set_id"]), ""),
         mimeType: normalizeReleaseTrackAudioMimeType(readRawField(row, ["mimeType", "mime_type"])),
-        base64Chunk: toSafeString(readRawField(row, ["base64Chunk", "base64_chunk"]), "")
+        base64Chunk: toSafeString(readRawField(row, ["base64Chunk", "base64_chunk"]), ""),
+        updatedAtMs: toAuditDate(readRawField(row, ["updatedAt", "updated_at"]), 0)
       };
     })
-    .sort((left, right) => left.chunkIndex - right.chunkIndex);
+    .filter((chunk) => !normalizedChunkSetId || chunk.chunkSetId === normalizedChunkSetId)
+    .sort((left, right) => {
+      if (left.chunkIndex !== right.chunkIndex) return left.chunkIndex - right.chunkIndex;
+      return right.updatedAtMs - left.updatedAtMs;
+    });
+}
+
+function selectReleaseTrackAudioChunks(chunks = []) {
+  const source = Array.isArray(chunks) ? chunks : [];
+  const byChunkIndex = new Map();
+
+  source.forEach((chunk) => {
+    const chunkIndex = toBoundedInteger(chunk && chunk.chunkIndex, 0, 1, Number.MAX_SAFE_INTEGER);
+    if (!chunkIndex) return;
+
+    const existing = byChunkIndex.get(chunkIndex);
+    if (!existing || toBoundedInteger(chunk.updatedAtMs, 0, 0, Number.MAX_SAFE_INTEGER) >= toBoundedInteger(existing.updatedAtMs, 0, 0, Number.MAX_SAFE_INTEGER)) {
+      byChunkIndex.set(chunkIndex, chunk);
+    }
+  });
+
+  return Array.from(byChunkIndex.values()).sort((left, right) => left.chunkIndex - right.chunkIndex);
 }
 
 async function writeReleaseTrackAudioChunks({
   releaseId,
   trackId,
+  chunkSetId,
   mimeType,
   chunks,
   timestamp
 }) {
   const normalizedReleaseId = toBoundedInteger(releaseId, 0, 1, Number.MAX_SAFE_INTEGER);
   const normalizedTrackId = toBoundedInteger(trackId, 0, 1, Number.MAX_SAFE_INTEGER);
+  const normalizedChunkSetId = toSafeString(chunkSetId, "");
   const resolvedMimeType = normalizeReleaseTrackAudioMimeType(mimeType);
   const normalizedChunks = Array.isArray(chunks) ? chunks.map((chunk) => toSafeString(chunk, "")).filter(Boolean) : [];
-  if (!normalizedReleaseId || !normalizedTrackId || !resolvedMimeType || normalizedChunks.length === 0) return;
+  if (!normalizedReleaseId || !normalizedTrackId || !normalizedChunkSetId || !resolvedMimeType || normalizedChunks.length === 0) return;
 
   const now = toIsoString(timestamp, nowIsoString()) || nowIsoString();
   const db = await getFirestoreDb();
@@ -507,11 +540,12 @@ async function writeReleaseTrackAudioChunks({
 
   for (let index = 0; index < normalizedChunks.length; index += 1) {
     const chunkIndex = index + 1;
-    const docId = `${normalizedTrackId}_${chunkIndex}`;
+    const docId = `${normalizedTrackId}_${normalizedChunkSetId}_${chunkIndex}`;
     batch.set(chunksCollection.doc(docId), {
       id: docId,
       releaseId: normalizedReleaseId,
       trackId: normalizedTrackId,
+      chunkSetId: normalizedChunkSetId,
       chunkIndex,
       totalChunks: normalizedChunks.length,
       mimeType: resolvedMimeType,
@@ -539,17 +573,46 @@ async function deleteReleaseTrackAudioChunksByTrackId(trackId) {
   await deleteDocumentsInBatches(chunks);
 }
 
+async function deleteReleaseTrackAudioChunksByTrackIdAndSet(trackId, chunkSetId) {
+  const normalizedChunkSetId = toSafeString(chunkSetId, "");
+  if (!normalizedChunkSetId) {
+    await deleteReleaseTrackAudioChunksByTrackId(trackId);
+    return;
+  }
+
+  const chunks = await listReleaseTrackAudioChunksByTrackId(trackId, { chunkSetId: normalizedChunkSetId });
+  if (chunks.length === 0) return;
+  await deleteDocumentsInBatches(chunks);
+}
+
+async function cleanupReleaseTrackAudioChunksByTrackId(trackId, chunkSetId = "") {
+  try {
+    await deleteReleaseTrackAudioChunksByTrackIdAndSet(trackId, chunkSetId);
+  } catch (_error) {
+    // Best-effort cleanup.
+  }
+}
+
 async function hydrateReleaseTrackAudioDataUrl(row) {
   const normalizedRow = normalizeReleaseTrackRow(row, String(readRawField(row, ["id"]) || ""));
   if (!isChunkedReleaseTrackAudioStorage(normalizedRow)) {
     return normalizedRow.audioDataUrl;
   }
 
-  const chunks = await listReleaseTrackAudioChunksByTrackId(normalizedRow.id);
-  if (chunks.length === 0) return "";
+  let chunks = [];
+  if (normalizedRow.audioChunkSetId) {
+    chunks = await listReleaseTrackAudioChunksByTrackId(normalizedRow.id, { chunkSetId: normalizedRow.audioChunkSetId });
+  }
 
-  const mimeType = chunks.find((chunk) => !!chunk.mimeType)?.mimeType || normalizedRow.audioMimeType;
-  return buildReleaseTrackAudioDataUrlFromChunks(mimeType, chunks.map((chunk) => chunk.base64Chunk));
+  if (chunks.length === 0) {
+    chunks = await listReleaseTrackAudioChunksByTrackId(normalizedRow.id);
+  }
+
+  const selectedChunks = selectReleaseTrackAudioChunks(chunks);
+  if (selectedChunks.length === 0) return "";
+
+  const mimeType = selectedChunks.find((chunk) => !!chunk.mimeType)?.mimeType || normalizedRow.audioMimeType;
+  return buildReleaseTrackAudioDataUrlFromChunks(mimeType, selectedChunks.map((chunk) => chunk.base64Chunk));
 }
 
 function normalizeReleaseTrackRow(source, fallbackDocId = "") {
@@ -560,6 +623,7 @@ function normalizeReleaseTrackRow(source, fallbackDocId = "") {
     ? "chunked"
     : "inline";
   const normalizedAudioMimeType = normalizeReleaseTrackAudioMimeType(readRawField(row, ["audioMimeType", "audio_mime_type"]));
+  const normalizedAudioChunkSetId = toSafeString(readRawField(row, ["audioChunkSetId", "audio_chunk_set_id"]), "");
   const parsedAudio = parseReleaseTrackAudioDataUrl(normalizedAudioDataUrl);
   const normalizedAudioBase64Length = toBoundedInteger(
     readRawField(row, ["audioBase64Length", "audio_base64_length"]),
@@ -575,6 +639,7 @@ function normalizeReleaseTrackRow(source, fallbackDocId = "") {
     audioDataUrl: normalizedAudioDataUrl,
     audioStorage: normalizedAudioStorage,
     audioMimeType: normalizedAudioMimeType,
+    audioChunkSetId: normalizedAudioChunkSetId,
     audioChunkCount: toBoundedInteger(
       readRawField(row, ["audioChunkCount", "audio_chunk_count"]),
       normalizedAudioStorage === "chunked" ? 1 : 0,
@@ -1353,10 +1418,10 @@ export async function getReleaseTrackById(releaseId, trackId) {
   const normalizedTrack = normalizeReleaseTrackRow(found.data, found.snapshot.id);
   if (normalizedTrack.releaseId !== normalizedReleaseId) return null;
 
-   let resolvedAudioDataUrl = normalizedTrack.audioDataUrl;
-   if (!resolvedAudioDataUrl && isChunkedReleaseTrackAudioStorage(normalizedTrack)) {
-     resolvedAudioDataUrl = await hydrateReleaseTrackAudioDataUrl(normalizedTrack);
-   }
+  let resolvedAudioDataUrl = normalizedTrack.audioDataUrl;
+  if (!resolvedAudioDataUrl && isChunkedReleaseTrackAudioStorage(normalizedTrack)) {
+    resolvedAudioDataUrl = await hydrateReleaseTrackAudioDataUrl(normalizedTrack);
+  }
 
   return mapReleaseTrackToApi({
     ...found.data,
@@ -1377,29 +1442,20 @@ export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload =
   const db = await getFirestoreDb();
   const tracksCollection = db.collection("release_tracks");
   const existingSnapshot = await tracksCollection.where("releaseId", "==", normalizedReleaseId).get();
+  const existingTracks = existingSnapshot.docs.map((doc) => normalizeReleaseTrackRow(doc.data(), doc.id));
 
   const payloadRows = Array.isArray(tracksPayload) ? tracksPayload : [];
   const now = nowIsoString();
   const batch = db.batch();
 
-  const existingTrackIds = existingSnapshot.docs
-    .map((doc) => normalizeReleaseTrackRow(doc.data(), doc.id))
-    .map((track) => toBoundedInteger(track.id, 0, 1, Number.MAX_SAFE_INTEGER))
-    .filter((trackId) => !!trackId);
-
-  for (let index = 0; index < existingTrackIds.length; index += 1) {
-    await deleteReleaseTrackAudioChunksByTrackId(existingTrackIds[index]);
-  }
-
-  existingSnapshot.docs.forEach((doc) => {
-    batch.delete(doc.ref);
-  });
-
+  const rowsToPersist = [];
   const createdRows = [];
   const audioChunkWrites = [];
+
   for (let index = 0; index < payloadRows.length; index += 1) {
     const normalizedPayload = normalizeReleaseTrackPayload(payloadRows[index], index + 1);
     const audioStorage = buildReleaseTrackAudioStoragePayload(normalizedPayload.audioDataUrl);
+    const audioChunkSetId = audioStorage.audioStorage === "chunked" ? createReleaseTrackAudioChunkSetId() : "";
     const id = await getNextNumericId("release_tracks", "release_tracks");
     const row = {
       id,
@@ -1408,6 +1464,7 @@ export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload =
       audioDataUrl: audioStorage.audioDataUrl,
       audioStorage: audioStorage.audioStorage,
       audioMimeType: audioStorage.audioMimeType,
+      audioChunkSetId,
       audioChunkCount: audioStorage.audioChunkCount,
       audioBase64Length: audioStorage.audioBase64Length,
       durationSeconds: normalizedPayload.durationSeconds,
@@ -1416,24 +1473,51 @@ export async function replaceReleaseTracksByReleaseId(releaseId, tracksPayload =
       updatedAt: now
     };
 
-    batch.set(tracksCollection.doc(String(id)), row, { merge: true });
+    rowsToPersist.push(row);
+
     if (audioStorage.audioStorage === "chunked") {
       audioChunkWrites.push({
         releaseId: normalizedReleaseId,
         trackId: id,
+        chunkSetId: audioChunkSetId,
         mimeType: audioStorage.audioMimeType,
         chunks: audioStorage.chunks,
         timestamp: now
       });
     }
 
-    createdRows.push(mapReleaseTrackToApi(row, { includeAudioDataUrl: true }));
+    createdRows.push(mapReleaseTrackToApi({
+      ...row,
+      audioDataUrl: normalizedPayload.audioDataUrl
+    }, { includeAudioDataUrl: true }));
   }
-
-  await batch.commit();
 
   for (let index = 0; index < audioChunkWrites.length; index += 1) {
     await writeReleaseTrackAudioChunks(audioChunkWrites[index]);
+  }
+
+  existingSnapshot.docs.forEach((doc) => {
+    batch.delete(doc.ref);
+  });
+
+  rowsToPersist.forEach((row) => {
+    batch.set(tracksCollection.doc(String(row.id)), row, { merge: true });
+  });
+
+  try {
+    await batch.commit();
+  } catch (error) {
+    for (let index = 0; index < audioChunkWrites.length; index += 1) {
+      const writePlan = audioChunkWrites[index];
+      await cleanupReleaseTrackAudioChunksByTrackId(writePlan.trackId, writePlan.chunkSetId);
+    }
+    throw error;
+  }
+
+  for (let index = 0; index < existingTracks.length; index += 1) {
+    const existingTrackId = toBoundedInteger(existingTracks[index].id, 0, 1, Number.MAX_SAFE_INTEGER);
+    if (!existingTrackId) continue;
+    await cleanupReleaseTrackAudioChunksByTrackId(existingTrackId);
   }
 
   return createdRows.sort((left, right) => {
@@ -1450,6 +1534,7 @@ export async function createReleaseTrackByReleaseId(releaseId, trackPayload = {}
   const id = await getNextNumericId("release_tracks", "release_tracks");
   const normalizedPayload = normalizeReleaseTrackPayload(trackPayload, 0);
   const audioStorage = buildReleaseTrackAudioStoragePayload(normalizedPayload.audioDataUrl);
+  const audioChunkSetId = audioStorage.audioStorage === "chunked" ? createReleaseTrackAudioChunkSetId() : "";
   const now = nowIsoString();
 
   const row = {
@@ -1459,6 +1544,7 @@ export async function createReleaseTrackByReleaseId(releaseId, trackPayload = {}
     audioDataUrl: audioStorage.audioDataUrl,
     audioStorage: audioStorage.audioStorage,
     audioMimeType: audioStorage.audioMimeType,
+    audioChunkSetId,
     audioChunkCount: audioStorage.audioChunkCount,
     audioBase64Length: audioStorage.audioBase64Length,
     durationSeconds: normalizedPayload.durationSeconds,
@@ -1467,18 +1553,30 @@ export async function createReleaseTrackByReleaseId(releaseId, trackPayload = {}
     updatedAt: now
   };
 
-  await db.collection("release_tracks").doc(String(id)).set(row, { merge: true });
-  if (audioStorage.audioStorage === "chunked") {
-    await writeReleaseTrackAudioChunks({
-      releaseId: normalizedReleaseId,
-      trackId: id,
-      mimeType: audioStorage.audioMimeType,
-      chunks: audioStorage.chunks,
-      timestamp: now
-    });
+  try {
+    if (audioStorage.audioStorage === "chunked") {
+      await writeReleaseTrackAudioChunks({
+        releaseId: normalizedReleaseId,
+        trackId: id,
+        chunkSetId: audioChunkSetId,
+        mimeType: audioStorage.audioMimeType,
+        chunks: audioStorage.chunks,
+        timestamp: now
+      });
+    }
+
+    await db.collection("release_tracks").doc(String(id)).set(row, { merge: true });
+  } catch (error) {
+    if (audioStorage.audioStorage === "chunked") {
+      await cleanupReleaseTrackAudioChunksByTrackId(id, audioChunkSetId);
+    }
+    throw error;
   }
 
-  return mapReleaseTrackToApi(row, { includeAudioDataUrl: true });
+  return mapReleaseTrackToApi({
+    ...row,
+    audioDataUrl: normalizedPayload.audioDataUrl
+  }, { includeAudioDataUrl: true });
 }
 
 export async function updateReleaseTrackById(releaseId, trackId, trackPayload = {}) {
@@ -1491,10 +1589,12 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
 
   const existingRow = normalizeReleaseTrackRow(found.data, found.snapshot.id);
   if (existingRow.releaseId !== normalizedReleaseId) return null;
+  const existingChunkSetId = toSafeString(existingRow.audioChunkSetId, "");
 
   const normalizedPayload = normalizeReleaseTrackPayload(trackPayload, existingRow.sortOrder);
   const now = nowIsoString();
   let nextAudioChunkWrite = null;
+  let responseAudioDataUrl = existingRow.audioDataUrl;
 
   const patch = {
     title: normalizedPayload.title,
@@ -1505,9 +1605,12 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
 
   if (normalizedPayload.hasAudioDataUrl) {
     const audioStorage = buildReleaseTrackAudioStoragePayload(normalizedPayload.audioDataUrl);
+    const audioChunkSetId = audioStorage.audioStorage === "chunked" ? createReleaseTrackAudioChunkSetId() : "";
+    responseAudioDataUrl = normalizedPayload.audioDataUrl;
     patch.audioDataUrl = audioStorage.audioDataUrl;
     patch.audioStorage = audioStorage.audioStorage;
     patch.audioMimeType = audioStorage.audioMimeType;
+    patch.audioChunkSetId = audioChunkSetId;
     patch.audioChunkCount = audioStorage.audioChunkCount;
     patch.audioBase64Length = audioStorage.audioBase64Length;
 
@@ -1515,6 +1618,7 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
       nextAudioChunkWrite = {
         releaseId: normalizedReleaseId,
         trackId: normalizedTrackId,
+        chunkSetId: audioChunkSetId,
         mimeType: audioStorage.audioMimeType,
         chunks: audioStorage.chunks,
         timestamp: now
@@ -1522,14 +1626,24 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
     }
   }
 
-  await found.ref.set(patch, { merge: true });
+  if (nextAudioChunkWrite) {
+    await writeReleaseTrackAudioChunks(nextAudioChunkWrite);
+  }
+
+  try {
+    await found.ref.set(patch, { merge: true });
+  } catch (error) {
+    if (nextAudioChunkWrite) {
+      await cleanupReleaseTrackAudioChunksByTrackId(normalizedTrackId, nextAudioChunkWrite.chunkSetId);
+    }
+    throw error;
+  }
 
   if (normalizedPayload.hasAudioDataUrl) {
-    if (nextAudioChunkWrite) {
-      await deleteReleaseTrackAudioChunksByTrackId(normalizedTrackId);
-      await writeReleaseTrackAudioChunks(nextAudioChunkWrite);
-    } else {
-      await deleteReleaseTrackAudioChunksByTrackId(normalizedTrackId);
+    if (existingChunkSetId) {
+      await cleanupReleaseTrackAudioChunksByTrackId(normalizedTrackId, existingChunkSetId);
+    } else if (isChunkedReleaseTrackAudioStorage(existingRow)) {
+      await cleanupReleaseTrackAudioChunksByTrackId(normalizedTrackId);
     }
   }
 
@@ -1540,6 +1654,10 @@ export async function updateReleaseTrackById(releaseId, trackId, trackPayload = 
     releaseId: normalizedReleaseId,
     createdAt: toIsoString(readRawField(found.data, ["createdAt", "created_at"]), now)
   };
+
+  if (normalizedPayload.hasAudioDataUrl) {
+    nextRow.audioDataUrl = responseAudioDataUrl;
+  }
 
   return mapReleaseTrackToApi(nextRow, { includeAudioDataUrl: true });
 }
@@ -1556,7 +1674,13 @@ export async function deleteReleaseTrackById(releaseId, trackId) {
   if (existingRow.releaseId !== normalizedReleaseId) return false;
 
   await found.ref.delete();
-  await deleteReleaseTrackAudioChunksByTrackId(normalizedTrackId);
+
+  if (existingRow.audioChunkSetId) {
+    await cleanupReleaseTrackAudioChunksByTrackId(normalizedTrackId, existingRow.audioChunkSetId);
+  } else {
+    await cleanupReleaseTrackAudioChunksByTrackId(normalizedTrackId);
+  }
+
   return true;
 }
 
