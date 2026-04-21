@@ -1534,6 +1534,7 @@
                 name: sanitizeText(payload.name),
                 email: sanitizeText(payload.email),
                 subject: sanitizeText(payload.subject),
+                subjectCode: sanitizeText(payload.subjectCode),
                 message: sanitizeText(payload.message),
                 attachmentName: String(payload.attachmentName || "").trim(),
                 attachmentType: String(payload.attachmentType || "").trim(),

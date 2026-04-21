@@ -998,6 +998,7 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
   const createdAt = toIsoString(readRawField(row, ["createdAt", "created_at"]), nowIsoString());
   const statusRaw = toSafeString(readRawField(row, ["status"]), "new").toLowerCase();
   const status = CONTACT_REQUEST_STATUS.has(statusRaw) ? statusRaw : "new";
+  const subjectCode = toSafeString(readRawField(row, ["subjectCode", "subject_code"]), "");
 
   const attachmentName = toSafeString(readRawField(row, ["attachmentName", "attachment_name"]), "");
   const attachmentStorage = normalizeContactRequestAttachmentStorageRow(row);
@@ -1009,6 +1010,7 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
     name: toSafeString(readRawField(row, ["name"]), ""),
     email: toSafeString(readRawField(row, ["email"]), ""),
     subject: toSafeString(readRawField(row, ["subject"]), ""),
+    subjectCode,
     message: toSafeString(readRawField(row, ["message"]), ""),
     attachmentName,
     attachmentType,
@@ -1021,6 +1023,7 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
     attachment_name: attachmentName,
     attachment_type: attachmentType,
     attachment_data: attachmentDataUrl,
+    subject_code: subjectCode,
     status,
     created_at: createdAt,
     createdAt
@@ -2368,6 +2371,7 @@ export async function createContactRequest(payload) {
     name: toSafeString(source.name, ""),
     email: toSafeString(source.email, ""),
     subject: toSafeString(source.subject, ""),
+    subjectCode: toSafeString(source.subjectCode, ""),
     message: toSafeString(source.message, ""),
     attachmentName: toSafeString(source.attachmentName, ""),
     attachmentType: attachmentType || attachmentStorage.attachmentMimeType,
@@ -2423,15 +2427,22 @@ export async function listContactRequests() {
   const rows = await Promise.all(snapshot.docs.map(async (docSnapshot) => {
     const data = clonePlainObject(docSnapshot.data());
     const rowId = normalizeEntityId(readRawField(data, ["id"]), docSnapshot.id, 0);
-    const hydratedDataUrl = await hydrateContactRequestAttachmentDataUrl({
+    const normalizedRow = {
       ...data,
       id: rowId
-    });
+    };
+    const shouldHydrateAttachmentDataUrl = isChunkedContactRequestAttachmentStorage(normalizedRow);
+    const hydratedDataUrl = shouldHydrateAttachmentDataUrl
+      ? await hydrateContactRequestAttachmentDataUrl(normalizedRow)
+      : "";
+    const fallbackAttachmentDataUrl = toSafeString(
+      readRawField(normalizedRow, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]),
+      ""
+    );
 
     return mapContactRequestToApi({
-      ...data,
-      id: rowId,
-      attachmentDataUrl: hydratedDataUrl || toSafeString(readRawField(data, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]), "")
+      ...normalizedRow,
+      attachmentDataUrl: hydratedDataUrl || fallbackAttachmentDataUrl
     }, docSnapshot.id);
   }));
   return rows.sort((left, right) => toAuditDate(right.created_at) - toAuditDate(left.created_at));
@@ -2452,10 +2463,25 @@ export async function updateContactRequestStatus(id, status) {
     updatedAt: now
   }, { merge: true });
 
-  return mapContactRequestToApi({
+  const normalizedId = normalizeEntityId(readRawField(found.data || {}, ["id"]), found.snapshot.id, 0);
+  const updatedRow = {
     ...(found.data || {}),
+    id: normalizedId,
     status: normalizedStatusRaw,
     updatedAt: now
+  };
+  const shouldHydrateAttachmentDataUrl = isChunkedContactRequestAttachmentStorage(updatedRow);
+  const hydratedDataUrl = shouldHydrateAttachmentDataUrl
+    ? await hydrateContactRequestAttachmentDataUrl(updatedRow)
+    : "";
+  const fallbackAttachmentDataUrl = toSafeString(
+    readRawField(updatedRow, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]),
+    ""
+  );
+
+  return mapContactRequestToApi({
+    ...updatedRow,
+    attachmentDataUrl: hydratedDataUrl || fallbackAttachmentDataUrl
   }, found.snapshot.id);
 }
 

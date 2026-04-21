@@ -24,6 +24,10 @@ let compactReleasePlayerState = {
 const releaseIndexById = new Map();
 const RELEASE_IMAGE_FALLBACK = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 800'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23040b12'/%3E%3Cstop offset='100%25' stop-color='%23111f2f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='800' height='800' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%2300f0ff' stroke-opacity='0.3'%3E%3Crect x='96' y='96' width='608' height='608' rx='36'/%3E%3Cpath d='M240 560 355 430l88 88 53-64 64 76'/%3E%3Ccircle cx='322' cy='310' r='46'/%3E%3C/g%3E%3Ctext x='50%25' y='88%25' text-anchor='middle' fill='%23bfefff' font-family='Arial,sans-serif' font-size='34'%3ECORE64 RELEASE%3C/text%3E%3C/svg%3E";
 const RELEASE_TRACK_AUDIO_DATA_URL_PATTERN = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
+const CONTACT_REQUEST_DEFAULT_MAX_FILE_BYTES = 15 * 1024 * 1024;
+const CONTACT_REQUEST_BACKEND_MAX_DATA_URL_CHARS = Math.ceil((CONTACT_REQUEST_DEFAULT_MAX_FILE_BYTES * 4) / 3) + 128;
+const CONTACT_REQUEST_BACKEND_COMPAT_MAX_FILE_BYTES = Math.floor(((CONTACT_REQUEST_BACKEND_MAX_DATA_URL_CHARS - 128) * 3) / 4);
+const CONTACT_SUBJECT_DEMO_VALUES = new Set(["demo", "demo_recording", "demo-recording"]);
 const PUBLIC_SECTION_DEFAULTS = [
     { sectionKey: "releases", sortOrder: 1, i18nKey: "sectionLatestReleases", navI18nKey: "navReleases" },
     { sectionKey: "artists", sortOrder: 2, i18nKey: "sectionLabelArtists", navI18nKey: "navArtists" },
@@ -425,8 +429,13 @@ function getContactConfig() {
     const hcaptchaSiteKey = String(settingsSource.contactCaptchaHcaptchaSiteKey || "").trim();
     const recaptchaSiteKey = String(settingsSource.contactCaptchaRecaptchaSiteKey || "").trim();
 
+    const configuredMaxFileBytes = Number(source.contactMaxFileBytes) > 0
+        ? Number(source.contactMaxFileBytes)
+        : CONTACT_REQUEST_DEFAULT_MAX_FILE_BYTES;
+    const maxFileBytes = Math.min(configuredMaxFileBytes, CONTACT_REQUEST_BACKEND_COMPAT_MAX_FILE_BYTES);
+
     return {
-        maxFileBytes: Number(source.contactMaxFileBytes) > 0 ? Number(source.contactMaxFileBytes) : 15 * 1024 * 1024,
+        maxFileBytes: maxFileBytes > 0 ? maxFileBytes : CONTACT_REQUEST_BACKEND_COMPAT_MAX_FILE_BYTES,
         captchaEnabled: enabled,
         captchaProvider: provider,
         captchaSiteKey: provider === "hcaptcha"
@@ -448,7 +457,9 @@ function formatBytesSize(bytes) {
 
 function isDemoSubject(subject) {
     const normalized = String(subject || "").trim().toLowerCase();
-    return normalized === "демо запис" || normalized === "demo" || normalized.includes("демо");
+    if (!normalized) return false;
+    if (CONTACT_SUBJECT_DEMO_VALUES.has(normalized)) return true;
+    return normalized === "демо запис" || normalized === "demo" || normalized === "demo recording" || normalized.includes("демо");
 }
 
 function readFileAsDataUrl(file) {
@@ -2043,6 +2054,13 @@ function initContactForm() {
         const formData = new FormData(form);
         const config = getContactConfig();
         const subject = String(formData.get("subject") || "");
+        const subjectSelect = form.querySelector('select[name="subject"]');
+        const selectedSubjectOption = subjectSelect && subjectSelect.selectedIndex >= 0
+            ? subjectSelect.options[subjectSelect.selectedIndex]
+            : null;
+        const normalizedSubjectLabel = selectedSubjectOption
+            ? String(selectedSubjectOption.textContent || "").trim()
+            : "";
         const demoFile = formData.get("demoFile");
 
         let attachmentName = "";
@@ -2078,7 +2096,8 @@ function initContactForm() {
         const payload = {
             name: formData.get("name"),
             email: formData.get("email"),
-            subject,
+            subject: normalizedSubjectLabel || subject,
+            subjectCode: subject,
             message: formData.get("message"),
             attachmentName,
             attachmentType,

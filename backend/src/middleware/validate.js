@@ -30,9 +30,25 @@ const sponsorTranslationSchema = z.object({
 const brandImageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
 const releaseTrackAudioDataUrlPattern = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
 const contactAttachmentDataUrlPattern = /^data:[^;,]+(?:;[^,]*)?;base64,[a-z0-9+/=\s]+$/i;
+const CONTACT_REQUEST_ATTACHMENT_MAX_FILE_BYTES = 15 * 1024 * 1024;
+const CONTACT_REQUEST_ATTACHMENT_DATA_URL_MAX_CHARS = Math.ceil((CONTACT_REQUEST_ATTACHMENT_MAX_FILE_BYTES * 4) / 3) + 128;
+const CONTACT_REQUEST_DEMO_SUBJECT_CODES = new Set(["demo", "demo_recording", "demo-recording"]);
 const INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES = 700 * 1024;
 const INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS = Math.ceil((INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES * 4) / 3) + 64;
 const COLLECTION_IMAGE_URL_MAX_CHARS = 4096;
+
+function isContactDemoSubject(subjectCode, subjectText) {
+  const normalizedCode = String(subjectCode || "").trim().toLowerCase();
+  if (CONTACT_REQUEST_DEMO_SUBJECT_CODES.has(normalizedCode)) {
+    return true;
+  }
+
+  const normalizedSubject = String(subjectText || "").trim().toLowerCase();
+  return normalizedSubject === "демо запис"
+    || normalizedSubject === "demo"
+    || normalizedSubject === "demo recording"
+    || normalizedSubject.includes("демо");
+}
 
 function isBrandImageDataUrlOrEmpty(value) {
   const normalized = String(value || "").trim();
@@ -284,14 +300,14 @@ export const contactRequestSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
   subject: z.string().min(1),
+  subjectCode: z.string().trim().max(64).optional().default(""),
   message: z.string().min(1),
   attachmentName: z.string().trim().max(255).optional().default(""),
   attachmentType: z.string().trim().max(120).optional().default(""),
-  attachmentDataUrl: z.string().trim().max(15_000_000).optional().default(""),
+  attachmentDataUrl: z.string().trim().max(CONTACT_REQUEST_ATTACHMENT_DATA_URL_MAX_CHARS).optional().default(""),
   captchaToken: z.string().trim().max(4096).optional().default("")
 }).superRefine((payload, ctx) => {
-  const subject = String(payload.subject || "").trim().toLowerCase();
-  const isDemo = subject === "демо запис" || subject === "demo" || subject.includes("демо");
+  const isDemo = isContactDemoSubject(payload.subjectCode, payload.subject);
   const attachmentDataUrl = String(payload.attachmentDataUrl || "").trim();
   const hasAttachment = !!attachmentDataUrl;
 
