@@ -1,4 +1,5 @@
 {
   "mssql.intelliSense.enableErrorChecking": false,
-  "mssql.autoDisableNonTSqlLanguageService": true
+  "mssql.autoDisableNonTSqlLanguageService": true,
+  "git.ignoreLimitWarning": true
 }
