@@ -2,6 +2,7 @@ import { getAdminSettings } from "../db/repository.adapter.js";
 
 const HCAPTCHA_VERIFY_URL = "https://hcaptcha.com/siteverify";
 const RECAPTCHA_VERIFY_URL = "https://www.google.com/recaptcha/api/siteverify";
+const CAPTCHA_VERIFY_TIMEOUT_MS = 10_000;
 
 function normalizeCaptchaSettings(settings) {
   const source = settings && typeof settings === "object" ? settings : {};
@@ -40,13 +41,35 @@ async function verifyWithProvider({ verifyUrl, secret, token, remoteIp }) {
   params.set("response", token);
   if (remoteIp) params.set("remoteip", String(remoteIp));
 
-  const response = await fetch(verifyUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: params.toString()
-  });
+  const abortController = new AbortController();
+  const timeoutId = setTimeout(() => {
+    abortController.abort();
+  }, CAPTCHA_VERIFY_TIMEOUT_MS);
 
-  const payload = await response.json();
+  let response;
+  try {
+    response = await fetch(verifyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: params.toString(),
+      signal: abortController.signal
+    });
+  } catch (error) {
+    if (error && error.name === "AbortError") {
+      return { success: false, errorCodes: ["timeout"] };
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+
+  let payload = null;
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = {};
+  }
+
   if (!response.ok) {
     return { success: false, errorCodes: ["http-error"] };
   }

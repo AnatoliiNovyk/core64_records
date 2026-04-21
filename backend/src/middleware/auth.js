@@ -19,7 +19,18 @@ export function requireAuth(req, res, next) {
   }
 
   try {
-    req.user = jwt.verify(token, config.jwtSecret);
+    const decoded = jwt.verify(token, config.jwtSecret);
+    const subject = String(decoded && decoded.sub ? decoded.sub : "").trim();
+    if (subject !== "env-admin") {
+      throw new Error("Invalid token subject");
+    }
+
+    req.user = {
+      ...decoded,
+      sub: subject,
+      username: String(decoded && decoded.username ? decoded.username : "admin").trim() || "admin"
+    };
+
     return next();
   } catch (_error) {
     return sendApiError(res, {

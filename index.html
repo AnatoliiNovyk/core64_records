@@ -680,6 +680,10 @@
             dataMode: "auto",
             apiBaseUrl: core64ApiBaseUrl,
             preferStoredApiBase: false,
+            allowQueryApiBaseOverride: core64IsLocalHost,
+            apiBaseOverrideAllowlist: core64IsLocalHost
+                ? [window.location.origin, "http://localhost:3000", "http://127.0.0.1:3000"]
+                : [window.location.origin],
             requireDatabaseForApi: true,
             allowOfflineAdminAccess: false,
             defaultLanguage: "uk",

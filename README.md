@@ -66,10 +66,16 @@ Adapter behavior:
 - if API is reachable, frontend uses backend
 - if API is unavailable, frontend falls back to localStorage
 
-Runtime API override is supported from URL query params:
+Runtime API override can be enabled from URL query params when explicitly allowed by frontend config:
 
 - `?apiBaseUrl=https://<your-api-domain>/api`
 - shorthand: `?api=https://<your-api-domain>/api`
+
+Security constraints for runtime override:
+
+- `allowQueryApiBaseOverride` must be `true`
+- target origin must be included in `apiBaseOverrideAllowlist`
+- by default, production entrypoints keep a strict allowlist and local-only overrides are used for localhost workflows
 
 ## Production Runtime Guardrails
 

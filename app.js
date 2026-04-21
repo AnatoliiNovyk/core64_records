@@ -1594,7 +1594,16 @@ function renderArtists(data) {
     const grid = document.getElementById("artists-grid");
     if (!grid) return;
 
-    grid.innerHTML = (data.artists || []).map((artist) => `
+    grid.innerHTML = (data.artists || []).map((artist) => {
+        const safeSoundcloudUrl = normalizeReleaseOutboundUrl(artist.soundcloud || "");
+        const safeInstagramUrl = normalizeReleaseOutboundUrl(artist.instagram || "");
+
+        const soundcloudHref = safeSoundcloudUrl ? escapeHtmlAttribute(safeSoundcloudUrl) : "#";
+        const instagramHref = safeInstagramUrl ? escapeHtmlAttribute(safeInstagramUrl) : "#";
+        const soundcloudTargetAttrs = safeSoundcloudUrl ? 'target="_blank" rel="noopener noreferrer"' : "";
+        const instagramTargetAttrs = safeInstagramUrl ? 'target="_blank" rel="noopener noreferrer"' : "";
+
+        return `
         <div class="card rounded-lg overflow-hidden group">
             <div class="relative aspect-[4/3] overflow-hidden">
                 <img src="${artist.image}" alt="${artist.name}" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-artist-image="1" loading="lazy">
@@ -1609,16 +1618,17 @@ function renderArtists(data) {
             <div class="p-6">
                 <p class="text-gray-400 text-sm mb-4 line-clamp-2">${artist.bio || ""}</p>
                 <div class="flex gap-3">
-                    <a href="${artist.soundcloud || "#"}" class="p-2 bg-gray-800 rounded hover:bg-cyan-400 hover:text-black transition-colors" aria-label="SoundCloud" title="SoundCloud" target="_blank" rel="noopener noreferrer">
+                    <a href="${soundcloudHref}" class="p-2 bg-gray-800 rounded hover:bg-cyan-400 hover:text-black transition-colors" aria-label="SoundCloud" title="SoundCloud" ${soundcloudTargetAttrs}>
                         ${getSocialBrandIconSvg("soundcloud", "w-4 h-4")}
                     </a>
-                    <a href="${artist.instagram || "#"}" class="p-2 bg-gray-800 rounded hover:bg-pink-400 hover:text-black transition-colors" aria-label="Instagram" title="Instagram" target="_blank" rel="noopener noreferrer">
+                    <a href="${instagramHref}" class="p-2 bg-gray-800 rounded hover:bg-pink-400 hover:text-black transition-colors" aria-label="Instagram" title="Instagram" ${instagramTargetAttrs}>
                         ${getSocialBrandIconSvg("instagram", "w-4 h-4")}
                     </a>
                 </div>
             </div>
         </div>
-    `).join("");
+    `;
+    }).join("");
 
     attachImageFallback(grid, 'img[data-artist-image="1"]', RELEASE_IMAGE_FALLBACK);
 
@@ -1637,7 +1647,9 @@ function renderEvents(data) {
         const day = eventDate.getDate();
         const month = eventDate.toLocaleDateString(getActiveLocaleTag(), { month: "short" });
         const resolvedTicketLink = event.ticketLink || event.ticket_link || "";
-        const hasTicketLink = Boolean(resolvedTicketLink && resolvedTicketLink !== "#");
+        const safeTicketLink = normalizeReleaseOutboundUrl(resolvedTicketLink);
+        const hasTicketLink = !!safeTicketLink;
+        const safeTicketLinkAttr = hasTicketLink ? escapeHtmlAttribute(safeTicketLink) : "";
 
         return `
             <div class="flex flex-col md:flex-row gap-6 p-6 border border-green-500/20 rounded-lg hover:border-green-500/50 transition-colors bg-black/30">
@@ -1660,7 +1672,7 @@ function renderEvents(data) {
                 </div>
                 <div class="flex-shrink-0 flex items-center">
                     ${hasTicketLink
-                        ? `<a href="${resolvedTicketLink}" target="_blank" rel="noopener noreferrer" class="px-6 py-3 border border-green-400 text-green-400 hover:bg-green-400 hover:text-black transition-all uppercase tracking-wider text-sm font-bold">${escapeHtmlAttribute(tPublic("ticketsLabel"))}</a>`
+                        ? `<a href="${safeTicketLinkAttr}" target="_blank" rel="noopener noreferrer" class="px-6 py-3 border border-green-400 text-green-400 hover:bg-green-400 hover:text-black transition-all uppercase tracking-wider text-sm font-bold">${escapeHtmlAttribute(tPublic("ticketsLabel"))}</a>`
                         : `<button onclick="showTicketInfo()" class="px-6 py-3 border border-green-400 text-green-400 hover:bg-green-400 hover:text-black transition-all uppercase tracking-wider text-sm font-bold">${escapeHtmlAttribute(tPublic("ticketsLabel"))}</button>`}
                 </div>
             </div>
@@ -1764,6 +1776,8 @@ function renderSponsors(data) {
         const sponsorDescription = sponsor.shortDescription || sponsor.short_description || "Надійна підтримка лейблу";
         const sponsorLogo = sponsor.logo || "";
         const sponsorLink = sponsor.link || "#";
+        const safeSponsorLink = normalizeReleaseOutboundUrl(sponsorLink);
+        const safeSponsorLinkAttr = safeSponsorLink ? escapeHtmlAttribute(safeSponsorLink) : "";
         const cardContent = `
             <div class="h-[75%] rounded-lg border border-yellow-500/20 bg-black/40 flex items-center justify-center p-3 overflow-hidden">
                 <img src="${sponsorLogo}" alt="${sponsorName}" class="h-full w-full object-contain" data-sponsor-image="1" loading="lazy">
@@ -1774,7 +1788,7 @@ function renderSponsors(data) {
             </div>
         `;
 
-        if (!sponsorLink || sponsorLink === "#") {
+        if (!safeSponsorLink) {
             return `
                 <article class="snap-start shrink-0 w-[280px] h-[280px] p-4 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35 flex flex-col">
                     ${cardContent}
@@ -1783,7 +1797,7 @@ function renderSponsors(data) {
         }
 
         return `
-            <a href="${sponsorLink}" target="_blank" rel="noopener noreferrer" class="snap-start shrink-0 w-[280px] h-[280px] p-4 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35 hover:border-yellow-400/55 transition-colors block flex flex-col">
+                <a href="${safeSponsorLinkAttr}" target="_blank" rel="noopener noreferrer" class="snap-start shrink-0 w-[280px] h-[280px] p-4 rounded-xl border border-yellow-500/25 bg-gradient-to-b from-yellow-500/10 to-black/35 hover:border-yellow-400/55 transition-colors block flex flex-col">
                 ${cardContent}
             </a>
         `;

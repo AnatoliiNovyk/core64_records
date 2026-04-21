@@ -252,6 +252,70 @@
         }
     }
 
+    function getConfiguredApiBaseUrl() {
+        return normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
+    }
+
+    function normalizeApiBaseOriginList(value) {
+        const source = Array.isArray(value)
+            ? value
+            : (typeof value === "string" ? value.split(",") : []);
+
+        return source
+            .map((entry) => normalizeApiBaseUrl(entry))
+            .filter(Boolean)
+            .map((entry) => resolveApiBaseAsUrl(entry))
+            .filter(Boolean)
+            .map((parsedUrl) => parsedUrl.origin);
+    }
+
+    function getApiBaseOverrideAllowlistOrigins() {
+        const config = window.CORE64_CONFIG && typeof window.CORE64_CONFIG === "object" ? window.CORE64_CONFIG : {};
+        const allowlist = new Set(normalizeApiBaseOriginList(config.apiBaseOverrideAllowlist));
+
+        if (window.location && window.location.origin) {
+            allowlist.add(window.location.origin);
+        }
+
+        const isLocalHost = window.location && ["localhost", "127.0.0.1"].includes(window.location.hostname);
+        if (isLocalHost) {
+            allowlist.add("http://localhost:3000");
+            allowlist.add("http://127.0.0.1:3000");
+        }
+
+        const configuredBase = resolveApiBaseAsUrl(getConfiguredApiBaseUrl());
+        if (configuredBase) {
+            allowlist.add(configuredBase.origin);
+        }
+
+        return allowlist;
+    }
+
+    function isApiBaseCandidateAllowed(value, options = {}) {
+        const normalized = normalizeApiBaseUrl(value);
+        if (!normalized) return false;
+
+        const parsedUrl = resolveApiBaseAsUrl(normalized);
+        if (!parsedUrl) return false;
+
+        const allowConfiguredBase = options && options.allowConfiguredBase === true;
+        if (allowConfiguredBase) {
+            const configuredBase = getConfiguredApiBaseUrl();
+            if (configuredBase && normalized === configuredBase) {
+                return true;
+            }
+        }
+
+        const allowlist = getApiBaseOverrideAllowlistOrigins();
+        return allowlist.has(parsedUrl.origin);
+    }
+
+    function shouldAllowQueryApiBaseOverride() {
+        const configured = window.CORE64_CONFIG && window.CORE64_CONFIG.allowQueryApiBaseOverride;
+        if (typeof configured === "boolean") return configured;
+        return false;
+    }
+
     function clearStoredApiBaseUrl() {
         try {
             localStorage.removeItem(STORAGE_API_BASE_KEY);
@@ -263,7 +327,7 @@
     function getStoredApiBaseUrl() {
         const storedBase = normalizeApiBaseUrl(localStorage.getItem(STORAGE_API_BASE_KEY));
         if (!storedBase) return "";
-        if (resolveApiBaseAsUrl(storedBase)) return storedBase;
+        if (isApiBaseCandidateAllowed(storedBase, { allowConfiguredBase: true })) return storedBase;
         clearStoredApiBaseUrl();
         return "";
     }
@@ -275,17 +339,19 @@
     }
 
     function getQueryApiBaseUrlOverride() {
+        if (!shouldAllowQueryApiBaseOverride()) return "";
         if (typeof window === "undefined" || !window.location || !window.location.search) return "";
         const params = new URLSearchParams(window.location.search);
         const fromApiBaseUrl = normalizeApiBaseUrl(params.get("apiBaseUrl"));
-        if (fromApiBaseUrl) return fromApiBaseUrl;
+        if (fromApiBaseUrl && isApiBaseCandidateAllowed(fromApiBaseUrl)) return fromApiBaseUrl;
         const fromApi = normalizeApiBaseUrl(params.get("api"));
-        return fromApi;
+        return isApiBaseCandidateAllowed(fromApi) ? fromApi : "";
     }
 
     function setRuntimeApiBaseUrl(value) {
         const normalized = normalizeApiBaseUrl(value);
         if (!normalized) return;
+        if (!isApiBaseCandidateAllowed(normalized, { allowConfiguredBase: true })) return;
         runtimeApiBaseUrl = normalized;
         apiReadinessCachedValue = null;
         apiReadinessCheckedAtMs = 0;
@@ -300,7 +366,7 @@
         const queryOverride = getQueryApiBaseUrlOverride();
         const runtimeBase = normalizeApiBaseUrl(runtimeApiBaseUrl);
         const storedBase = getStoredApiBaseUrl();
-        const configBase = normalizeApiBaseUrl(window.CORE64_CONFIG && window.CORE64_CONFIG.apiBaseUrl);
+        const configBase = getConfiguredApiBaseUrl();
         const preferStored = shouldPreferStoredApiBase();
 
         const ordered = [];
@@ -327,6 +393,8 @@
             const normalized = normalizeApiBaseUrl(entry);
             if (!normalized) return;
             if (!resolveApiBaseAsUrl(normalized)) return;
+            const isConfiguredBase = !!configBase && normalized === configBase;
+            if (!isConfiguredBase && !isApiBaseCandidateAllowed(normalized)) return;
             if (seen.has(normalized)) return;
             seen.add(normalized);
             unique.push(normalized);

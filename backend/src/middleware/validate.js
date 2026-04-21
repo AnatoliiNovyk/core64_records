@@ -36,6 +36,7 @@ const CONTACT_REQUEST_DEMO_SUBJECT_CODES = new Set(["demo", "demo_recording", "d
 const INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES = 700 * 1024;
 const INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS = Math.ceil((INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES * 4) / 3) + 64;
 const COLLECTION_IMAGE_URL_MAX_CHARS = 4096;
+const RELEASE_TRACK_REQUEST_SAFE_MAX_CHARS = 24_000_000;
 
 function isContactDemoSubject(subjectCode, subjectText) {
   const normalizedCode = String(subjectCode || "").trim().toLowerCase();
@@ -92,7 +93,7 @@ export const releaseSchema = z.object({
 export const releaseTrackSchema = z.object({
   id: z.union([z.number(), z.string()]).optional(),
   title: z.string().trim().min(1).max(140),
-  audioDataUrl: z.string().trim().max(30000000).refine(isReleaseTrackAudioDataUrl, {
+  audioDataUrl: z.string().trim().max(RELEASE_TRACK_REQUEST_SAFE_MAX_CHARS).refine(isReleaseTrackAudioDataUrl, {
     message: "Track must be uploaded from local computer (MP3/WAV data URL only)"
   }),
   durationSeconds: z.number().int().min(0).max(86400).optional().default(0),
@@ -102,7 +103,7 @@ export const releaseTrackSchema = z.object({
 export const releaseTrackUpdateSchema = z.object({
   id: z.union([z.number(), z.string()]).optional(),
   title: z.string().trim().min(1).max(140),
-  audioDataUrl: z.string().trim().max(30000000).refine(isReleaseTrackAudioDataUrl, {
+  audioDataUrl: z.string().trim().max(RELEASE_TRACK_REQUEST_SAFE_MAX_CHARS).refine(isReleaseTrackAudioDataUrl, {
     message: "Track must be uploaded from local computer (MP3/WAV data URL only)"
   }).optional(),
   durationSeconds: z.number().int().min(0).max(86400).optional().default(0),
