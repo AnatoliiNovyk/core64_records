@@ -17,78 +17,78 @@
             --release-player-offset: 0px;
             --release-player-body-padding: 0px;
         }
-        
+
         body {
             font-family: 'Rajdhani', sans-serif;
             background-color: var(--darker);
             color: #e0e0e0;
             overflow-x: hidden;
         }
-        
+
         h1, h2, h3, .brand {
             font-family: 'Orbitron', sans-serif;
         }
-        
+
         .glitch-text {
             position: relative;
             animation: glitch 3s infinite;
         }
-        
+
         @keyframes glitch {
             0%, 90%, 100% { transform: translate(0); }
             92% { transform: translate(-2px, 1px); }
             94% { transform: translate(2px, -1px); }
             96% { transform: translate(-1px, -1px); }
         }
-        
+
         .neon-border {
             box-shadow: 0 0 10px var(--primary), inset 0 0 10px rgba(0,240,255,0.1);
             border: 1px solid var(--primary);
         }
-        
+
         .neon-text {
             text-shadow: 0 0 10px var(--primary), 0 0 20px var(--primary);
         }
-        
+
         .grid-bg {
-            background-image: 
+            background-image:
                 linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px),
                 linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
             background-size: 50px 50px;
         }
-        
+
         .release-card {
             transition: all 0.3s ease;
             background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%);
         }
-        
+
         .release-card:hover {
             transform: translateY(-5px);
             box-shadow: 0 10px 30px rgba(0,240,255,0.2);
             border-color: var(--primary);
         }
-        
+
         .vinyl-spin {
             animation: spin 4s linear infinite;
             animation-play-state: paused;
         }
-        
+
         .release-card:hover .vinyl-spin {
             animation-play-state: running;
         }
-        
+
         @keyframes spin {
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
-        
+
         .audio-wave {
             display: flex;
             align-items: center;
             gap: 3px;
             height: 30px;
         }
-        
+
         .wave-bar {
             width: 3px;
             background: var(--primary);
@@ -106,12 +106,12 @@
 
         .pink-glow { text-shadow: 0 0 10px #ff00a0; }
         .green-glow { text-shadow: 0 0 10px #39ff14; }
-        
+
         @keyframes wave {
             0%, 100% { height: 10%; }
             50% { height: 100%; }
         }
-        
+
         .admin-link {
             position: fixed;
             bottom: calc(20px + var(--release-player-offset, 0px));
@@ -158,17 +158,17 @@
                 bottom: calc(16px + var(--release-player-offset, 0px));
             }
         }
-        
+
         .admin-link:hover {
             opacity: 1;
         }
-        
+
         .genre-tag {
             background: rgba(0,240,255,0.1);
             border: 1px solid rgba(0,240,255,0.3);
             color: var(--primary);
         }
-        
+
         .btn-primary {
             background: linear-gradient(45deg, var(--primary), var(--secondary));
             color: black;
@@ -177,7 +177,7 @@
             letter-spacing: 2px;
             transition: all 0.3s;
         }
-        
+
         .btn-primary:hover {
             box-shadow: 0 0 20px var(--primary);
             transform: scale(1.05);
@@ -290,7 +290,7 @@
                 max-height: min(72vh, 480px);
             }
         }
-        
+
     </style>
 </head>
 <body class="grid-bg">
@@ -341,7 +341,7 @@
     <section id="hero" class="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
         <div class="absolute inset-0 bg-gradient-to-b from-cyan-500/10 via-transparent to-transparent"></div>
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--primary)_0%,_transparent_70%)] opacity-20"></div>
-        
+
         <div class="relative z-10 text-center px-4 max-w-5xl mx-auto">
             <div class="mb-6 inline-block">
                 <div class="audio-wave justify-center mb-4">
@@ -355,17 +355,17 @@
                     <div class="wave-bar wave-delay-7"></div>
                 </div>
             </div>
-            
+
             <img id="public-hero-main-logo" src="" alt="CORE64 Records" class="hidden mx-auto mb-6 max-h-52 md:max-h-64 w-auto object-contain">
 
             <h1 id="public-hero-main-heading" class="text-5xl md:text-8xl font-black mb-6 glitch-text neon-text text-white">
                 CORE<span class="text-cyan-400">64</span> RECORDS
             </h1>
-            
+
             <p id="public-hero-subtitle" class="text-xl md:text-2xl text-gray-400 mb-8 tracking-widest uppercase">
                 Neurofunk • Drum & Bass • Breakbeat • Techstep
             </p>
-            
+
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
                 <button onclick="scrollToSection('releases')" class="btn-primary px-8 py-4 rounded-none border-0" data-i18n="heroListenReleases">
                     Слухати Релізи
@@ -374,7 +374,7 @@
                     Наші Артисти
                 </button>
             </div>
-            
+
             <div class="mt-12 flex justify-center gap-6">
                 <a id="hero-social-instagram" href="#" title="Instagram" aria-label="Instagram" class="text-gray-500 hover:text-cyan-400 transition-colors" target="_blank" rel="noopener noreferrer">
                     <svg viewBox="0 0 24 24" class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
@@ -404,7 +404,7 @@
                 <a id="hero-social-radio" href="#" title="Radio" aria-label="Radio" class="text-gray-500 hover:text-cyan-400 transition-colors" target="_blank" rel="noopener noreferrer"><i data-lucide="radio" class="w-6 h-6"></i></a>
             </div>
         </div>
-        
+
         <div class="absolute bottom-10 left-1/2 transform -translate-x-1/2 animate-bounce">
             <i data-lucide="chevron-down" class="w-8 h-8 text-cyan-400"></i>
         </div>
@@ -418,7 +418,7 @@
                 <h2 id="public-section-title-releases" class="text-4xl font-bold text-center neon-text" data-i18n="sectionLatestReleases">ОСТАННІ РЕЛІЗИ</h2>
                 <div class="h-px flex-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent"></div>
             </div>
-            
+
             <div id="releases-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <!-- Releases will be loaded here -->
             </div>
@@ -507,7 +507,7 @@
                 <h2 id="public-section-title-artists" class="text-4xl font-bold text-center pink-glow" data-i18n="sectionLabelArtists">АРТИСТИ ЛЕЙБЛУ</h2>
                 <div class="h-px flex-1 bg-gradient-to-r from-transparent via-pink-500 to-transparent"></div>
             </div>
-            
+
             <div id="artists-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 <!-- Artists will be loaded here -->
             </div>
@@ -522,7 +522,7 @@
                 <h2 id="public-section-title-events" class="text-4xl font-bold text-center green-glow" data-i18n="sectionEvents">АФІША ПОДІЙ</h2>
                 <div class="h-px flex-1 bg-gradient-to-r from-transparent via-green-400 to-transparent"></div>
             </div>
-            
+
             <div id="events-list" class="space-y-4">
                 <!-- Events will be loaded here -->
             </div>
@@ -563,7 +563,7 @@
                     Наша місія — підтримувати андерграунд сцену та виводити Drum & Bass на новий рівень. Кожен реліз — це унікальна історія, закодована в звуках синтезаторів та ритмах барабанів.
                 </p>
             </div>
-            
+
             <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-12">
                 <div class="p-6 border border-cyan-500/30 rounded bg-cyan-500/5">
                     <div class="text-3xl font-bold text-cyan-400 mb-2" id="stat-releases">0</div>
