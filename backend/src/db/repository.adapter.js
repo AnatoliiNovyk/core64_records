@@ -91,8 +91,8 @@ export async function createContactRequest(payload) {
   return executeWrite("createContactRequest", [payload]);
 }
 
-export async function listContactRequests() {
-  return executeRead("listContactRequests", []);
+export async function listContactRequests(options = {}) {
+  return executeRead("listContactRequests", [options]);
 }
 
 export async function getContactRequestAttachmentById(id) {
