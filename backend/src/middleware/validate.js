@@ -29,6 +29,7 @@ const sponsorTranslationSchema = z.object({
 
 const brandImageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
 const releaseTrackAudioDataUrlPattern = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
+const contactAttachmentDataUrlPattern = /^data:[^;,]+(?:;[^,]*)?;base64,[a-z0-9+/=\s]+$/i;
 const INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES = 700 * 1024;
 const INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS = Math.ceil((INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES * 4) / 3) + 64;
 const COLLECTION_IMAGE_URL_MAX_CHARS = 4096;
@@ -291,13 +292,14 @@ export const contactRequestSchema = z.object({
 }).superRefine((payload, ctx) => {
   const subject = String(payload.subject || "").trim().toLowerCase();
   const isDemo = subject === "демо запис" || subject === "demo" || subject.includes("демо");
-  const hasAttachment = typeof payload.attachmentDataUrl === "string" && payload.attachmentDataUrl.startsWith("data:");
+  const attachmentDataUrl = String(payload.attachmentDataUrl || "").trim();
+  const hasAttachment = !!attachmentDataUrl;
 
-  if (payload.attachmentDataUrl && !hasAttachment) {
+  if (hasAttachment && !contactAttachmentDataUrlPattern.test(attachmentDataUrl)) {
     ctx.addIssue({
       path: ["attachmentDataUrl"],
       code: z.ZodIssueCode.custom,
-      message: "attachmentDataUrl must be a valid data URL"
+      message: "attachmentDataUrl must be a valid base64 data URL"
     });
   }
 

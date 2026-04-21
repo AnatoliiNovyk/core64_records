@@ -74,6 +74,13 @@ const RELEASE_TRACK_AUDIO_BATCH_MAX_ESTIMATED_BYTES = 7 * 1024 * 1024;
 const RELEASE_TRACK_AUDIO_BATCH_WRITE_OVERHEAD_BYTES = 2048;
 const RELEASE_TRACK_REPLACE_MAX_WRITE_OPERATIONS = 450;
 const RELEASE_TRACK_AUDIO_CHUNKS_COLLECTION = "release_track_audio_chunks";
+const CONTACT_REQUEST_ATTACHMENT_DATA_URL_PATTERN = /^data:([^;,]+)(?:;[^,]*)?;base64,([a-z0-9+/=\s]+)$/i;
+const CONTACT_REQUEST_INLINE_ATTACHMENT_DATA_URL_MAX_CHARS = 500000;
+const CONTACT_REQUEST_ATTACHMENT_CHUNK_SIZE_CHARS = 240000;
+const CONTACT_REQUEST_ATTACHMENT_BATCH_MAX_WRITES = 32;
+const CONTACT_REQUEST_ATTACHMENT_BATCH_MAX_ESTIMATED_BYTES = 7 * 1024 * 1024;
+const CONTACT_REQUEST_ATTACHMENT_BATCH_WRITE_OVERHEAD_BYTES = 2048;
+const CONTACT_REQUEST_ATTACHMENT_CHUNKS_COLLECTION = "contact_request_attachment_chunks";
 
 const ENTITY_TRANSLATED_FIELDS = {
   releases: ["title", "artist", "genre"],
@@ -369,6 +376,10 @@ function normalizeReleaseTrackAudioMimeType(value) {
   return "";
 }
 
+function normalizeContactRequestAttachmentMimeType(value) {
+  return toSafeString(value, "").toLowerCase();
+}
+
 function parseReleaseTrackAudioDataUrl(value) {
   const normalized = toSafeString(value, "");
   const match = normalized.match(RELEASE_TRACK_AUDIO_DATA_URL_PATTERN);
@@ -379,6 +390,22 @@ function parseReleaseTrackAudioDataUrl(value) {
 
   const base64Payload = toSafeString(match[2], "").replace(/\s+/g, "");
   if (!base64Payload) return null;
+
+  return {
+    mimeType,
+    base64Payload,
+    dataUrl: `data:${mimeType};base64,${base64Payload}`
+  };
+}
+
+function parseContactRequestAttachmentDataUrl(value) {
+  const normalized = toSafeString(value, "");
+  const match = normalized.match(CONTACT_REQUEST_ATTACHMENT_DATA_URL_PATTERN);
+  if (!match) return null;
+
+  const mimeType = normalizeContactRequestAttachmentMimeType(match[1]);
+  const base64Payload = toSafeString(match[2], "").replace(/\s+/g, "");
+  if (!mimeType || !base64Payload) return null;
 
   return {
     mimeType,
@@ -434,7 +461,50 @@ function buildReleaseTrackAudioStoragePayload(audioDataUrl) {
   };
 }
 
+function buildContactRequestAttachmentStoragePayload(attachmentDataUrl, attachmentType = "") {
+  const parsed = parseContactRequestAttachmentDataUrl(attachmentDataUrl);
+  const fallbackMimeType = normalizeContactRequestAttachmentMimeType(attachmentType);
+  if (!parsed) {
+    return {
+      attachmentDataUrl: "",
+      attachmentStorage: "inline",
+      attachmentMimeType: fallbackMimeType,
+      attachmentChunkCount: 0,
+      attachmentBase64Length: 0,
+      chunks: []
+    };
+  }
+
+  const resolvedMimeType = parsed.mimeType || fallbackMimeType || "application/octet-stream";
+  if (parsed.dataUrl.length <= CONTACT_REQUEST_INLINE_ATTACHMENT_DATA_URL_MAX_CHARS) {
+    return {
+      attachmentDataUrl: parsed.dataUrl,
+      attachmentStorage: "inline",
+      attachmentMimeType: resolvedMimeType,
+      attachmentChunkCount: 0,
+      attachmentBase64Length: parsed.base64Payload.length,
+      chunks: []
+    };
+  }
+
+  const chunks = splitTextByChunkSize(parsed.base64Payload, CONTACT_REQUEST_ATTACHMENT_CHUNK_SIZE_CHARS);
+  return {
+    attachmentDataUrl: "",
+    attachmentStorage: "chunked",
+    attachmentMimeType: resolvedMimeType,
+    attachmentChunkCount: chunks.length,
+    attachmentBase64Length: parsed.base64Payload.length,
+    chunks
+  };
+}
+
 function createReleaseTrackAudioChunkSetId() {
+  const timePart = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).slice(2, 10);
+  return `${timePart}_${randomPart}`;
+}
+
+function createContactRequestAttachmentChunkSetId() {
   const timePart = Date.now().toString(36);
   const randomPart = Math.random().toString(36).slice(2, 10);
   return `${timePart}_${randomPart}`;
@@ -447,10 +517,57 @@ function buildReleaseTrackAudioDataUrlFromChunks(mimeType, chunks) {
   return `data:${resolvedMimeType};base64,${payload}`;
 }
 
+function buildContactRequestAttachmentDataUrlFromChunks(mimeType, chunks) {
+  const resolvedMimeType = normalizeContactRequestAttachmentMimeType(mimeType) || "application/octet-stream";
+  const payload = Array.isArray(chunks) ? chunks.map((chunk) => toSafeString(chunk, "")).join("") : "";
+  if (!payload) return "";
+  return `data:${resolvedMimeType};base64,${payload}`;
+}
+
 function isChunkedReleaseTrackAudioStorage(trackRow) {
   if (!trackRow || typeof trackRow !== "object") return false;
   if (toSafeString(trackRow.audioStorage, "") === "chunked") return true;
   return toBoundedInteger(trackRow.audioChunkCount, 0, 0, Number.MAX_SAFE_INTEGER) > 0;
+}
+
+function normalizeContactRequestAttachmentStorageRow(row) {
+  const source = clonePlainObject(row);
+  const attachmentDataUrl = toSafeString(readRawField(source, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]), "");
+  const attachmentType = normalizeContactRequestAttachmentMimeType(readRawField(source, ["attachmentType", "attachment_type"]));
+  const attachmentMimeType = normalizeContactRequestAttachmentMimeType(
+    readRawField(source, ["attachmentMimeType", "attachment_mime_type"])
+  ) || attachmentType;
+  const attachmentStorage = toSafeString(readRawField(source, ["attachmentStorage", "attachment_storage"]), "").toLowerCase() === "chunked"
+    ? "chunked"
+    : "inline";
+  const attachmentChunkSetId = toSafeString(readRawField(source, ["attachmentChunkSetId", "attachment_chunk_set_id"]), "");
+  const parsedAttachment = parseContactRequestAttachmentDataUrl(attachmentDataUrl);
+
+  return {
+    attachmentDataUrl,
+    attachmentType,
+    attachmentMimeType,
+    attachmentStorage,
+    attachmentChunkSetId,
+    attachmentChunkCount: toBoundedInteger(
+      readRawField(source, ["attachmentChunkCount", "attachment_chunk_count"]),
+      attachmentStorage === "chunked" ? 1 : 0,
+      0,
+      Number.MAX_SAFE_INTEGER
+    ),
+    attachmentBase64Length: toBoundedInteger(
+      readRawField(source, ["attachmentBase64Length", "attachment_base64_length"]),
+      parsedAttachment ? parsedAttachment.base64Payload.length : 0,
+      0,
+      Number.MAX_SAFE_INTEGER
+    )
+  };
+}
+
+function isChunkedContactRequestAttachmentStorage(row) {
+  const normalized = normalizeContactRequestAttachmentStorageRow(row);
+  if (normalized.attachmentStorage === "chunked") return true;
+  return normalized.attachmentChunkCount > 0;
 }
 
 async function deleteDocumentsInBatches(snapshots = []) {
@@ -643,6 +760,175 @@ async function hydrateReleaseTrackAudioDataUrl(row) {
   return buildReleaseTrackAudioDataUrlFromChunks(mimeType, selectedChunks.map((chunk) => chunk.base64Chunk));
 }
 
+async function listContactRequestAttachmentChunksByRequestId(requestId, options = {}) {
+  const normalizedRequestId = toBoundedInteger(requestId, 0, 1, Number.MAX_SAFE_INTEGER);
+  if (!normalizedRequestId) return [];
+
+  const normalizedChunkSetId = toSafeString(options.chunkSetId, "");
+
+  const db = await getFirestoreDb();
+  const snapshot = await db.collection(CONTACT_REQUEST_ATTACHMENT_CHUNKS_COLLECTION)
+    .where("requestId", "==", normalizedRequestId)
+    .get();
+
+  return snapshot.docs
+    .map((doc) => {
+      const row = clonePlainObject(doc.data());
+      return {
+        ref: doc.ref,
+        chunkIndex: toBoundedInteger(readRawField(row, ["chunkIndex", "chunk_index"]), 0, 0, Number.MAX_SAFE_INTEGER),
+        chunkSetId: toSafeString(readRawField(row, ["chunkSetId", "chunk_set_id"]), ""),
+        mimeType: normalizeContactRequestAttachmentMimeType(readRawField(row, ["mimeType", "mime_type"])),
+        base64Chunk: toSafeString(readRawField(row, ["base64Chunk", "base64_chunk"]), ""),
+        updatedAtMs: toAuditDate(readRawField(row, ["updatedAt", "updated_at"]), 0)
+      };
+    })
+    .filter((chunk) => !normalizedChunkSetId || chunk.chunkSetId === normalizedChunkSetId)
+    .sort((left, right) => {
+      if (left.chunkIndex !== right.chunkIndex) return left.chunkIndex - right.chunkIndex;
+      return right.updatedAtMs - left.updatedAtMs;
+    });
+}
+
+function selectContactRequestAttachmentChunks(chunks = []) {
+  const source = Array.isArray(chunks) ? chunks : [];
+  const byChunkIndex = new Map();
+
+  source.forEach((chunk) => {
+    const chunkIndex = toBoundedInteger(chunk && chunk.chunkIndex, 0, 1, Number.MAX_SAFE_INTEGER);
+    if (!chunkIndex) return;
+
+    const existing = byChunkIndex.get(chunkIndex);
+    if (!existing || toBoundedInteger(chunk.updatedAtMs, 0, 0, Number.MAX_SAFE_INTEGER) >= toBoundedInteger(existing.updatedAtMs, 0, 0, Number.MAX_SAFE_INTEGER)) {
+      byChunkIndex.set(chunkIndex, chunk);
+    }
+  });
+
+  return Array.from(byChunkIndex.values()).sort((left, right) => left.chunkIndex - right.chunkIndex);
+}
+
+function estimateContactRequestAttachmentChunkWriteBytes({ docId, chunkSetId, mimeType, base64Chunk }) {
+  const idBytes = Buffer.byteLength(toSafeString(docId, ""), "utf8");
+  const chunkSetIdBytes = Buffer.byteLength(toSafeString(chunkSetId, ""), "utf8");
+  const mimeTypeBytes = Buffer.byteLength(toSafeString(mimeType, ""), "utf8");
+  const chunkBytes = Buffer.byteLength(toSafeString(base64Chunk, ""), "utf8");
+  return idBytes + chunkSetIdBytes + mimeTypeBytes + chunkBytes + CONTACT_REQUEST_ATTACHMENT_BATCH_WRITE_OVERHEAD_BYTES;
+}
+
+async function writeContactRequestAttachmentChunks({
+  requestId,
+  chunkSetId,
+  mimeType,
+  chunks,
+  timestamp
+}) {
+  const normalizedRequestId = toBoundedInteger(requestId, 0, 1, Number.MAX_SAFE_INTEGER);
+  const normalizedChunkSetId = toSafeString(chunkSetId, "");
+  const resolvedMimeType = normalizeContactRequestAttachmentMimeType(mimeType);
+  const normalizedChunks = Array.isArray(chunks) ? chunks.map((chunk) => toSafeString(chunk, "")).filter(Boolean) : [];
+  if (!normalizedRequestId || !normalizedChunkSetId || !resolvedMimeType || normalizedChunks.length === 0) return;
+
+  const now = toIsoString(timestamp, nowIsoString()) || nowIsoString();
+  const db = await getFirestoreDb();
+  const chunksCollection = db.collection(CONTACT_REQUEST_ATTACHMENT_CHUNKS_COLLECTION);
+  let batch = db.batch();
+  let pendingWrites = 0;
+  let pendingEstimatedBytes = 0;
+
+  for (let index = 0; index < normalizedChunks.length; index += 1) {
+    const chunkIndex = index + 1;
+    const base64Chunk = normalizedChunks[index];
+    const docId = `${normalizedRequestId}_${normalizedChunkSetId}_${chunkIndex}`;
+    const estimatedWriteBytes = estimateContactRequestAttachmentChunkWriteBytes({
+      docId,
+      chunkSetId: normalizedChunkSetId,
+      mimeType: resolvedMimeType,
+      base64Chunk
+    });
+
+    const wouldExceedWriteCount = (pendingWrites + 1) > CONTACT_REQUEST_ATTACHMENT_BATCH_MAX_WRITES;
+    const wouldExceedEstimatedBytes = (pendingEstimatedBytes + estimatedWriteBytes) > CONTACT_REQUEST_ATTACHMENT_BATCH_MAX_ESTIMATED_BYTES;
+    if (pendingWrites > 0 && (wouldExceedWriteCount || wouldExceedEstimatedBytes)) {
+      await batch.commit();
+      batch = db.batch();
+      pendingWrites = 0;
+      pendingEstimatedBytes = 0;
+    }
+
+    batch.set(chunksCollection.doc(docId), {
+      id: docId,
+      requestId: normalizedRequestId,
+      chunkSetId: normalizedChunkSetId,
+      chunkIndex,
+      totalChunks: normalizedChunks.length,
+      mimeType: resolvedMimeType,
+      base64Chunk,
+      createdAt: now,
+      updatedAt: now
+    }, { merge: true });
+
+    pendingWrites += 1;
+    pendingEstimatedBytes += estimatedWriteBytes;
+  }
+
+  if (pendingWrites > 0) {
+    await batch.commit();
+  }
+}
+
+async function deleteContactRequestAttachmentChunksByRequestId(requestId) {
+  const chunks = await listContactRequestAttachmentChunksByRequestId(requestId);
+  if (chunks.length === 0) return;
+  await deleteDocumentsInBatches(chunks);
+}
+
+async function deleteContactRequestAttachmentChunksByRequestIdAndSet(requestId, chunkSetId) {
+  const normalizedChunkSetId = toSafeString(chunkSetId, "");
+  if (!normalizedChunkSetId) {
+    await deleteContactRequestAttachmentChunksByRequestId(requestId);
+    return;
+  }
+
+  const chunks = await listContactRequestAttachmentChunksByRequestId(requestId, { chunkSetId: normalizedChunkSetId });
+  if (chunks.length === 0) return;
+  await deleteDocumentsInBatches(chunks);
+}
+
+async function cleanupContactRequestAttachmentChunksByRequestId(requestId, chunkSetId = "") {
+  try {
+    await deleteContactRequestAttachmentChunksByRequestIdAndSet(requestId, chunkSetId);
+  } catch (_error) {
+    // Best-effort cleanup.
+  }
+}
+
+async function hydrateContactRequestAttachmentDataUrl(row) {
+  const normalizedRow = normalizeContactRequestAttachmentStorageRow(row);
+  if (!isChunkedContactRequestAttachmentStorage(normalizedRow)) {
+    return normalizedRow.attachmentDataUrl;
+  }
+
+  const normalizedRequestId = normalizeEntityId(readRawField(row, ["id"]), "", 0);
+  if (!normalizedRequestId) return "";
+
+  let chunks = [];
+  if (normalizedRow.attachmentChunkSetId) {
+    chunks = await listContactRequestAttachmentChunksByRequestId(normalizedRequestId, {
+      chunkSetId: normalizedRow.attachmentChunkSetId
+    });
+  }
+
+  if (chunks.length === 0) {
+    chunks = await listContactRequestAttachmentChunksByRequestId(normalizedRequestId);
+  }
+
+  const selectedChunks = selectContactRequestAttachmentChunks(chunks);
+  if (selectedChunks.length === 0) return "";
+
+  const mimeType = selectedChunks.find((chunk) => !!chunk.mimeType)?.mimeType || normalizedRow.attachmentMimeType;
+  return buildContactRequestAttachmentDataUrlFromChunks(mimeType, selectedChunks.map((chunk) => chunk.base64Chunk));
+}
+
 function normalizeReleaseTrackRow(source, fallbackDocId = "") {
   const row = clonePlainObject(source);
   const id = normalizeEntityId(readRawField(row, ["id"]), fallbackDocId, 0);
@@ -714,8 +1000,9 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
   const status = CONTACT_REQUEST_STATUS.has(statusRaw) ? statusRaw : "new";
 
   const attachmentName = toSafeString(readRawField(row, ["attachmentName", "attachment_name"]), "");
-  const attachmentType = toSafeString(readRawField(row, ["attachmentType", "attachment_type"]), "");
-  const attachmentDataUrl = toSafeString(readRawField(row, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]), "");
+  const attachmentStorage = normalizeContactRequestAttachmentStorageRow(row);
+  const attachmentType = attachmentStorage.attachmentType || attachmentStorage.attachmentMimeType;
+  const attachmentDataUrl = attachmentStorage.attachmentDataUrl;
 
   return {
     id,
@@ -726,6 +1013,11 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
     attachmentName,
     attachmentType,
     attachmentDataUrl,
+    attachmentStorage: attachmentStorage.attachmentStorage,
+    attachmentMimeType: attachmentStorage.attachmentMimeType,
+    attachmentChunkSetId: attachmentStorage.attachmentChunkSetId,
+    attachmentChunkCount: attachmentStorage.attachmentChunkCount,
+    attachmentBase64Length: attachmentStorage.attachmentBase64Length,
     attachment_name: attachmentName,
     attachment_type: attachmentType,
     attachment_data: attachmentDataUrl,
@@ -2065,6 +2357,11 @@ export async function createContactRequest(payload) {
   const db = await getFirestoreDb();
   const id = await getNextNumericId("contact_requests", "contact_requests");
   const now = nowIsoString();
+  const attachmentType = toSafeString(source.attachmentType, "");
+  const attachmentStorage = buildContactRequestAttachmentStoragePayload(source.attachmentDataUrl, attachmentType);
+  const attachmentChunkSetId = attachmentStorage.attachmentStorage === "chunked"
+    ? createContactRequestAttachmentChunkSetId()
+    : "";
 
   const row = {
     id,
@@ -2073,21 +2370,70 @@ export async function createContactRequest(payload) {
     subject: toSafeString(source.subject, ""),
     message: toSafeString(source.message, ""),
     attachmentName: toSafeString(source.attachmentName, ""),
-    attachmentType: toSafeString(source.attachmentType, ""),
-    attachmentDataUrl: toSafeString(source.attachmentDataUrl, ""),
+    attachmentType: attachmentType || attachmentStorage.attachmentMimeType,
+    attachmentDataUrl: attachmentStorage.attachmentDataUrl,
+    attachmentStorage: attachmentStorage.attachmentStorage,
+    attachmentMimeType: attachmentStorage.attachmentMimeType,
+    attachmentChunkSetId,
+    attachmentChunkCount: attachmentStorage.attachmentChunkCount,
+    attachmentBase64Length: attachmentStorage.attachmentBase64Length,
     status: "new",
     createdAt: now,
     updatedAt: now
   };
 
-  await db.collection("contact_requests").doc(String(id)).set(row, { merge: true });
-  return mapContactRequestToApi(row, String(id));
+  assertFirestoreDocumentSizeWithinSafeLimit(row, "contact request document");
+
+  const requestRef = db.collection("contact_requests").doc(String(id));
+  await requestRef.set(row, { merge: true });
+
+  if (attachmentStorage.attachmentStorage === "chunked") {
+    try {
+      await writeContactRequestAttachmentChunks({
+        requestId: id,
+        chunkSetId: attachmentChunkSetId,
+        mimeType: attachmentStorage.attachmentMimeType,
+        chunks: attachmentStorage.chunks,
+        timestamp: now
+      });
+    } catch (error) {
+      await cleanupContactRequestAttachmentChunksByRequestId(id, attachmentChunkSetId);
+      try {
+        await requestRef.delete();
+      } catch (_cleanupError) {
+        // Best-effort rollback.
+      }
+      throw error;
+    }
+  }
+
+  const resolvedAttachmentDataUrl = attachmentStorage.attachmentStorage === "chunked"
+    ? buildContactRequestAttachmentDataUrlFromChunks(attachmentStorage.attachmentMimeType, attachmentStorage.chunks)
+    : attachmentStorage.attachmentDataUrl;
+
+  return mapContactRequestToApi({
+    ...row,
+    attachmentDataUrl: resolvedAttachmentDataUrl
+  }, String(id));
 }
 
 export async function listContactRequests() {
   const db = await getFirestoreDb();
   const snapshot = await db.collection("contact_requests").get();
-  const rows = snapshot.docs.map((docSnapshot) => mapContactRequestToApi(docSnapshot.data(), docSnapshot.id));
+  const rows = await Promise.all(snapshot.docs.map(async (docSnapshot) => {
+    const data = clonePlainObject(docSnapshot.data());
+    const rowId = normalizeEntityId(readRawField(data, ["id"]), docSnapshot.id, 0);
+    const hydratedDataUrl = await hydrateContactRequestAttachmentDataUrl({
+      ...data,
+      id: rowId
+    });
+
+    return mapContactRequestToApi({
+      ...data,
+      id: rowId,
+      attachmentDataUrl: hydratedDataUrl || toSafeString(readRawField(data, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]), "")
+    }, docSnapshot.id);
+  }));
   return rows.sort((left, right) => toAuditDate(right.created_at) - toAuditDate(left.created_at));
 }
 

@@ -115,6 +115,7 @@ const PUBLIC_I18N = {
         contactSaveFailedPrefix: "Не вдалося зберегти запит:",
         contactSaveFailedGeneric: "Не вдалося зберегти запит. Спробуйте пізніше.",
         contactSaveFailedDatabaseUnavailable: "База даних тимчасово недоступна. Спробуйте надіслати запит пізніше.",
+        contactSaveFailedStorageLimit: "Файл завеликий для відправки. Зменшіть розмір демо-файлу та спробуйте ще раз.",
         captchaUnsupportedProvider: "Поточний провайдер капчі не підтримується на фронтенді.",
         captchaMissingSiteKey: "Captcha увімкнена, але не вказано site key.",
         captchaLoadFailed: "Не вдалося завантажити captcha. Оновіть сторінку або спробуйте пізніше.",
@@ -204,6 +205,7 @@ const PUBLIC_I18N = {
         contactSaveFailedPrefix: "Failed to save request:",
         contactSaveFailedGeneric: "Failed to save request. Please try again later.",
         contactSaveFailedDatabaseUnavailable: "Database is temporarily unavailable. Please try again later.",
+        contactSaveFailedStorageLimit: "The file is too large to submit. Please reduce the demo file size and try again.",
         captchaUnsupportedProvider: "The current captcha provider is not supported in the frontend.",
         captchaMissingSiteKey: "Captcha is enabled, but site key is missing.",
         captchaLoadFailed: "Failed to load captcha. Refresh the page or try again later.",
@@ -383,10 +385,20 @@ function normalizeUiErrorDetails(value, maxLength = 180) {
 function isDatabaseUnavailableError(error) {
     const code = String(error && error.code ? error.code : "").trim();
     const status = Number(error && error.status);
-    return code === "DB_UNAVAILABLE" || code === "DB_STORAGE_LIMIT_REACHED" || status === 503 || status === 507;
+    return code === "DB_UNAVAILABLE" || status === 503;
+}
+
+function isDatabaseStorageLimitError(error) {
+    const code = String(error && error.code ? error.code : "").trim();
+    const status = Number(error && error.status);
+    return code === "DB_STORAGE_LIMIT_REACHED" || status === 507;
 }
 
 function resolveContactSubmitErrorMessage(error) {
+    if (isDatabaseStorageLimitError(error)) {
+        return tPublic("contactSaveFailedStorageLimit");
+    }
+
     if (isDatabaseUnavailableError(error)) {
         return tPublic("contactSaveFailedDatabaseUnavailable");
     }
