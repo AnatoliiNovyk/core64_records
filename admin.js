@@ -5783,10 +5783,16 @@ const MAX_COLLECTION_UPLOAD_IMAGE_BYTES = 700 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
 const SETTINGS_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
-const SETTINGS_LOGO_DATA_URL_MAX_CHARS = 300000;
+const SETTINGS_HERO_LOGO_DATA_URL_MAX_CHARS = 450000;
+const SETTINGS_BRAND_LOGO_DATA_URL_MAX_CHARS = 220000;
 const FIRESTORE_SAFE_SETTINGS_DOCUMENT_WRITE_BYTES = 950000;
-const SETTINGS_SAVE_PREFLIGHT_HEADROOM_BYTES = 30000;
-const SETTINGS_SAVE_PREFLIGHT_MAX_BYTES = FIRESTORE_SAFE_SETTINGS_DOCUMENT_WRITE_BYTES - SETTINGS_SAVE_PREFLIGHT_HEADROOM_BYTES;
+const SETTINGS_SAVE_PREFLIGHT_MAX_BYTES = FIRESTORE_SAFE_SETTINGS_DOCUMENT_WRITE_BYTES;
+const SETTINGS_LOGO_COMPRESS_MIME_TYPES = ["image/webp", "image/jpeg"];
+const SETTINGS_LOGO_COMPRESS_QUALITY_STEPS = [0.86, 0.78, 0.7, 0.62, 0.54];
+const SETTINGS_LOGO_COMPRESS_SCALE_STEPS = [1, 0.9, 0.8, 0.7, 0.6, 0.5];
+const SETTINGS_LOGO_COMPRESS_HERO_MAX_DIMENSION_PX = 1400;
+const SETTINGS_LOGO_COMPRESS_BRAND_MAX_DIMENSION_PX = 1000;
+const SETTINGS_LOGO_COMPRESS_MIN_SIDE_PX = 64;
 const MAX_UPLOAD_AUDIO_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_UPLOAD_AUDIO_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave"];
 const SUPPORTED_UPLOAD_AUDIO_EXTENSIONS = ["mp3", "wav"];
@@ -5811,10 +5817,102 @@ function getUtf8ByteLength(value) {
     }
 }
 
-function isOversizedSettingsLogoDataUrl(value) {
+function getSettingsLogoDataUrlMaxChars(logoType) {
+    const normalizedType = String(logoType || "").trim().toLowerCase();
+    return normalizedType === "hero-main"
+        ? SETTINGS_HERO_LOGO_DATA_URL_MAX_CHARS
+        : SETTINGS_BRAND_LOGO_DATA_URL_MAX_CHARS;
+}
+
+function isOversizedSettingsLogoDataUrl(value, logoType = "header") {
     const normalized = String(value || "").trim();
     if (!isSettingsImageDataUrl(normalized)) return false;
-    return normalized.length > SETTINGS_LOGO_DATA_URL_MAX_CHARS;
+    return normalized.length > getSettingsLogoDataUrlMaxChars(logoType);
+}
+
+function loadSettingsImageFromDataUrl(dataUrl) {
+    const normalized = String(dataUrl || "").trim();
+    return new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error("SETTINGS_LOGO_IMAGE_LOAD_FAILED"));
+        image.src = normalized;
+    });
+}
+
+async function tryCompressSettingsLogoDataUrl(dataUrl, logoType = "header") {
+    const normalized = String(dataUrl || "").trim();
+    if (!isSettingsImageDataUrl(normalized)) return normalized;
+    if (!isOversizedSettingsLogoDataUrl(normalized, logoType)) return normalized;
+
+    const mimeMatch = normalized.match(/^data:(image\/[a-z0-9.+-]+);base64,/i);
+    const sourceMimeType = mimeMatch ? String(mimeMatch[1] || "").toLowerCase() : "";
+    if (sourceMimeType === "image/gif") return normalized;
+
+    let image;
+    try {
+        image = await loadSettingsImageFromDataUrl(normalized);
+    } catch (_error) {
+        return normalized;
+    }
+
+    const width = Number(image.naturalWidth || image.width);
+    const height = Number(image.naturalHeight || image.height);
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+        return normalized;
+    }
+
+    const cap = getSettingsLogoDataUrlMaxChars(logoType);
+    const maxDimension = String(logoType || "").trim().toLowerCase() === "hero-main"
+        ? SETTINGS_LOGO_COMPRESS_HERO_MAX_DIMENSION_PX
+        : SETTINGS_LOGO_COMPRESS_BRAND_MAX_DIMENSION_PX;
+
+    const minSourceSide = Math.min(width, height);
+    const maxSourceSide = Math.max(width, height);
+    const maxDimensionScale = maxSourceSide > 0 ? Math.min(1, maxDimension / maxSourceSide) : 1;
+    const minSideScale = minSourceSide > 0 ? Math.min(1, SETTINGS_LOGO_COMPRESS_MIN_SIDE_PX / minSourceSide) : 1;
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return normalized;
+
+    let smallestCandidate = normalized;
+
+    for (const mimeType of SETTINGS_LOGO_COMPRESS_MIME_TYPES) {
+        for (const scaleStep of SETTINGS_LOGO_COMPRESS_SCALE_STEPS) {
+            if (!Number.isFinite(scaleStep) || scaleStep <= 0) continue;
+
+            const effectiveScale = Math.max(minSideScale, Math.min(1, maxDimensionScale * scaleStep));
+            const targetWidth = Math.max(1, Math.round(width * effectiveScale));
+            const targetHeight = Math.max(1, Math.round(height * effectiveScale));
+
+            canvas.width = targetWidth;
+            canvas.height = targetHeight;
+            context.clearRect(0, 0, targetWidth, targetHeight);
+            context.drawImage(image, 0, 0, targetWidth, targetHeight);
+
+            for (const quality of SETTINGS_LOGO_COMPRESS_QUALITY_STEPS) {
+                if (!Number.isFinite(quality) || quality <= 0 || quality > 1) continue;
+
+                let candidate = "";
+                try {
+                    candidate = canvas.toDataURL(mimeType, quality);
+                } catch (_error) {
+                    continue;
+                }
+
+                if (!isSettingsImageDataUrl(candidate)) continue;
+                if (candidate.length >= smallestCandidate.length) continue;
+
+                smallestCandidate = candidate;
+                if (smallestCandidate.length <= cap) {
+                    return smallestCandidate;
+                }
+            }
+        }
+    }
+
+    return smallestCandidate;
 }
 
 function estimateSettingsFirestoreDocumentBytesForPreflight(settings, activeLanguage = getActiveLanguage(), previousSettings = cache.settings || {}) {
@@ -6264,13 +6362,23 @@ function handleSettingsLogoUpload(logoType, fileInputEl) {
     }
 
     const reader = new FileReader();
-    reader.onload = function (event) {
+    reader.onload = async function (event) {
         if (currentSection !== sectionAtUpload) return;
         if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
         if (!inputEl || !inputEl.isConnected) return;
         const loadTarget = event && event.target;
         if (!loadTarget || typeof loadTarget.result !== "string") return;
-        if (isOversizedSettingsLogoDataUrl(loadTarget.result)) {
+
+        let nextLogoValue = String(loadTarget.result || "").trim();
+        if (isOversizedSettingsLogoDataUrl(nextLogoValue, logoType)) {
+            nextLogoValue = await tryCompressSettingsLogoDataUrl(nextLogoValue, logoType);
+
+            if (currentSection !== sectionAtUpload) return;
+            if (!settingsSectionEl || !settingsSectionEl.isConnected) return;
+            if (!inputEl || !inputEl.isConnected) return;
+        }
+
+        if (isOversizedSettingsLogoDataUrl(nextLogoValue, logoType)) {
             inputEl.value = "";
             updateSettingsLogoPreview(logoType);
             if (currentSection === sectionAtUpload && settingsSectionEl.isConnected) {
@@ -6279,7 +6387,8 @@ function handleSettingsLogoUpload(logoType, fileInputEl) {
             if (fileInputEl && fileInputEl.isConnected) fileInputEl.value = "";
             return;
         }
-        inputEl.value = loadTarget.result;
+
+        inputEl.value = nextLogoValue;
         updateSettingsLogoPreview(logoType);
         if (fileInputEl && fileInputEl.isConnected) fileInputEl.value = "";
     };
@@ -7231,13 +7340,35 @@ async function saveSettings(options = {}) {
         const sectionSettingsChanged = !areSectionSettingsEqualForSave(sectionSettingsDraft, cache.sectionSettings);
 
         if (settingsChanged) {
-            if (
-                isOversizedSettingsLogoDataUrl(settings.heroMainLogoDataUrl)
-                || isOversizedSettingsLogoDataUrl(settings.headerLogoUrl)
-                || isOversizedSettingsLogoDataUrl(settings.footerLogoUrl)
-            ) {
-                alert(tAdmin("settingsSaveTooLarge"));
-                return false;
+            const logoPreflightEntries = [
+                { fieldKey: "heroMainLogoDataUrl", logoType: "hero-main", inputEl: heroMainLogoInputEl },
+                { fieldKey: "headerLogoUrl", logoType: "header", inputEl: headerLogoInputEl },
+                { fieldKey: "footerLogoUrl", logoType: "footer", inputEl: footerLogoInputEl }
+            ];
+
+            for (const { fieldKey, logoType, inputEl } of logoPreflightEntries) {
+                const currentValue = normalizeSettingsPlainText(settings[fieldKey], "");
+                settings[fieldKey] = currentValue;
+
+                if (!isOversizedSettingsLogoDataUrl(currentValue, logoType)) {
+                    continue;
+                }
+
+                const compressedValue = await tryCompressSettingsLogoDataUrl(currentValue, logoType);
+
+                if (sectionNavigationSeq !== navigationSeqAtSave) return false;
+                if (currentSection !== sectionAtSave) return false;
+                if (currentSection !== "settings") return false;
+                const settingsSectionEl = document.getElementById("section-settings");
+                if (!settingsSectionEl || !settingsSectionEl.isConnected) return false;
+
+                if (typeof compressedValue === "string" && compressedValue.length < currentValue.length) {
+                    settings[fieldKey] = compressedValue;
+                    if (inputEl && inputEl.isConnected) {
+                        inputEl.value = compressedValue;
+                        updateSettingsLogoPreview(logoType);
+                    }
+                }
             }
 
             const estimatedSettingsDocBytes = estimateSettingsFirestoreDocumentBytesForPreflight(settings, activeLanguage, cache.settings || {});
