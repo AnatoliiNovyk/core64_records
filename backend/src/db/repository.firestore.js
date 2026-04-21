@@ -2454,6 +2454,14 @@ export async function createContactRequest(payload) {
 
 export async function listContactRequests(options = {}) {
   const includeAttachmentDataUrl = options.includeAttachmentDataUrl === true;
+  const returnMeta = options.returnMeta === true;
+  const normalizedLimit = toBoundedInteger(options.limit, 50, 1, 250);
+  const normalizedPage = toBoundedInteger(options.page, 1, 1, 1_000_000);
+  const normalizedStatus = toSafeString(options.status, "").toLowerCase();
+  const statusFilter = CONTACT_REQUEST_STATUS.has(normalizedStatus) ? normalizedStatus : "";
+  const normalizedQuery = toSafeString(options.q, "").toLowerCase();
+  const normalizedDate = toSafeString(options.date, "");
+
   const db = await getFirestoreDb();
   const snapshot = await db.collection("contact_requests").get();
   const rows = await Promise.all(snapshot.docs.map(async (docSnapshot) => {
@@ -2474,7 +2482,46 @@ export async function listContactRequests(options = {}) {
       includeAttachmentDataUrl
     });
   }));
-  return rows.sort((left, right) => toAuditDate(right.created_at) - toAuditDate(left.created_at));
+
+  const filteredRows = rows.filter((row) => {
+    if (statusFilter && toSafeString(row && row.status, "").toLowerCase() !== statusFilter) {
+      return false;
+    }
+
+    if (normalizedDate) {
+      const createdDateKey = toIsoString(row && row.created_at, "").slice(0, 10);
+      if (createdDateKey !== normalizedDate) {
+        return false;
+      }
+    }
+
+    if (normalizedQuery) {
+      const haystack = [
+        toSafeString(row && row.subject, ""),
+        toSafeString(row && row.email, ""),
+        toSafeString(row && row.name, "")
+      ].join(" ").toLowerCase();
+      if (!haystack.includes(normalizedQuery)) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  filteredRows.sort((left, right) => toAuditDate(right.created_at) - toAuditDate(left.created_at));
+
+  if (!returnMeta) {
+    return filteredRows;
+  }
+
+  const offset = (normalizedPage - 1) * normalizedLimit;
+  return {
+    items: filteredRows.slice(offset, offset + normalizedLimit),
+    page: normalizedPage,
+    limit: normalizedLimit,
+    total: filteredRows.length
+  };
 }
 
 export async function getContactRequestAttachmentById(id) {

@@ -26,6 +26,7 @@ let dashboardSettingsPartialFailure = false;
 let contactsPage = 1;
 const CONTACTS_PAGE_SIZE = 5;
 const CONTACTS_MIN_PAGE = 1;
+let contactsTotal = 0;
 let auditPage = 1;
 const AUDIT_PAGE_SIZE = 10;
 const AUDIT_MIN_LIMIT = 1;
@@ -4210,9 +4211,10 @@ async function loadSettings() {
     await loadSectionSettings();
 }
 
-async function loadContacts() {
+async function loadContacts(options = {}) {
     const sectionAtLoad = currentSection;
     const navigationSeqAtLoad = sectionNavigationSeq;
+    const skipPageRetry = !!(options && options.skipPageRetry);
     const getContactRequestsMethod = getAdapterMethod("getContactRequests");
     if (!getContactRequestsMethod) {
         console.warn("Adapter getContactRequests method is unavailable");
@@ -4223,12 +4225,46 @@ async function loadContacts() {
         alert(tAdmin("loadContactsMissingAdapter"));
         return;
     }
-    const nextContactRequests = await getContactRequestsMethod.call(adapter);
+
+    const { statusFilter, dateFilter, query } = getNormalizedContactsFilters();
+    const requestStatus = statusFilter === "all" ? "" : statusFilter;
+
+    const nextContactRequestsPayload = await getContactRequestsMethod.call(adapter, {
+        returnMeta: true,
+        page: contactsPage,
+        limit: CONTACTS_PAGE_SIZE,
+        status: requestStatus,
+        q: query,
+        date: dateFilter
+    });
+
     if (sectionNavigationSeq !== navigationSeqAtLoad) return;
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "contacts") return;
-    cache.contactRequests = normalizeRecordArray(nextContactRequests);
+
+    const normalizedResponse = normalizeRecordObject(nextContactRequestsPayload);
+    const hasMetaShape = Array.isArray(normalizedResponse.items);
+    const nextItems = hasMetaShape
+        ? normalizeRecordArray(normalizedResponse.items)
+        : normalizeRecordArray(nextContactRequestsPayload);
+    const nextPage = hasMetaShape
+        ? normalizeContactsPage(normalizedResponse.page, contactsPage)
+        : normalizeContactsPage(contactsPage, CONTACTS_MIN_PAGE);
+    const nextTotal = hasMetaShape
+        ? Math.max(0, Number(normalizedResponse.total) || nextItems.length)
+        : nextItems.length;
+    const totalPages = Math.max(CONTACTS_MIN_PAGE, Math.ceil(nextTotal / CONTACTS_PAGE_SIZE));
+
+    if (!skipPageRetry && nextTotal > 0 && nextItems.length === 0 && nextPage > totalPages) {
+        contactsPage = totalPages;
+        return loadContacts({ skipPageRetry: true });
+    }
+
+    contactsPage = Math.min(nextPage, totalPages);
+    contactsTotal = nextTotal;
+    cache.contactRequests = nextItems;
     contactAttachmentDataUrlCache.clear();
+
     const contactsSectionEl = document.getElementById("section-contacts");
     const contactsListEl = document.getElementById("contacts-list");
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
@@ -5358,26 +5394,7 @@ async function openContactAttachment(id) {
 }
 
 function getFilteredContacts() {
-    const { statusFilter, dateFilter, query } = getNormalizedContactsFilters();
-
-    if (!Array.isArray(cache.contactRequests)) return [];
-
-    return cache.contactRequests.filter((entry) => {
-        if (!entry || typeof entry !== "object") return false;
-        const normalizedStatus = normalizeContactRequestStatus(entry.status);
-        const statusMatch = statusFilter === "all" || normalizedStatus === statusFilter;
-        const createdAt = entry.created_at || entry.createdAt;
-        const createdDateKey = getDateFilterKey(createdAt);
-        const dateMatch = !dateFilter || createdDateKey === dateFilter;
-
-        if (!query) return statusMatch && dateMatch;
-
-        const haystack = [entry.subject, entry.email, entry.name]
-            .map((v) => normalizeSearchText(v || ""))
-            .join(" ");
-
-        return statusMatch && dateMatch && haystack.includes(query);
-    });
+    return normalizeRecordArray(cache.contactRequests);
 }
 
 function renderContacts() {
@@ -5386,16 +5403,15 @@ function renderContacts() {
     if (!container || !container.isConnected) return;
 
     const filtered = getFilteredContacts();
-
-    const totalPages = Math.max(CONTACTS_MIN_PAGE, Math.ceil(filtered.length / CONTACTS_PAGE_SIZE));
+    const normalizedTotal = Math.max(0, Number(contactsTotal) || filtered.length);
+    const totalPages = Math.max(CONTACTS_MIN_PAGE, Math.ceil(normalizedTotal / CONTACTS_PAGE_SIZE));
     const safeContactsPage = normalizeContactsPage(contactsPage, CONTACTS_MIN_PAGE);
     const displayContactsPage = Math.min(safeContactsPage, totalPages);
     if (contactsPage !== displayContactsPage) {
         contactsPage = displayContactsPage;
     }
 
-    const start = (displayContactsPage - CONTACTS_MIN_PAGE) * CONTACTS_PAGE_SIZE;
-    const paged = filtered.slice(start, start + CONTACTS_PAGE_SIZE);
+    const paged = filtered;
 
     if (!paged.length) {
         if (!container.isConnected) return;
@@ -5463,7 +5479,7 @@ function renderContacts() {
     if (pagination && pagination.isConnected) {
         pagination.innerHTML = `
             <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(-1)" ${displayContactsPage === CONTACTS_MIN_PAGE ? "disabled" : ""}>${sanitizeInput(tAdmin("paginationPrev"))}</button>
-            <div class="text-sm text-gray-300">${sanitizeInput(tAdminFormat("paginationPageOf", { page: displayContactsPage, total: totalPages }))}</div>
+            <div class="text-sm text-gray-300">${sanitizeInput(tAdminFormat("paginationPageOfTotal", { page: displayContactsPage, total: totalPages, count: normalizedTotal }))}</div>
             <button class="px-4 py-2 border border-cyan-500/40 rounded text-cyan-300 disabled:opacity-40" onclick="changeContactsPage(1)" ${displayContactsPage >= totalPages ? "disabled" : ""}>${sanitizeInput(tAdmin("paginationNext"))}</button>
         `;
     }
@@ -5486,7 +5502,7 @@ function normalizeCsvRowValues(row) {
     });
 }
 
-function exportContactsCsv() {
+async function exportContactsCsv() {
     const sectionAtExport = currentSection;
     if (currentSection !== sectionAtExport) return;
     if (currentSection !== "contacts") return;
@@ -5495,7 +5511,71 @@ function exportContactsCsv() {
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
     if (!contactsListEl || !contactsListEl.isConnected) return;
 
-    const filtered = getFilteredContacts();
+    const getContactRequestsMethod = getAdapterMethod("getContactRequests");
+    if (!getContactRequestsMethod) {
+        alert(tAdmin("loadContactsMissingAdapter"));
+        return;
+    }
+
+    const { statusFilter, dateFilter, query } = getNormalizedContactsFilters();
+    const requestStatus = statusFilter === "all" ? "" : statusFilter;
+
+    const filtered = [];
+    let page = 1;
+    const limit = 250;
+    const maxPages = 2000;
+
+    try {
+        while (page <= maxPages) {
+            const responsePayload = await getContactRequestsMethod.call(adapter, {
+                returnMeta: true,
+                page,
+                limit,
+                status: requestStatus,
+                q: query,
+                date: dateFilter
+            });
+
+            const normalizedResponse = normalizeRecordObject(responsePayload);
+            const hasMetaShape = Array.isArray(normalizedResponse.items);
+            const items = hasMetaShape
+                ? normalizeRecordArray(normalizedResponse.items)
+                : normalizeRecordArray(responsePayload);
+
+            filtered.push(...items);
+
+            if (!hasMetaShape) break;
+
+            const responseTotal = Math.max(0, Number(normalizedResponse.total) || 0);
+            const responseLimit = Math.max(1, Number(normalizedResponse.limit) || limit);
+            const responsePage = normalizeContactsPage(normalizedResponse.page, page);
+            const totalPages = Math.max(CONTACTS_MIN_PAGE, Math.ceil(responseTotal / responseLimit));
+
+            if (!items.length) break;
+            if (filtered.length >= responseTotal) break;
+            if (responsePage >= totalPages) break;
+
+            page = responsePage + 1;
+        }
+    } catch (error) {
+        if (isAbortError(error)) return;
+        if (currentSection !== sectionAtExport) return;
+        if (currentSection !== "contacts") return;
+        const contactsSectionEl = document.getElementById("section-contacts");
+        const contactsListEl = document.getElementById("contacts-list");
+        if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
+        if (!contactsListEl || !contactsListEl.isConnected) return;
+
+        if (isUnauthorizedApiError(error)) {
+            handleUnauthorizedSessionError();
+            return;
+        }
+
+        console.error("Contacts CSV export failed", error);
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("loadDataApiError"));
+        return;
+    }
+
     if (!filtered.length) {
         alert(tAdmin("exportContactsEmpty"));
         return;
@@ -5544,9 +5624,10 @@ function exportContactsCsv() {
 }
 
 function changeContactsPage(delta) {
+    const sectionAtPageChange = currentSection;
+    const navigationSeqAtPageChange = sectionNavigationSeq;
     const normalizedDelta = Number(delta);
     if (!Number.isInteger(normalizedDelta) || normalizedDelta === 0) return;
-    const sectionAtPageChange = currentSection;
     if (currentSection !== sectionAtPageChange) return;
     if (currentSection !== "contacts") return;
     const contactsSectionEl = document.getElementById("section-contacts");
@@ -5555,7 +5636,24 @@ function changeContactsPage(delta) {
     if (!container || !container.isConnected) return;
     cancelPendingContactsFiltersApply();
     contactsPage = normalizeContactsPage(contactsPage + normalizedDelta, CONTACTS_MIN_PAGE);
-    renderContacts();
+    loadContacts().catch((error) => {
+        if (isAbortError(error)) return;
+        if (sectionNavigationSeq !== navigationSeqAtPageChange) return;
+        if (currentSection !== sectionAtPageChange) return;
+        if (currentSection !== "contacts") return;
+        const contactsSectionEl = document.getElementById("section-contacts");
+        const contactsListEl = document.getElementById("contacts-list");
+        if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
+        if (!contactsListEl || !contactsListEl.isConnected) return;
+
+        if (isUnauthorizedApiError(error)) {
+            handleUnauthorizedSessionError();
+            return;
+        }
+
+        console.error("Contacts page change failed", error);
+        alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("loadDataApiError"));
+    });
 }
 
 function cancelPendingContactsFiltersApply() {
@@ -5583,7 +5681,24 @@ function scheduleContactsFiltersApply(delayMs = 0) {
 
         getNormalizedContactsFilters();
         contactsPage = CONTACTS_MIN_PAGE;
-        renderContacts();
+        loadContacts().catch((error) => {
+            if (isAbortError(error)) return;
+            if (sectionNavigationSeq !== navigationSeqAtFilterChange) return;
+            if (currentSection !== sectionAtFilterChange) return;
+            if (currentSection !== "contacts") return;
+            const contactsSectionEl = document.getElementById("section-contacts");
+            const contactsListEl = document.getElementById("contacts-list");
+            if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
+            if (!contactsListEl || !contactsListEl.isConnected) return;
+
+            if (isUnauthorizedApiError(error)) {
+                handleUnauthorizedSessionError();
+                return;
+            }
+
+            console.error("Contacts filter apply failed", error);
+            alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("loadDataApiError"));
+        });
     };
 
     if (!normalizedDelayMs) {
@@ -5654,11 +5769,9 @@ async function changeContactStatus(id, status) {
     if (!contactsListEl || !contactsListEl.isConnected) return;
     cancelPendingContactsFiltersApply();
     const updateContactRequestStatusMethod = getAdapterMethod("updateContactRequestStatus");
-    const getContactRequestsMethod = getAdapterMethod("getContactRequests");
-    if (!updateContactRequestStatusMethod || !getContactRequestsMethod) {
+    if (!updateContactRequestStatusMethod) {
         console.warn("Contact adapter methods are unavailable", {
-            hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod,
-            hasGetContactRequests: !!getContactRequestsMethod
+            hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod
         });
         alert(tAdmin("contactStatusUpdateMissingAdapter"));
         return;
@@ -5669,17 +5782,14 @@ async function changeContactStatus(id, status) {
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         if (currentSection !== sectionAtUpdate) return;
         if (currentSection !== "contacts") return;
-        const nextContactRequests = await getContactRequestsMethod.call(adapter);
+        await loadContacts();
         if (sectionNavigationSeq !== navigationSeqAtUpdate) return;
         if (currentSection !== sectionAtUpdate) return;
         if (currentSection !== "contacts") return;
-        cache.contactRequests = normalizeRecordArray(nextContactRequests);
-        contactAttachmentDataUrlCache.clear();
         if (currentSection !== "contacts") return;
         if (sectionAtUpdate !== "contacts") return;
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
-        renderContacts();
         if (currentSection !== sectionAtUpdate) return;
         addActivity(tAdminFormat("contactStatusUpdatedActivity", { id: normalizedId, status: normalizedStatus }));
     } catch (error) {
@@ -5691,6 +5801,12 @@ async function changeContactStatus(id, status) {
         const contactsListEl = document.getElementById("contacts-list");
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
+
+        if (isUnauthorizedApiError(error)) {
+            handleUnauthorizedSessionError();
+            return;
+        }
+
         alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("contactStatusUpdateFailed"));
     }
 }
@@ -5729,11 +5845,9 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
     if (!contactsListEl || !contactsListEl.isConnected) return;
     cancelPendingContactsFiltersApply();
     const updateContactRequestStatusMethod = getAdapterMethod("updateContactRequestStatus");
-    const getContactRequestsMethod = getAdapterMethod("getContactRequests");
-    if (!updateContactRequestStatusMethod || !getContactRequestsMethod) {
+    if (!updateContactRequestStatusMethod) {
         console.warn("Bulk contact adapter methods are unavailable", {
-            hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod,
-            hasGetContactRequests: !!getContactRequestsMethod
+            hasUpdateContactRequestStatus: !!updateContactRequestStatusMethod
         });
         alert(tAdmin("bulkUpdateMissingAdapter"));
         return;
@@ -5769,18 +5883,15 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         if (currentSection !== sectionAtBulkUpdate) return;
         if (currentSection !== "contacts") return;
-        const nextContactRequests = await getContactRequestsMethod.call(adapter);
+        contactsPage = CONTACTS_MIN_PAGE;
+        await loadContacts();
         if (sectionNavigationSeq !== navigationSeqAtBulkUpdate) return;
         if (currentSection !== sectionAtBulkUpdate) return;
         if (currentSection !== "contacts") return;
-        cache.contactRequests = normalizeRecordArray(nextContactRequests);
-        contactAttachmentDataUrlCache.clear();
         if (currentSection !== "contacts") return;
         if (sectionAtBulkUpdate !== "contacts") return;
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
-        contactsPage = 1;
-        renderContacts();
         if (currentSection !== sectionAtBulkUpdate) return;
         addActivity(tAdminFormat("bulkUpdateActivity", {
             count: targets.length,
@@ -5796,6 +5907,12 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         const contactsListEl = document.getElementById("contacts-list");
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
         if (!contactsListEl || !contactsListEl.isConnected) return;
+
+        if (isUnauthorizedApiError(error)) {
+            handleUnauthorizedSessionError();
+            return;
+        }
+
         alert(isDatabaseUnavailableError(error) ? tAdmin("databaseTemporarilyUnavailable") : tAdmin("bulkUpdateFailed"));
     }
 }

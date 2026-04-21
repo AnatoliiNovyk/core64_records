@@ -1630,10 +1630,34 @@
 
         async getContactRequests(options = {}) {
             const includeAttachmentDataUrl = options && options.includeAttachmentDataUrl === true;
+            const returnMeta = options && options.returnMeta === true;
+            const status = String(options && options.status || "").trim().toLowerCase();
+            const q = String(options && options.q || "").trim();
+            const date = String(options && options.date || "").trim();
+            const pageRaw = Number(options && options.page);
+            const limitRaw = Number(options && options.limit);
+            const hasPage = Number.isInteger(pageRaw) && pageRaw > 0;
+            const hasLimit = Number.isInteger(limitRaw) && limitRaw > 0;
+
             if (await shouldUseApi()) {
                 const query = new URLSearchParams();
                 if (includeAttachmentDataUrl) {
                     query.set("includeAttachmentDataUrl", "1");
+                }
+                if (hasPage) {
+                    query.set("page", String(pageRaw));
+                }
+                if (hasLimit) {
+                    query.set("limit", String(limitRaw));
+                }
+                if (status) {
+                    query.set("status", status);
+                }
+                if (q) {
+                    query.set("q", q);
+                }
+                if (date) {
+                    query.set("date", date);
                 }
 
                 const endpoint = query.size
@@ -1642,18 +1666,83 @@
 
                 const response = await apiRequest(endpoint);
                 if (Array.isArray(response.data)) {
-                    return response.data;
+                    if (!returnMeta) return response.data;
+                    return {
+                        items: response.data,
+                        page: hasPage ? pageRaw : 1,
+                        limit: hasLimit ? limitRaw : response.data.length,
+                        total: response.data.length
+                    };
                 }
 
                 if (response.data && Array.isArray(response.data.items)) {
+                    if (returnMeta) {
+                        return {
+                            items: response.data.items,
+                            page: Number(response.data.page) || (hasPage ? pageRaw : 1),
+                            limit: Number(response.data.limit) || (hasLimit ? limitRaw : response.data.items.length),
+                            total: Number(response.data.total) || 0
+                        };
+                    }
                     return response.data.items;
                 }
 
-                return [];
+                return returnMeta
+                    ? { items: [], page: hasPage ? pageRaw : 1, limit: hasLimit ? limitRaw : 50, total: 0 }
+                    : [];
             }
 
             const data = getLocalData();
-            return data.contactRequests || [];
+            const source = Array.isArray(data.contactRequests) ? data.contactRequests : [];
+            const normalizedQuery = q.toLowerCase();
+
+            const filtered = source.filter((entry) => {
+                if (!entry || typeof entry !== "object") return false;
+
+                const entryStatus = String(entry.status || "new").trim().toLowerCase();
+                if (status && entryStatus !== status) {
+                    return false;
+                }
+
+                if (date) {
+                    const createdAt = String(entry.created_at || entry.createdAt || "").trim();
+                    const dateKey = createdAt.slice(0, 10);
+                    if (dateKey !== date) {
+                        return false;
+                    }
+                }
+
+                if (normalizedQuery) {
+                    const haystack = [entry.subject, entry.email, entry.name]
+                        .map((value) => String(value || "").toLowerCase())
+                        .join(" ");
+                    if (!haystack.includes(normalizedQuery)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            });
+
+            filtered.sort((a, b) => {
+                const left = String(b && (b.created_at || b.createdAt) || "");
+                const right = String(a && (a.created_at || a.createdAt) || "");
+                return left.localeCompare(right);
+            });
+
+            if (!returnMeta) {
+                return filtered;
+            }
+
+            const resolvedPage = hasPage ? pageRaw : 1;
+            const resolvedLimit = hasLimit ? limitRaw : 50;
+            const offset = (resolvedPage - 1) * resolvedLimit;
+            return {
+                items: filtered.slice(offset, offset + resolvedLimit),
+                page: resolvedPage,
+                limit: resolvedLimit,
+                total: filtered.length
+            };
         },
 
         async getContactRequestAttachment(id) {
