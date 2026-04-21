@@ -2,6 +2,7 @@ import { Router } from "express";
 import { contactRequestSchema, contactRequestStatusSchema } from "../middleware/validate.js";
 import {
   createContactRequest,
+  getContactRequestAttachmentById,
   listContactRequests,
   updateContactRequestStatus,
   writeAuditLog
@@ -28,12 +29,54 @@ const contactUpdateRateLimiter = createRateLimiter({
   errorMessage: "Too many contact status updates. Please try again later."
 });
 
-router.get("/contact-requests", requireAuth, async (_req, res, next) => {
+function isTruthyQueryFlag(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
+}
+
+router.get("/contact-requests", requireAuth, async (req, res, next) => {
   try {
-    const data = await listContactRequests();
+    const includeAttachmentDataUrl = isTruthyQueryFlag(req.query.includeAttachmentDataUrl);
+    const data = await listContactRequests({ includeAttachmentDataUrl });
     res.json({ data });
   } catch (error) {
     next(error);
+  }
+});
+
+router.get("/contact-requests/:id/attachment", requireAuth, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      return sendApiError(res, {
+        status: 400,
+        code: "CONTACT_REQUEST_INVALID_ID",
+        error: "Invalid contact request id"
+      });
+    }
+
+    const data = await getContactRequestAttachmentById(id);
+    if (!data) {
+      return sendApiError(res, {
+        status: 404,
+        code: "CONTACT_REQUEST_NOT_FOUND",
+        error: "Contact request not found",
+        meta: { id }
+      });
+    }
+
+    if (!data.hasAttachment || !String(data.attachmentDataUrl || "").trim()) {
+      return sendApiError(res, {
+        status: 404,
+        code: "CONTACT_REQUEST_ATTACHMENT_NOT_FOUND",
+        error: "Contact request attachment not found",
+        meta: { id }
+      });
+    }
+
+    return res.json({ data });
+  } catch (error) {
+    return next(error);
   }
 });
 

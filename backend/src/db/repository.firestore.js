@@ -929,6 +929,19 @@ async function hydrateContactRequestAttachmentDataUrl(row) {
   return buildContactRequestAttachmentDataUrlFromChunks(mimeType, selectedChunks.map((chunk) => chunk.base64Chunk));
 }
 
+async function resolveContactRequestAttachmentDataUrl(row) {
+  const normalizedRow = clonePlainObject(row);
+  const shouldHydrateAttachmentDataUrl = isChunkedContactRequestAttachmentStorage(normalizedRow);
+  if (shouldHydrateAttachmentDataUrl) {
+    return hydrateContactRequestAttachmentDataUrl(normalizedRow);
+  }
+
+  return toSafeString(
+    readRawField(normalizedRow, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]),
+    ""
+  );
+}
+
 function normalizeReleaseTrackRow(source, fallbackDocId = "") {
   const row = clonePlainObject(source);
   const id = normalizeEntityId(readRawField(row, ["id"]), fallbackDocId, 0);
@@ -992,7 +1005,22 @@ function mapReleaseTrackToApi(row, options = {}) {
   return response;
 }
 
-function mapContactRequestToApi(source, fallbackDocId = "") {
+function hasContactRequestAttachment(attachmentStorage, attachmentName, attachmentType) {
+  if (!attachmentStorage || typeof attachmentStorage !== "object") {
+    return !!toSafeString(attachmentName, "") || !!toSafeString(attachmentType, "");
+  }
+
+  if (toSafeString(attachmentStorage.attachmentStorage, "") === "chunked") return true;
+  if (toBoundedInteger(attachmentStorage.attachmentChunkCount, 0, 0, Number.MAX_SAFE_INTEGER) > 0) return true;
+  if (toBoundedInteger(attachmentStorage.attachmentBase64Length, 0, 0, Number.MAX_SAFE_INTEGER) > 0) return true;
+  if (toSafeString(attachmentStorage.attachmentDataUrl, "")) return true;
+  if (toSafeString(attachmentName, "")) return true;
+  if (toSafeString(attachmentType, "")) return true;
+  return false;
+}
+
+function mapContactRequestToApi(source, fallbackDocId = "", options = {}) {
+  const includeAttachmentDataUrl = options.includeAttachmentDataUrl !== false;
   const row = clonePlainObject(source);
   const id = normalizeEntityId(readRawField(row, ["id"]), fallbackDocId, 0);
   const createdAt = toIsoString(readRawField(row, ["createdAt", "created_at"]), nowIsoString());
@@ -1003,7 +1031,8 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
   const attachmentName = toSafeString(readRawField(row, ["attachmentName", "attachment_name"]), "");
   const attachmentStorage = normalizeContactRequestAttachmentStorageRow(row);
   const attachmentType = attachmentStorage.attachmentType || attachmentStorage.attachmentMimeType;
-  const attachmentDataUrl = attachmentStorage.attachmentDataUrl;
+  const attachmentDataUrl = includeAttachmentDataUrl ? attachmentStorage.attachmentDataUrl : "";
+  const hasAttachment = hasContactRequestAttachment(attachmentStorage, attachmentName, attachmentType);
 
   return {
     id,
@@ -1014,6 +1043,7 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
     message: toSafeString(readRawField(row, ["message"]), ""),
     attachmentName,
     attachmentType,
+    hasAttachment,
     attachmentDataUrl,
     attachmentStorage: attachmentStorage.attachmentStorage,
     attachmentMimeType: attachmentStorage.attachmentMimeType,
@@ -1022,6 +1052,7 @@ function mapContactRequestToApi(source, fallbackDocId = "") {
     attachmentBase64Length: attachmentStorage.attachmentBase64Length,
     attachment_name: attachmentName,
     attachment_type: attachmentType,
+    has_attachment: hasAttachment,
     attachment_data: attachmentDataUrl,
     subject_code: subjectCode,
     status,
@@ -2421,7 +2452,8 @@ export async function createContactRequest(payload) {
   }, String(id));
 }
 
-export async function listContactRequests() {
+export async function listContactRequests(options = {}) {
+  const includeAttachmentDataUrl = options.includeAttachmentDataUrl === true;
   const db = await getFirestoreDb();
   const snapshot = await db.collection("contact_requests").get();
   const rows = await Promise.all(snapshot.docs.map(async (docSnapshot) => {
@@ -2431,21 +2463,43 @@ export async function listContactRequests() {
       ...data,
       id: rowId
     };
-    const shouldHydrateAttachmentDataUrl = isChunkedContactRequestAttachmentStorage(normalizedRow);
-    const hydratedDataUrl = shouldHydrateAttachmentDataUrl
-      ? await hydrateContactRequestAttachmentDataUrl(normalizedRow)
+    const resolvedAttachmentDataUrl = includeAttachmentDataUrl
+      ? await resolveContactRequestAttachmentDataUrl(normalizedRow)
       : "";
-    const fallbackAttachmentDataUrl = toSafeString(
-      readRawField(normalizedRow, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]),
-      ""
-    );
 
     return mapContactRequestToApi({
       ...normalizedRow,
-      attachmentDataUrl: hydratedDataUrl || fallbackAttachmentDataUrl
-    }, docSnapshot.id);
+      attachmentDataUrl: resolvedAttachmentDataUrl
+    }, docSnapshot.id, {
+      includeAttachmentDataUrl
+    });
   }));
   return rows.sort((left, right) => toAuditDate(right.created_at) - toAuditDate(left.created_at));
+}
+
+export async function getContactRequestAttachmentById(id) {
+  const found = await findDocumentByNumericId("contact_requests", id);
+  if (!found) return null;
+
+  const normalizedId = normalizeEntityId(readRawField(found.data || {}, ["id"]), found.snapshot.id, 0);
+  const row = {
+    ...(found.data || {}),
+    id: normalizedId
+  };
+
+  const metadata = mapContactRequestToApi(row, found.snapshot.id, {
+    includeAttachmentDataUrl: false
+  });
+
+  const resolvedAttachmentDataUrl = await resolveContactRequestAttachmentDataUrl(row);
+
+  return {
+    id: metadata.id,
+    attachmentName: metadata.attachmentName,
+    attachmentType: metadata.attachmentType,
+    hasAttachment: metadata.hasAttachment,
+    attachmentDataUrl: resolvedAttachmentDataUrl
+  };
 }
 
 export async function updateContactRequestStatus(id, status) {
@@ -2470,19 +2524,10 @@ export async function updateContactRequestStatus(id, status) {
     status: normalizedStatusRaw,
     updatedAt: now
   };
-  const shouldHydrateAttachmentDataUrl = isChunkedContactRequestAttachmentStorage(updatedRow);
-  const hydratedDataUrl = shouldHydrateAttachmentDataUrl
-    ? await hydrateContactRequestAttachmentDataUrl(updatedRow)
-    : "";
-  const fallbackAttachmentDataUrl = toSafeString(
-    readRawField(updatedRow, ["attachmentDataUrl", "attachment_data", "attachment_data_url"]),
-    ""
-  );
 
-  return mapContactRequestToApi({
-    ...updatedRow,
-    attachmentDataUrl: hydratedDataUrl || fallbackAttachmentDataUrl
-  }, found.snapshot.id);
+  return mapContactRequestToApi(updatedRow, found.snapshot.id, {
+    includeAttachmentDataUrl: false
+  });
 }
 
 export async function writeAuditLog({ entityType, entityId, action, actor, details }) {

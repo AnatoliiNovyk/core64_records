@@ -21,6 +21,7 @@ let cache = {
     auditLogs: [],
     auditFacets: { actions: [], entities: [] }
 };
+const contactAttachmentDataUrlCache = new Map();
 let dashboardSettingsPartialFailure = false;
 let contactsPage = 1;
 const CONTACTS_PAGE_SIZE = 5;
@@ -4227,6 +4228,7 @@ async function loadContacts() {
     if (currentSection !== sectionAtLoad) return;
     if (currentSection !== "contacts") return;
     cache.contactRequests = normalizeRecordArray(nextContactRequests);
+    contactAttachmentDataUrlCache.clear();
     const contactsSectionEl = document.getElementById("section-contacts");
     const contactsListEl = document.getElementById("contacts-list");
     if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
@@ -5108,6 +5110,7 @@ function normalizeContactAttachment(entry) {
             name: "",
             type: "",
             dataUrl: "",
+            hasAttachment: false,
             hasData: false,
             isAudio: false
         };
@@ -5116,7 +5119,9 @@ function normalizeContactAttachment(entry) {
     const name = String(entry.attachmentName || "").trim();
     const type = String(entry.attachmentType || "").trim();
     const dataUrl = String(entry.attachmentDataUrl || "").trim();
+    const hasAttachmentFlag = entry.hasAttachment === true || entry.has_attachment === true;
     const hasData = dataUrl.startsWith("data:");
+    const hasAttachment = hasData || hasAttachmentFlag || !!name || !!type;
     const normalizedType = type.toLowerCase();
     const normalizedDataUrl = dataUrl.toLowerCase();
     const isAudio = normalizedType.startsWith("audio/") || normalizedDataUrl.startsWith("data:audio/");
@@ -5125,6 +5130,7 @@ function normalizeContactAttachment(entry) {
         name,
         type,
         dataUrl,
+        hasAttachment,
         hasData,
         isAudio
     };
@@ -5155,6 +5161,107 @@ function getCachedContactRequestById(id) {
     });
 
     return matchedEntry && typeof matchedEntry === "object" ? matchedEntry : null;
+}
+
+function mergeContactAttachmentIntoCache(id, payload) {
+    const normalizedId = normalizeContactRequestId(id);
+    if (normalizedId === null) return null;
+
+    const attachmentDataUrl = String(payload && payload.attachmentDataUrl || "").trim();
+    const attachmentName = String(payload && payload.attachmentName || "").trim();
+    const attachmentType = String(payload && payload.attachmentType || "").trim();
+    const hasAttachment = (payload && (payload.hasAttachment === true || payload.has_attachment === true))
+        || !!attachmentDataUrl
+        || !!attachmentName
+        || !!attachmentType;
+
+    if (attachmentDataUrl) {
+        contactAttachmentDataUrlCache.set(normalizedId, attachmentDataUrl);
+    }
+
+    if (Array.isArray(cache.contactRequests)) {
+        cache.contactRequests = cache.contactRequests.map((entry) => {
+            if (!entry || typeof entry !== "object") return entry;
+            if (normalizeContactRequestId(entry.id) !== normalizedId) return entry;
+
+            return {
+                ...entry,
+                attachmentName: attachmentName || String(entry.attachmentName || "").trim(),
+                attachmentType: attachmentType || String(entry.attachmentType || "").trim(),
+                attachmentDataUrl: attachmentDataUrl || String(entry.attachmentDataUrl || "").trim(),
+                hasAttachment
+            };
+        });
+    }
+
+    return getCachedContactRequestById(normalizedId);
+}
+
+async function resolveContactAttachmentForAction(id) {
+    const normalizedId = normalizeContactRequestId(id);
+    if (normalizedId === null) {
+        return {
+            entry: null,
+            attachment: normalizeContactAttachment(null)
+        };
+    }
+
+    let entry = getCachedContactRequestById(normalizedId);
+    let attachment = normalizeContactAttachment(entry);
+    if (!entry) {
+        return {
+            entry: null,
+            attachment
+        };
+    }
+
+    if (attachment.hasData) {
+        return {
+            entry,
+            attachment
+        };
+    }
+
+    const cachedDataUrl = String(contactAttachmentDataUrlCache.get(normalizedId) || "").trim();
+    if (cachedDataUrl) {
+        entry = mergeContactAttachmentIntoCache(normalizedId, {
+            attachmentDataUrl: cachedDataUrl,
+            attachmentName: entry.attachmentName,
+            attachmentType: entry.attachmentType,
+            hasAttachment: true
+        }) || entry;
+        attachment = normalizeContactAttachment(entry);
+        if (attachment.hasData) {
+            return {
+                entry,
+                attachment
+            };
+        }
+    }
+
+    const getContactRequestAttachmentMethod = getAdapterMethod("getContactRequestAttachment");
+    if (!getContactRequestAttachmentMethod) {
+        return {
+            entry,
+            attachment
+        };
+    }
+
+    const attachmentPayload = await getContactRequestAttachmentMethod.call(adapter, normalizedId);
+    if (!attachmentPayload || typeof attachmentPayload !== "object") {
+        return {
+            entry,
+            attachment
+        };
+    }
+
+    entry = mergeContactAttachmentIntoCache(normalizedId, attachmentPayload) || entry;
+    attachment = normalizeContactAttachment(entry);
+
+    return {
+        entry,
+        attachment
+    };
 }
 
 function createBlobFromDataUrl(dataUrl) {
@@ -5195,9 +5302,8 @@ function deriveContactAttachmentFileName(entry, attachment) {
     return `contact_request_${normalizedId}_attachment${extension}`;
 }
 
-function downloadContactAttachment(id) {
-    const entry = getCachedContactRequestById(id);
-    const attachment = normalizeContactAttachment(entry);
+async function downloadContactAttachment(id) {
+    const { entry, attachment } = await resolveContactAttachmentForAction(id);
     if (!entry || !attachment.hasData) {
         alert(tAdmin("contactAttachmentNotAvailable"));
         return;
@@ -5228,9 +5334,8 @@ function downloadContactAttachment(id) {
     }
 }
 
-function openContactAttachment(id) {
-    const entry = getCachedContactRequestById(id);
-    const attachment = normalizeContactAttachment(entry);
+async function openContactAttachment(id) {
+    const { entry, attachment } = await resolveContactAttachmentForAction(id);
     if (!entry || !attachment.hasData) {
         alert(tAdmin("contactAttachmentNotAvailable"));
         return;
@@ -5310,7 +5415,7 @@ function renderContacts() {
             ? ""
             : `onchange="changeContactStatus(${normalizedContactId}, this.value)"`;
         const attachment = normalizeContactAttachment(entry);
-        const shouldRenderAttachmentBlock = attachment.hasData || attachment.name || attachment.type;
+        const shouldRenderAttachmentBlock = attachment.hasAttachment;
         const attachmentBlock = !shouldRenderAttachmentBlock
             ? ""
             : `
@@ -5318,7 +5423,7 @@ function renderContacts() {
                     <div class="text-xs uppercase tracking-wider text-cyan-300 mb-2">${sanitizeInput(tAdmin("contactAttachmentLabel"))}</div>
                     <div class="text-sm text-gray-200 mb-1">${sanitizeInput(attachment.name || tAdmin("contactAttachmentUnknownName"))}</div>
                     <div class="text-xs text-gray-400"><span class="text-gray-500">${sanitizeInput(tAdmin("contactAttachmentTypeLabel"))}</span> ${sanitizeInput(attachment.type || "-")}</div>
-                    ${attachment.hasData && normalizedContactId !== null
+                    ${attachment.hasAttachment && normalizedContactId !== null
                         ? `
                             <div class="mt-3 flex flex-wrap gap-2">
                                 ${attachment.isAudio
@@ -5569,6 +5674,7 @@ async function changeContactStatus(id, status) {
         if (currentSection !== sectionAtUpdate) return;
         if (currentSection !== "contacts") return;
         cache.contactRequests = normalizeRecordArray(nextContactRequests);
+        contactAttachmentDataUrlCache.clear();
         if (currentSection !== "contacts") return;
         if (sectionAtUpdate !== "contacts") return;
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;
@@ -5668,6 +5774,7 @@ async function bulkUpdateContactStatus(fromStatus, toStatus) {
         if (currentSection !== sectionAtBulkUpdate) return;
         if (currentSection !== "contacts") return;
         cache.contactRequests = normalizeRecordArray(nextContactRequests);
+        contactAttachmentDataUrlCache.clear();
         if (currentSection !== "contacts") return;
         if (sectionAtBulkUpdate !== "contacts") return;
         if (!contactsSectionEl || !contactsSectionEl.isConnected) return;

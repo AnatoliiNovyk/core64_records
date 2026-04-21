@@ -32,6 +32,7 @@ const releaseTrackAudioDataUrlPattern = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);
 const contactAttachmentDataUrlPattern = /^data:[^;,]+(?:;[^,]*)?;base64,[a-z0-9+/=\s]+$/i;
 const CONTACT_REQUEST_ATTACHMENT_MAX_FILE_BYTES = 15 * 1024 * 1024;
 const CONTACT_REQUEST_ATTACHMENT_DATA_URL_MAX_CHARS = Math.ceil((CONTACT_REQUEST_ATTACHMENT_MAX_FILE_BYTES * 4) / 3) + 128;
+const CONTACT_REQUEST_MESSAGE_MAX_CHARS = 8000;
 const CONTACT_REQUEST_DEMO_SUBJECT_CODES = new Set(["demo", "demo_recording", "demo-recording"]);
 const INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES = 700 * 1024;
 const INLINE_COLLECTION_IMAGE_DATA_URL_MAX_CHARS = Math.ceil((INLINE_COLLECTION_IMAGE_UPLOAD_MAX_BYTES * 4) / 3) + 64;
@@ -302,7 +303,7 @@ export const contactRequestSchema = z.object({
   email: z.string().email(),
   subject: z.string().min(1),
   subjectCode: z.string().trim().max(64).optional().default(""),
-  message: z.string().min(1),
+  message: z.string().trim().min(1).max(CONTACT_REQUEST_MESSAGE_MAX_CHARS),
   attachmentName: z.string().trim().max(255).optional().default(""),
   attachmentType: z.string().trim().max(120).optional().default(""),
   attachmentDataUrl: z.string().trim().max(CONTACT_REQUEST_ATTACHMENT_DATA_URL_MAX_CHARS).optional().default(""),

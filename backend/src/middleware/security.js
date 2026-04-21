@@ -87,21 +87,50 @@ export function createRateLimiter(options = {}) {
 
   const normalizedWindowMs = Math.max(1000, Number(windowMs) || 60_000);
   const normalizedMax = Math.max(1, Number(max) || 10);
-  const hits = new Map();
+  const cleanupIntervalRequests = 128;
+  const cleanupMinSize = 256;
+  const maxEntries = 10_000;
+  const maxCleanupRemovalsPerRun = 2_000;
 
-  const cleanupExpired = (now) => {
-    if (hits.size < 5000) return;
+  const hits = new Map();
+  let requestCounter = 0;
+
+  const sweepExpiredEntries = (now) => {
+    let removed = 0;
     for (const [key, entry] of hits.entries()) {
       if (!entry || entry.resetAt <= now) {
         hits.delete(key);
+        removed += 1;
       }
-      if (hits.size < 4000) break;
+      if (removed >= maxCleanupRemovalsPerRun) break;
     }
+  };
+
+  const evictOverflowEntries = () => {
+    if (hits.size <= maxEntries) return;
+
+    const overflow = hits.size - maxEntries;
+    let removed = 0;
+    for (const key of hits.keys()) {
+      hits.delete(key);
+      removed += 1;
+      if (removed >= overflow) break;
+    }
+  };
+
+  const cleanupHits = (now) => {
+    const shouldCleanupBySize = hits.size >= cleanupMinSize;
+    const shouldCleanupByInterval = (requestCounter % cleanupIntervalRequests) === 0;
+    if (!shouldCleanupBySize && !shouldCleanupByInterval) return;
+
+    sweepExpiredEntries(now);
+    evictOverflowEntries();
   };
 
   return function rateLimiter(req, res, next) {
     const now = Date.now();
-    cleanupExpired(now);
+    requestCounter += 1;
+    cleanupHits(now);
 
     const key = `${resolveClientIp(req)}:${resolveRequestScope(req)}`;
     const current = hits.get(key);
@@ -122,6 +151,8 @@ export function createRateLimiter(options = {}) {
     }
 
     current.count += 1;
+    // Refresh insertion order to keep active keys recent for overflow eviction.
+    hits.delete(key);
     hits.set(key, current);
     return next();
   };

@@ -95,6 +95,10 @@ export async function listContactRequests() {
   return executeRead("listContactRequests", []);
 }
 
+export async function getContactRequestAttachmentById(id) {
+  return executeRead("getContactRequestAttachmentById", [id]);
+}
+
 export async function updateContactRequestStatus(id, status) {
   return executeWrite("updateContactRequestStatus", [id, status]);
 }

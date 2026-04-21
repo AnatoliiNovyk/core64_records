@@ -1628,14 +1628,56 @@
             return request;
         },
 
-        async getContactRequests() {
+        async getContactRequests(options = {}) {
+            const includeAttachmentDataUrl = options && options.includeAttachmentDataUrl === true;
             if (await shouldUseApi()) {
-                const response = await apiRequest("/contact-requests");
-                return response.data;
+                const query = new URLSearchParams();
+                if (includeAttachmentDataUrl) {
+                    query.set("includeAttachmentDataUrl", "1");
+                }
+
+                const endpoint = query.size
+                    ? `/contact-requests?${query.toString()}`
+                    : "/contact-requests";
+
+                const response = await apiRequest(endpoint);
+                if (Array.isArray(response.data)) {
+                    return response.data;
+                }
+
+                if (response.data && Array.isArray(response.data.items)) {
+                    return response.data.items;
+                }
+
+                return [];
             }
 
             const data = getLocalData();
             return data.contactRequests || [];
+        },
+
+        async getContactRequestAttachment(id) {
+            if (await shouldUseApi()) {
+                const response = await apiRequest(`/contact-requests/${id}/attachment`);
+                return response.data || null;
+            }
+
+            const data = getLocalData();
+            const items = Array.isArray(data.contactRequests) ? data.contactRequests : [];
+            const entry = items.find((candidate) => Number(candidate && candidate.id) === Number(id));
+            if (!entry) return null;
+
+            const attachmentDataUrl = String(entry.attachmentDataUrl || "").trim();
+            const attachmentName = String(entry.attachmentName || "").trim();
+            const attachmentType = String(entry.attachmentType || "").trim();
+
+            return {
+                id: Number(entry.id),
+                attachmentName,
+                attachmentType,
+                hasAttachment: !!attachmentDataUrl || !!attachmentName || !!attachmentType,
+                attachmentDataUrl
+            };
         },
 
         async updateContactRequestStatus(id, status) {
