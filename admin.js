@@ -5783,6 +5783,10 @@ const MAX_COLLECTION_UPLOAD_IMAGE_BYTES = 700 * 1024;
 const SUPPORTED_UPLOAD_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const SUPPORTED_UPLOAD_IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif"];
 const SETTINGS_IMAGE_DATA_URL_PATTERN = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
+const SETTINGS_LOGO_DATA_URL_MAX_CHARS = 300000;
+const FIRESTORE_SAFE_SETTINGS_DOCUMENT_WRITE_BYTES = 950000;
+const SETTINGS_SAVE_PREFLIGHT_HEADROOM_BYTES = 30000;
+const SETTINGS_SAVE_PREFLIGHT_MAX_BYTES = FIRESTORE_SAFE_SETTINGS_DOCUMENT_WRITE_BYTES - SETTINGS_SAVE_PREFLIGHT_HEADROOM_BYTES;
 const MAX_UPLOAD_AUDIO_BYTES = 20 * 1024 * 1024;
 const SUPPORTED_UPLOAD_AUDIO_TYPES = ["audio/mpeg", "audio/mp3", "audio/wav", "audio/x-wav", "audio/wave"];
 const SUPPORTED_UPLOAD_AUDIO_EXTENSIONS = ["mp3", "wav"];
@@ -5792,6 +5796,92 @@ function isSettingsImageDataUrl(value) {
     const normalized = String(value || "").trim();
     if (!normalized) return false;
     return SETTINGS_IMAGE_DATA_URL_PATTERN.test(normalized);
+}
+
+function getUtf8ByteLength(value) {
+    const text = String(value || "");
+    if (typeof TextEncoder !== "undefined") {
+        return new TextEncoder().encode(text).length;
+    }
+
+    try {
+        return unescape(encodeURIComponent(text)).length;
+    } catch (_error) {
+        return text.length;
+    }
+}
+
+function isOversizedSettingsLogoDataUrl(value) {
+    const normalized = String(value || "").trim();
+    if (!isSettingsImageDataUrl(normalized)) return false;
+    return normalized.length > SETTINGS_LOGO_DATA_URL_MAX_CHARS;
+}
+
+function estimateSettingsFirestoreDocumentBytesForPreflight(settings, activeLanguage = getActiveLanguage(), previousSettings = cache.settings || {}) {
+    const normalizedLanguage = activeLanguage === "en" ? "en" : "uk";
+    const normalizedSettings = normalizeSettingsStateForSaveComparison(settings, normalizedLanguage);
+    const previous = previousSettings && typeof previousSettings === "object" ? previousSettings : {};
+    const nowIso = new Date().toISOString();
+    const createdAt = String(previous.createdAt || previous.created_at || nowIso).trim() || nowIso;
+    const idValue = Number(previous.id);
+    const translations = previous.translations && typeof previous.translations === "object"
+        ? previous.translations
+        : {};
+
+    const estimate = {
+        id: Number.isFinite(idValue) && idValue > 0 ? Math.round(idValue) : 1,
+        title: normalizedSettings.title,
+        about: normalizedSettings.about,
+        mission: normalizedSettings.mission,
+        email: normalizedSettings.email,
+        headerLogoUrl: normalizedSettings.headerLogoUrl,
+        footerLogoUrl: normalizedSettings.footerLogoUrl,
+        heroMainLogoDataUrl: normalizedSettings.heroMainLogoDataUrl,
+        instagramUrl: normalizedSettings.instagramUrl,
+        youtubeUrl: normalizedSettings.youtubeUrl,
+        soundcloudUrl: normalizedSettings.soundcloudUrl,
+        radioUrl: normalizedSettings.radioUrl,
+        contactCaptchaEnabled: normalizedSettings.contactCaptchaEnabled,
+        contactCaptchaActiveProvider: normalizedSettings.contactCaptchaActiveProvider,
+        contactCaptchaHcaptchaSiteKey: normalizedSettings.contactCaptchaHcaptchaSiteKey,
+        contactCaptchaHcaptchaSecretKey: normalizedSettings.contactCaptchaHcaptchaSecretKey,
+        contactCaptchaRecaptchaSiteKey: normalizedSettings.contactCaptchaRecaptchaSiteKey,
+        contactCaptchaRecaptchaSecretKey: normalizedSettings.contactCaptchaRecaptchaSecretKey,
+        contactCaptchaErrorMessage: normalizedSettings.contactCaptchaErrorMessage,
+        contactCaptchaMissingTokenMessage: normalizedSettings.contactCaptchaMissingTokenMessage,
+        contactCaptchaInvalidDomainMessage: normalizedSettings.contactCaptchaInvalidDomainMessage,
+        contactCaptchaAllowedDomain: normalizedSettings.contactCaptchaAllowedDomain,
+        auditLatencyGoodMaxMs: normalizedSettings.auditLatencyGoodMaxMs,
+        auditLatencyWarnMaxMs: normalizedSettings.auditLatencyWarnMaxMs,
+        heroSubtitle: normalizedLanguage === "en" ? normalizedSettings.heroSubtitleEn : normalizedSettings.heroSubtitleUk,
+        translations: {
+            ...translations,
+            uk: {
+                ...(translations.uk && typeof translations.uk === "object" ? translations.uk : {}),
+                title: normalizedSettings.titleUk,
+                about: normalizedSettings.aboutUk,
+                mission: normalizedSettings.missionUk,
+                contactCaptchaErrorMessage: normalizedSettings.contactCaptchaErrorMessage,
+                contactCaptchaMissingTokenMessage: normalizedSettings.contactCaptchaMissingTokenMessage,
+                contactCaptchaInvalidDomainMessage: normalizedSettings.contactCaptchaInvalidDomainMessage,
+                heroSubtitle: normalizedSettings.heroSubtitleUk
+            },
+            en: {
+                ...(translations.en && typeof translations.en === "object" ? translations.en : {}),
+                title: normalizedSettings.titleEn,
+                about: normalizedSettings.aboutEn,
+                mission: normalizedSettings.missionEn,
+                contactCaptchaErrorMessage: normalizedSettings.contactCaptchaErrorMessage,
+                contactCaptchaMissingTokenMessage: normalizedSettings.contactCaptchaMissingTokenMessage,
+                contactCaptchaInvalidDomainMessage: normalizedSettings.contactCaptchaInvalidDomainMessage,
+                heroSubtitle: normalizedSettings.heroSubtitleEn
+            }
+        },
+        createdAt,
+        updatedAt: nowIso
+    };
+
+    return getUtf8ByteLength(JSON.stringify(estimate));
 }
 
 function hasSupportedUploadAudioType(file) {
@@ -6180,6 +6270,15 @@ function handleSettingsLogoUpload(logoType, fileInputEl) {
         if (!inputEl || !inputEl.isConnected) return;
         const loadTarget = event && event.target;
         if (!loadTarget || typeof loadTarget.result !== "string") return;
+        if (isOversizedSettingsLogoDataUrl(loadTarget.result)) {
+            inputEl.value = "";
+            updateSettingsLogoPreview(logoType);
+            if (currentSection === sectionAtUpload && settingsSectionEl.isConnected) {
+                alert(tAdmin("settingsSaveTooLarge"));
+            }
+            if (fileInputEl && fileInputEl.isConnected) fileInputEl.value = "";
+            return;
+        }
         inputEl.value = loadTarget.result;
         updateSettingsLogoPreview(logoType);
         if (fileInputEl && fileInputEl.isConnected) fileInputEl.value = "";
@@ -7130,6 +7229,24 @@ async function saveSettings(options = {}) {
         const saveSectionSettingsMethod = getAdapterMethod("saveSectionSettings");
         const settingsChanged = !areSettingsStatesEqualForSave(settings, cache.settings || {}, activeLanguage);
         const sectionSettingsChanged = !areSectionSettingsEqualForSave(sectionSettingsDraft, cache.sectionSettings);
+
+        if (settingsChanged) {
+            if (
+                isOversizedSettingsLogoDataUrl(settings.heroMainLogoDataUrl)
+                || isOversizedSettingsLogoDataUrl(settings.headerLogoUrl)
+                || isOversizedSettingsLogoDataUrl(settings.footerLogoUrl)
+            ) {
+                alert(tAdmin("settingsSaveTooLarge"));
+                return false;
+            }
+
+            const estimatedSettingsDocBytes = estimateSettingsFirestoreDocumentBytesForPreflight(settings, activeLanguage, cache.settings || {});
+            if (estimatedSettingsDocBytes > SETTINGS_SAVE_PREFLIGHT_MAX_BYTES) {
+                alert(tAdmin("settingsSaveTooLarge"));
+                return false;
+            }
+        }
+
         let settingsPersisted = false;
         let sectionSettingsPersisted = false;
 
