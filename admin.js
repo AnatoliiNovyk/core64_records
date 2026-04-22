@@ -14,6 +14,7 @@ let cache = {
     releases: [],
     artists: [],
     events: [],
+    videos: [],
     sponsors: [],
     sectionSettings: [],
     settings: {},
@@ -81,6 +82,7 @@ const ADMIN_I18N = {
         navReleases: "Релізи",
         navArtists: "Артисти",
         navEvents: "Події",
+        navVideos: "Відео",
         navSponsors: "Спонсори",
         navSettings: "Налаштування",
         navContacts: "Звернення",
@@ -99,6 +101,8 @@ const ADMIN_I18N = {
         artistsAddButton: "Додати артиста",
         eventsSectionTitle: "Управління подіями",
         eventsAddButton: "Додати подію",
+        videosSectionTitle: "Управління відео",
+        videosAddButton: "Додати відео",
         sponsorsSectionTitle: "Спонсори, Партнери та Друзі",
         sponsorsAddButton: "Додати партнера",
         logout: "Вийти",
@@ -115,6 +119,7 @@ const ADMIN_I18N = {
         loadReleasesMissingAdapter: "Не вдалося завантажити релізи: відсутній метод adapter.",
         loadArtistsMissingAdapter: "Не вдалося завантажити артистів: відсутній метод adapter.",
         loadEventsMissingAdapter: "Не вдалося завантажити події: відсутній метод adapter.",
+        loadVideosMissingAdapter: "Не вдалося завантажити відео: відсутній метод adapter.",
         loadSponsorsMissingAdapter: "Не вдалося завантажити партнерів: відсутній метод adapter.",
         loadSettingsMissingAdapter: "Не вдалося завантажити налаштування: відсутній метод adapter.",
         loadSettingsFailed: "Не вдалося завантажити налаштування.",
@@ -315,6 +320,7 @@ const ADMIN_I18N = {
         sectionReleasesLabel: "Релізи",
         sectionArtistsLabel: "Артисти",
         sectionEventsLabel: "Події",
+        sectionVideosLabel: "Відео",
         sectionSponsorsLabel: "Спонсори",
         sectionContactLabel: "Контакти",
         sectionVisibilityLabel: "Показувати секцію",
@@ -350,6 +356,7 @@ const ADMIN_I18N = {
         typeRelease: "реліз",
         typeArtist: "артиста",
         typeEvent: "подію",
+        typeVideo: "відео",
         typeSponsor: "партнера",
         releaseTypeSingleLabel: "Сингл",
         releaseTypeEpLabel: "EP",
@@ -439,6 +446,7 @@ const ADMIN_I18N = {
         navReleases: "Releases",
         navArtists: "Artists",
         navEvents: "Events",
+        navVideos: "Videos",
         navSponsors: "Sponsors",
         navSettings: "Settings",
         navContacts: "Requests",
@@ -457,6 +465,8 @@ const ADMIN_I18N = {
         artistsAddButton: "Add artist",
         eventsSectionTitle: "Manage events",
         eventsAddButton: "Add event",
+        videosSectionTitle: "Manage videos",
+        videosAddButton: "Add video",
         sponsorsSectionTitle: "Sponsors, Partners and Friends",
         sponsorsAddButton: "Add partner",
         logout: "Logout",
@@ -473,6 +483,7 @@ const ADMIN_I18N = {
         loadReleasesMissingAdapter: "Failed to load releases: adapter method is missing.",
         loadArtistsMissingAdapter: "Failed to load artists: adapter method is missing.",
         loadEventsMissingAdapter: "Failed to load events: adapter method is missing.",
+        loadVideosMissingAdapter: "Failed to load videos: adapter method is missing.",
         loadSponsorsMissingAdapter: "Failed to load sponsors: adapter method is missing.",
         loadSettingsMissingAdapter: "Failed to load settings: adapter method is missing.",
         loadSettingsFailed: "Failed to load settings.",
@@ -673,6 +684,7 @@ const ADMIN_I18N = {
         sectionReleasesLabel: "Releases",
         sectionArtistsLabel: "Artists",
         sectionEventsLabel: "Events",
+        sectionVideosLabel: "Videos",
         sectionSponsorsLabel: "Sponsors",
         sectionContactLabel: "Contact",
         sectionVisibilityLabel: "Show section",
@@ -708,6 +720,7 @@ const ADMIN_I18N = {
         typeRelease: "release",
         typeArtist: "artist",
         typeEvent: "event",
+        typeVideo: "video",
         typeSponsor: "sponsor",
         releaseTypeSingleLabel: "Single",
         releaseTypeEpLabel: "EP",
@@ -3207,6 +3220,8 @@ async function showSection(section) {
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
         if (section === "events") await loadEvents();
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
+        if (section === "videos") await loadVideos();
+        if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
         if (section === "sponsors") await loadSponsors();
         if (sectionNavigationSeq !== sectionNavigationSeqAtStart) return;
         if (section === "settings") await loadSettings();
@@ -3429,8 +3444,17 @@ const SECTION_SETTINGS_DEFAULTS = [
         menuTitleEn: "EVENTS"
     },
     {
-        sectionKey: "sponsors",
+        sectionKey: "videos",
         sortOrder: 4,
+        isEnabled: true,
+        titleUk: "ВІДЕО",
+        titleEn: "VIDEOS",
+        menuTitleUk: "ВІДЕО",
+        menuTitleEn: "VIDEOS"
+    },
+    {
+        sectionKey: "sponsors",
+        sortOrder: 5,
         isEnabled: true,
         titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
         titleEn: "SPONSORS, PARTNERS AND FRIENDS",
@@ -3439,7 +3463,7 @@ const SECTION_SETTINGS_DEFAULTS = [
     },
     {
         sectionKey: "contact",
-        sortOrder: 5,
+        sortOrder: 6,
         isEnabled: true,
         titleUk: "ЗВ'ЯЗАТИСЯ З НАМИ",
         titleEn: "CONTACT US",
@@ -3452,6 +3476,7 @@ function getSectionLabel(sectionKey) {
     if (sectionKey === "releases") return tAdmin("sectionReleasesLabel");
     if (sectionKey === "artists") return tAdmin("sectionArtistsLabel");
     if (sectionKey === "events") return tAdmin("sectionEventsLabel");
+    if (sectionKey === "videos") return tAdmin("sectionVideosLabel");
     if (sectionKey === "sponsors") return tAdmin("sectionSponsorsLabel");
     if (sectionKey === "contact") return tAdmin("sectionContactLabel");
     return sectionKey;
@@ -3709,6 +3734,11 @@ async function refreshCache() {
             fallback: () => cache.events
         },
         {
+            key: "videos",
+            normalize: normalizeRecordArray,
+            fallback: () => cache.videos
+        },
+        {
             key: "sponsors",
             normalize: normalizeRecordArray,
             fallback: () => cache.sponsors
@@ -3758,6 +3788,7 @@ async function refreshCache() {
     const releases = readResults.find((entry) => entry.key === "releases");
     const artists = readResults.find((entry) => entry.key === "artists");
     const events = readResults.find((entry) => entry.key === "events");
+    const videos = readResults.find((entry) => entry.key === "videos");
     const sponsors = readResults.find((entry) => entry.key === "sponsors");
     const settings = readResults.find((entry) => entry.key === "settings");
     dashboardSettingsPartialFailure = !!(settings && !settings.ok);
@@ -3768,6 +3799,7 @@ async function refreshCache() {
     cache.releases = releases ? normalizeRecordArray(releases.data) : normalizeRecordArray(cache.releases);
     cache.artists = artists ? normalizeRecordArray(artists.data) : normalizeRecordArray(cache.artists);
     cache.events = events ? normalizeRecordArray(events.data) : normalizeRecordArray(cache.events);
+    cache.videos = videos ? normalizeRecordArray(videos.data) : normalizeRecordArray(cache.videos);
     cache.sponsors = sponsors ? normalizeRecordArray(sponsors.data) : normalizeRecordArray(cache.sponsors);
     cache.settings = settings ? normalizeRecordObject(settings.data) : normalizeRecordObject(cache.settings);
 }
@@ -4032,6 +4064,66 @@ async function loadSponsors() {
                 <p class="text-yellow-300 text-xs uppercase mt-1">${sanitizeInput(tAdmin("sponsorOrderLabel"))}: ${safeOrder}</p>
                 <p class="text-gray-400 text-sm mt-2">${safeDescription}</p>
                 <div class="mt-2">${linkMarkup}</div>
+                <div class="flex gap-2 mt-4">
+                    <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">${sanitizeInput(tAdmin("editAction"))}</button>
+                    <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join("");
+
+    if (window.lucide) lucide.createIcons();
+}
+
+async function loadVideos() {
+    const sectionAtLoad = currentSection;
+    const navigationSeqAtLoad = sectionNavigationSeq;
+    const getCollectionMethod = getAdapterMethod("getCollection");
+    if (!getCollectionMethod) {
+        console.warn("Adapter getCollection method is unavailable during loadVideos");
+        if (currentSection !== sectionAtLoad) return;
+        if (currentSection !== "videos") return;
+        const videosSectionEl = document.getElementById("section-videos");
+        if (!videosSectionEl || !videosSectionEl.isConnected) return;
+        alert(tAdmin("loadVideosMissingAdapter"));
+        return;
+    }
+
+    const nextVideos = await getCollectionMethod.call(adapter, "videos");
+    if (sectionNavigationSeq !== navigationSeqAtLoad) return;
+    if (currentSection !== sectionAtLoad) return;
+    if (currentSection !== "videos") return;
+
+    const videos = normalizeRecordArray(nextVideos).sort((left, right) => {
+        const leftOrder = Number(left.sortOrder ?? left.sort_order ?? 0);
+        const rightOrder = Number(right.sortOrder ?? right.sort_order ?? 0);
+        return leftOrder - rightOrder;
+    });
+    cache.videos = videos;
+
+    const videosSectionEl = document.getElementById("section-videos");
+    if (!videosSectionEl || !videosSectionEl.isConnected) return;
+    const container = document.getElementById("videos-list-admin");
+    if (!container || !container.isConnected) return;
+
+    container.innerHTML = videos.map((video) => {
+        const safeTitle = sanitizeInput(video.title || "-");
+        const safeUrl = sanitizeInput(video.youtubeUrl || video.youtube_url || "");
+        const safeDescription = sanitizeInput(video.description || "");
+        const safeOrder = sanitizeInput(String(video.sortOrder ?? video.sort_order ?? 0));
+        const idArg = serializeInlineEntityIdArg(video.id);
+        const disableActionAttr = idArg === null ? "disabled" : "";
+        const editActionAttr = idArg === null ? "" : `onclick="editItem('video', ${idArg})"`;
+        const deleteActionAttr = idArg === null ? "" : `onclick="deleteItem('video', ${idArg})"`;
+
+        return `
+            <div class="card p-4 rounded relative group">
+                <h4 class="font-bold text-white truncate">${safeTitle}</h4>
+                <p class="text-cyan-300 text-xs uppercase mt-1">#${safeOrder}</p>
+                <p class="text-gray-400 text-sm mt-2 break-all line-clamp-2">${safeUrl}</p>
+                <p class="text-gray-500 text-xs mt-2 line-clamp-3">${safeDescription}</p>
                 <div class="flex gap-2 mt-4">
                     <button ${editActionAttr} ${disableActionAttr} class="flex-1 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm transition-colors disabled:opacity-50">${sanitizeInput(tAdmin("editAction"))}</button>
                     <button ${deleteActionAttr} ${disableActionAttr} class="px-4 py-2 bg-red-900/50 hover:bg-red-900 text-red-400 rounded text-sm transition-colors disabled:opacity-50">
@@ -6745,7 +6837,11 @@ function generateFields(type, item) {
             sponsorOrderLabel: "Carousel order",
             optionalLinkLabel: "Link (optional)",
             sponsorPreviewLabel: "Logo preview",
-            logoPreviewAlt: "logo preview"
+            logoPreviewAlt: "logo preview",
+            videoTitleLabel: "Video title",
+            youtubeUrlLabel: "YouTube URL",
+            videoDescriptionLabel: "Description",
+            videoOrderLabel: "Display order"
         }
         : {
             releaseTitleLabel: "Назва релізу",
@@ -6778,7 +6874,11 @@ function generateFields(type, item) {
             sponsorOrderLabel: "Порядок у каруселі",
             optionalLinkLabel: "Посилання (опціонально)",
             sponsorPreviewLabel: "Превʼю логотипа",
-            logoPreviewAlt: "logo preview"
+            logoPreviewAlt: "logo preview",
+            videoTitleLabel: "Назва відео",
+            youtubeUrlLabel: "YouTube URL",
+            videoDescriptionLabel: "Опис",
+            videoOrderLabel: "Порядок відображення"
         };
     const rawGenre = typeof sourceItem.genre === "string" ? sourceItem.genre : "";
     const rawReleaseType = normalizeReleaseTypeValue(sourceItem.releaseType || sourceItem.release_type);
@@ -6807,7 +6907,8 @@ function generateFields(type, item) {
         time: normalizeFieldValue(sourceItem.time),
         venue: normalizeFieldValue(sourceItem.venue),
         description: normalizeFieldValue(sourceItem.description),
-        ticketLink: normalizeFieldValue(sourceItem.ticketLink || sourceItem.ticket_link)
+        ticketLink: normalizeFieldValue(sourceItem.ticketLink || sourceItem.ticket_link),
+        youtubeUrl: normalizeFieldValue(sourceItem.youtubeUrl || sourceItem.youtube_url)
     };
 
     const imagePreview = imageValue ? `<img src="${imageValue}" class="image-preview preview-img mt-2 rounded ${type === 'artist' ? 'w-24 h-24 object-cover' : (type === 'event' ? 'h-32 w-full object-cover' : '')}" style="max-height: 200px;">` : '<img src="" class="image-preview preview-img mt-2 rounded hidden" style="max-height: 200px;">';
@@ -6990,6 +7091,24 @@ function generateFields(type, item) {
                     <img src="${fieldValues.logo}" class="image-preview w-full h-full object-contain ${fieldValues.logo ? '' : 'hidden'}" alt="${sanitizeInput(modalLocale.logoPreviewAlt)}">
                 </div>
             </div>
+        `,
+        video: `
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.videoTitleLabel)}</label>
+                <input type="text" name="title" value="${fieldValues.title}" class="form-input w-full p-3 rounded" required>
+            </div>
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.youtubeUrlLabel)}</label>
+                <input type="url" name="youtubeUrl" value="${fieldValues.youtubeUrl}" class="form-input w-full p-3 rounded" placeholder="https://www.youtube.com/watch?v=..." required>
+            </div>
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.videoDescriptionLabel)}</label>
+                <textarea name="description" rows="4" class="form-input w-full p-3 rounded">${fieldValues.description}</textarea>
+            </div>
+            <div>
+                <label class="block text-gray-400 mb-2 text-sm uppercase">${sanitizeInput(modalLocale.videoOrderLabel)}</label>
+                <input type="number" min="0" max="9999" step="1" name="sortOrder" value="${fieldValues.sortOrder}" class="form-input w-full p-3 rounded" required>
+            </div>
         `
     };
 
@@ -7001,6 +7120,7 @@ function getTypeName(type) {
         release: tAdmin("typeRelease"),
         artist: tAdmin("typeArtist"),
         event: tAdmin("typeEvent"),
+        video: tAdmin("typeVideo"),
         sponsor: tAdmin("typeSponsor")
     };
     return names[type] || type;
@@ -7030,7 +7150,7 @@ function getReleaseTypeLabel(value) {
     return option.label;
 }
 
-const SUPPORTED_ENTITY_TYPES = ["release", "artist", "event", "sponsor"];
+const SUPPORTED_ENTITY_TYPES = ["release", "artist", "event", "sponsor", "video"];
 
 function isSupportedEntityType(type) {
     return typeof type === "string" && SUPPORTED_ENTITY_TYPES.includes(type);
@@ -7098,6 +7218,19 @@ function normalizeCrudFormFieldValue(entityType, key, value) {
         });
     }
 
+    if (entityType === "video" && key === "youtubeUrl") {
+        return normalizeSettingsUrlInput(rawValue, { platform: "youtube" });
+    }
+
+    if (entityType === "video" && key === "sortOrder") {
+        const numericOrder = Number(rawValue);
+        return clampBoundedInteger(numericOrder, {
+            fallback: 0,
+            min: 0,
+            max: 9999
+        });
+    }
+
     return sanitizedValue;
 }
 
@@ -7130,6 +7263,15 @@ function buildCrudItemFromFormData(entityType, formData, baseItem = {}) {
         });
     }
 
+    if (entityType === "video") {
+        item.youtubeUrl = normalizeSettingsUrlInput(item.youtubeUrl, { platform: "youtube" });
+        item.sortOrder = clampBoundedInteger(item.sortOrder, {
+            fallback: 0,
+            min: 0,
+            max: 9999
+        });
+    }
+
     return item;
 }
 
@@ -7137,7 +7279,8 @@ const ENTITY_TRANSLATABLE_FIELDS = {
     release: ["title", "artist", "genre"],
     artist: ["name", "genre", "bio"],
     event: ["title", "venue", "description"],
-    sponsor: ["name", "shortDescription"]
+    sponsor: ["name", "shortDescription"],
+    video: ["title", "description"]
 };
 
 function normalizeAdminLanguageCode(value) {

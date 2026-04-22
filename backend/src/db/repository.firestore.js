@@ -31,8 +31,17 @@ const SECTION_SETTINGS_DEFAULTS = [
     menuTitleEn: "EVENTS"
   },
   {
-    sectionKey: "sponsors",
+    sectionKey: "videos",
     sortOrder: 4,
+    isEnabled: true,
+    titleUk: "ВІДЕО",
+    titleEn: "VIDEOS",
+    menuTitleUk: "ВІДЕО",
+    menuTitleEn: "VIDEOS"
+  },
+  {
+    sectionKey: "sponsors",
+    sortOrder: 5,
     isEnabled: true,
     titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
     titleEn: "SPONSORS, PARTNERS AND FRIENDS",
@@ -41,7 +50,7 @@ const SECTION_SETTINGS_DEFAULTS = [
   },
   {
     sectionKey: "contact",
-    sortOrder: 5,
+    sortOrder: 6,
     isEnabled: true,
     titleUk: "ЗВ'ЯЗАТИСЯ З НАМИ",
     titleEn: "CONTACT US",
@@ -51,7 +60,7 @@ const SECTION_SETTINGS_DEFAULTS = [
 ];
 
 const HERO_SUBTITLE_DEFAULT = "Neurofunk • Drum & Bass • Breakbeat • Techstep";
-const COLLECTION_BY_TYPE = new Set(["releases", "artists", "events", "sponsors"]);
+const COLLECTION_BY_TYPE = new Set(["releases", "artists", "events", "sponsors", "videos"]);
 const RELEASE_TYPES = new Set(["single", "ep", "album", "remix"]);
 const CONTACT_REQUEST_STATUS = new Set(["new", "in_progress", "done"]);
 const AUDIT_LOG_DETAILS_MAX_CHARS = 8192;
@@ -86,7 +95,8 @@ const ENTITY_TRANSLATED_FIELDS = {
   releases: ["title", "artist", "genre"],
   artists: ["name", "genre", "bio"],
   events: ["title", "venue", "description"],
-  sponsors: ["name", "shortDescription"]
+  sponsors: ["name", "shortDescription"],
+  videos: ["title", "description"]
 };
 
 function toCamelCase(value) {
@@ -306,11 +316,26 @@ function normalizeSponsorStoragePayload(payload, fallback = {}) {
   };
 }
 
+function normalizeVideoStoragePayload(payload, fallback = {}) {
+  const merged = {
+    ...clonePlainObject(fallback),
+    ...clonePlainObject(payload)
+  };
+
+  return {
+    title: toSafeString(readRawField(merged, ["title"]), ""),
+    youtubeUrl: toSafeString(readRawField(merged, ["youtubeUrl", "youtube_url"]), ""),
+    description: toSafeString(readRawField(merged, ["description"]), ""),
+    sortOrder: toBoundedInteger(readRawField(merged, ["sortOrder", "sort_order"]), 0, 0, 9999)
+  };
+}
+
 function normalizeEntityStoragePayload(type, payload, fallback = {}) {
   if (type === "releases") return normalizeReleaseStoragePayload(payload, fallback);
   if (type === "artists") return normalizeArtistStoragePayload(payload, fallback);
   if (type === "events") return normalizeEventStoragePayload(payload, fallback);
   if (type === "sponsors") return normalizeSponsorStoragePayload(payload, fallback);
+  if (type === "videos") return normalizeVideoStoragePayload(payload, fallback);
   return clonePlainObject(payload);
 }
 
@@ -1551,6 +1576,16 @@ function normalizeEntityRow(type, source, fallbackDocId = "", index = 0, languag
     };
   }
 
+  if (type === "videos") {
+    return {
+      id,
+      title: readLocalizedText(row, "title", language, defaultLanguage, ""),
+      youtubeUrl: String(readRawField(row, ["youtubeUrl", "youtube_url"]) || "").trim(),
+      description: readLocalizedText(row, "description", language, defaultLanguage, ""),
+      sortOrder: toBoundedInteger(readRawField(row, ["sortOrder", "sort_order"]), 0, 0, 9999)
+    };
+  }
+
   return {
     id,
     ...row
@@ -1558,7 +1593,7 @@ function normalizeEntityRow(type, source, fallbackDocId = "", index = 0, languag
 }
 
 function compareEntityRows(type, left, right) {
-  if (type === "sponsors") {
+  if (type === "sponsors" || type === "videos") {
     const leftSort = toBoundedInteger(left?.sortOrder, 0, 0, 9999);
     const rightSort = toBoundedInteger(right?.sortOrder, 0, 0, 9999);
     if (leftSort !== rightSort) return leftSort - rightSort;

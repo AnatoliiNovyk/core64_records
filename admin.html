@@ -129,6 +129,10 @@
                 <i data-lucide="calendar" class="w-5 h-5"></i>
                 <span data-i18n="navEvents">Події</span>
             </button>
+            <button onclick="showSection('videos')" class="nav-item w-full text-left px-6 py-3 flex items-center gap-3 text-gray-400 hover:text-cyan-400">
+                <i data-lucide="video" class="w-5 h-5"></i>
+                <span data-i18n="navVideos">Відео</span>
+            </button>
             <button onclick="showSection('sponsors')" class="nav-item w-full text-left px-6 py-3 flex items-center gap-3 text-gray-400 hover:text-cyan-400">
                 <i data-lucide="handshake" class="w-5 h-5"></i>
                 <span data-i18n="navSponsors">Спонсори</span>
@@ -267,6 +271,21 @@
 
                 <div id="events-list-admin" class="space-y-4">
                     <!-- Events loaded here -->
+                </div>
+            </div>
+
+            <!-- Videos -->
+            <div id="section-videos" class="section-content hidden">
+                <div class="flex justify-between items-center mb-8">
+                    <h2 class="text-3xl font-bold text-cyan-300" data-i18n="videosSectionTitle">Управління відео</h2>
+                    <button onclick="openModal('video')" class="btn-cyan px-6 py-2 rounded flex items-center gap-2">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                        <span data-i18n="videosAddButton">Додати відео</span>
+                    </button>
+                </div>
+
+                <div id="videos-list-admin" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Videos loaded here -->
                 </div>
             </div>
 

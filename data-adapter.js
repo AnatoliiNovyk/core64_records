@@ -128,6 +128,15 @@
                 sortOrder: 3
             }
         ],
+        videos: [
+            {
+                id: 1,
+                title: "CORE64 Showcase Mix",
+                youtubeUrl: "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+                description: "Добірка сетів і релізів CORE64.",
+                sortOrder: 1
+            }
+        ],
         releaseTracks: [],
         settings: {
             title: "CORE64 Records",
@@ -185,8 +194,17 @@
                 menuTitleEn: "EVENTS"
             },
             {
-                sectionKey: "sponsors",
+                sectionKey: "videos",
                 sortOrder: 4,
+                isEnabled: true,
+                titleUk: "ВІДЕО",
+                titleEn: "VIDEOS",
+                menuTitleUk: "ВІДЕО",
+                menuTitleEn: "VIDEOS"
+            },
+            {
+                sectionKey: "sponsors",
+                sortOrder: 5,
                 isEnabled: true,
                 titleUk: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
                 titleEn: "SPONSORS, PARTNERS AND FRIENDS",
@@ -195,7 +213,7 @@
             },
             {
                 sectionKey: "contact",
-                sortOrder: 5,
+                sortOrder: 6,
                 isEnabled: true,
                 titleUk: "ЗВ'ЯЗАТИСЯ З НАМИ",
                 titleEn: "CONTACT US",
@@ -542,6 +560,7 @@
             artists: [],
             events: [],
             sponsors: [],
+            videos: [],
             releaseTracks: [],
             settings: deepClone(DEFAULT_DATA.settings),
             sectionSettings: deepClone(DEFAULT_DATA.sectionSettings),
@@ -575,6 +594,7 @@
                 artists: parsed.artists || [],
                 events: parsed.events || [],
                 sponsors: parsed.sponsors || [],
+                videos: parsed.videos || [],
                 releaseTracks: Array.isArray(parsed.releaseTracks) ? parsed.releaseTracks : [],
                 settings: {
                     ...deepClone(DEFAULT_DATA.settings),

@@ -27,6 +27,11 @@ const sponsorTranslationSchema = z.object({
   short_description: z.string().trim().max(120).optional()
 });
 
+const videoTranslationSchema = z.object({
+  title: z.string().min(1).optional(),
+  description: z.string().optional()
+});
+
 const brandImageDataUrlPattern = /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=\s]+$/i;
 const releaseTrackAudioDataUrlPattern = /^data:audio\/(mpeg|mp3|wav|x-wav|wave);base64,[a-z0-9+/=\s]+$/i;
 const contactAttachmentDataUrlPattern = /^data:[^;,]+(?:;[^,]*)?;base64,[a-z0-9+/=\s]+$/i;
@@ -73,6 +78,26 @@ function isCollectionImageValueWithinLimit(value) {
   }
 
   return normalized.length <= COLLECTION_IMAGE_URL_MAX_CHARS;
+}
+
+function isYouTubeUrl(value) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return false;
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch (_error) {
+    return false;
+  }
+
+  const hostname = String(parsed.hostname || "").toLowerCase();
+  return hostname === "youtu.be"
+    || hostname === "youtube.com"
+    || hostname === "www.youtube.com"
+    || hostname === "m.youtube.com"
+    || hostname === "music.youtube.com"
+    || hostname === "www.youtube-nocookie.com";
 }
 
 export const releaseSchema = z.object({
@@ -158,6 +183,17 @@ export const sponsorSchema = z.object({
   link: z.string().optional().default("#"),
   sortOrder: z.number().int().min(0).max(9999).optional().default(0),
   i18n: z.record(languageCodeSchema, sponsorTranslationSchema).optional().default({})
+});
+
+export const videoSchema = z.object({
+  id: z.union([z.number(), z.string()]).optional(),
+  title: z.string().trim().min(1).max(140),
+  youtubeUrl: z.string().trim().url().refine(isYouTubeUrl, {
+    message: "youtubeUrl must be a valid YouTube URL"
+  }),
+  description: z.string().trim().max(2000).optional().default(""),
+  sortOrder: z.number().int().min(0).max(9999).optional().default(0),
+  i18n: z.record(languageCodeSchema, videoTranslationSchema).optional().default({})
 });
 
 export const settingsSchema = z.object({
@@ -259,7 +295,7 @@ export const settingsSchema = z.object({
   }
 });
 
-const sectionKeySchema = z.enum(["releases", "artists", "events", "sponsors", "contact"]);
+const sectionKeySchema = z.enum(["releases", "artists", "events", "videos", "sponsors", "contact"]);
 
 export const sectionSettingSchema = z.object({
   sectionKey: sectionKeySchema,

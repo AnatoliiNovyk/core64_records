@@ -153,7 +153,7 @@ function hasRequiredSectionKeys(sections) {
             .filter(Boolean)
     );
 
-    return ["releases", "artists", "events", "sponsors"].every((key) => keys.has(key));
+    return ["releases", "artists", "events", "videos", "sponsors"].every((key) => keys.has(key));
 }
 
 function hasValidAuditLatencyThresholds(settings) {
@@ -492,6 +492,7 @@ async function run() {
     const releases = Array.isArray(data.releases) ? data.releases : [];
     const artists = Array.isArray(data.artists) ? data.artists : [];
     const events = Array.isArray(data.events) ? data.events : [];
+    const videos = Array.isArray(data.videos) ? data.videos : [];
     const sponsors = Array.isArray(data.sponsors) ? data.sponsors : [];
     const publicSettings = data.settings && typeof data.settings === "object" ? data.settings : {};
 
@@ -501,6 +502,7 @@ async function run() {
             releases: releases.length,
             artists: artists.length,
             events: events.length,
+            videos: videos.length,
             sponsors: sponsors.length
         },
         missingMedia: {

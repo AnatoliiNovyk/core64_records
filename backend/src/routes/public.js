@@ -7,10 +7,11 @@ const router = Router();
 router.get("/public", async (req, res, next) => {
   try {
     const language = resolveLanguage(req.query.lang);
-    const [releases, artists, events, sponsors, settings, sectionSettings] = await Promise.all([
+    const [releases, artists, events, videos, sponsors, settings, sectionSettings] = await Promise.all([
       listByType("releases", language),
       listByType("artists", language),
       listByType("events", language),
+      listByType("videos", language),
       listByType("sponsors", language),
       getPublicSettings(language),
       getPublicSectionSettings(language)
@@ -22,6 +23,7 @@ router.get("/public", async (req, res, next) => {
         releases,
         artists,
         events,
+        videos,
         sponsors,
         settings,
         sectionSettings

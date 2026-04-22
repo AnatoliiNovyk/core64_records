@@ -57,7 +57,8 @@ function buildDefaultSections() {
     { sectionKey: "releases", isVisible: true, displayOrder: 1 },
     { sectionKey: "artists", isVisible: true, displayOrder: 2 },
     { sectionKey: "events", isVisible: true, displayOrder: 3 },
-    { sectionKey: "sponsors", isVisible: true, displayOrder: 4 }
+    { sectionKey: "videos", isVisible: true, displayOrder: 4 },
+    { sectionKey: "sponsors", isVisible: true, displayOrder: 5 }
   ];
 }
 
@@ -103,6 +104,13 @@ function buildPublicPayload(settings) {
           id: 1,
           title: "Event One",
           image: "https://cdn.core64.local/event-1.jpg"
+        }
+      ],
+      videos: [
+        {
+          id: 1,
+          title: "Video One",
+          youtubeUrl: "https://www.youtube.com/watch?v=jfKfPfyJRdk"
         }
       ],
       sponsors: [

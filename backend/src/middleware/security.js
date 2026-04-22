@@ -13,7 +13,7 @@ const CSP_BASE_DIRECTIVES = [
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: https: http:",
   "connect-src 'self' https: http: https://hcaptcha.com https://*.hcaptcha.com https://www.google.com",
-  "frame-src 'self' https://hcaptcha.com https://*.hcaptcha.com https://www.google.com",
+  "frame-src 'self' https://hcaptcha.com https://*.hcaptcha.com https://www.google.com https://www.youtube.com https://www.youtube-nocookie.com",
   "media-src 'self' data: https: http:"
 ];
 

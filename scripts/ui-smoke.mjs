@@ -14,7 +14,7 @@ let apiBase = configuredApiBase;
 const configuredUiBase = String(process.env.CORE64_UI_BASE || "").trim().replace(/\/+$/, "");
 const requestTimeoutMs = Number(process.env.CORE64_UI_SMOKE_TIMEOUT_MS || 15000);
 const headless = !["0", "false", "no", "off"].includes(String(process.env.CORE64_UI_HEADLESS || "true").trim().toLowerCase());
-const MANAGED_SECTION_KEYS = ["releases", "artists", "events", "sponsors"];
+const MANAGED_SECTION_KEYS = ["releases", "artists", "events", "videos", "sponsors"];
 
 const MIME_TYPES = {
     ".css": "text/css; charset=utf-8",

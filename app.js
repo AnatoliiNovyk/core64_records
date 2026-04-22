@@ -32,14 +32,16 @@ const PUBLIC_SECTION_DEFAULTS = [
     { sectionKey: "releases", sortOrder: 1, i18nKey: "sectionLatestReleases", navI18nKey: "navReleases" },
     { sectionKey: "artists", sortOrder: 2, i18nKey: "sectionLabelArtists", navI18nKey: "navArtists" },
     { sectionKey: "events", sortOrder: 3, i18nKey: "sectionEvents", navI18nKey: "navEvents" },
-    { sectionKey: "sponsors", sortOrder: 4, i18nKey: "sectionSponsors", navI18nKey: "navSponsors" },
-    { sectionKey: "contact", sortOrder: 5, i18nKey: "sectionContact", navI18nKey: "navContact" }
+    { sectionKey: "videos", sortOrder: 4, i18nKey: "sectionVideos", navI18nKey: "navVideos" },
+    { sectionKey: "sponsors", sortOrder: 5, i18nKey: "sectionSponsors", navI18nKey: "navSponsors" },
+    { sectionKey: "contact", sortOrder: 6, i18nKey: "sectionContact", navI18nKey: "navContact" }
 ];
 const PUBLIC_I18N = {
     uk: {
         navReleases: "Релізи",
         navArtists: "Артисти",
         navEvents: "Події",
+        navVideos: "Відео",
         navSponsors: "Спонсори",
         navAbout: "Про нас",
         navContact: "Контакти",
@@ -65,6 +67,9 @@ const PUBLIC_I18N = {
         releasePlayAria: "Відкрити плеєр релізу",
         sectionLabelArtists: "АРТИСТИ ЛЕЙБЛУ",
         sectionEvents: "АФІША ПОДІЙ",
+        sectionVideos: "ВІДЕО",
+        videosUpdating: "Відеосекція оновлюється",
+        videosWatchOnYoutube: "Дивитися на YouTube",
         sectionSponsors: "СПОНСОРИ, ПАРТНЕРИ ТА ДРУЗІ",
         sponsorPrev: "Попередній спонсор",
         sponsorNext: "Наступний спонсор",
@@ -130,6 +135,7 @@ const PUBLIC_I18N = {
         navReleases: "Releases",
         navArtists: "Artists",
         navEvents: "Events",
+        navVideos: "Videos",
         navSponsors: "Sponsors",
         navAbout: "About",
         navContact: "Contact",
@@ -155,6 +161,9 @@ const PUBLIC_I18N = {
         releasePlayAria: "Open release player",
         sectionLabelArtists: "LABEL ARTISTS",
         sectionEvents: "EVENT SCHEDULE",
+        sectionVideos: "VIDEOS",
+        videosUpdating: "Video section is being updated",
+        videosWatchOnYoutube: "Watch on YouTube",
         sectionSponsors: "SPONSORS, PARTNERS AND FRIENDS",
         sponsorPrev: "Previous sponsor",
         sponsorNext: "Next sponsor",
@@ -733,6 +742,40 @@ function normalizeReleaseOutboundUrl(value) {
 
     if (!/^https?:$/i.test(parsed.protocol)) return "";
     return parsed.toString();
+}
+
+function extractYouTubeVideoId(value) {
+    const normalizedUrl = normalizeReleaseOutboundUrl(value);
+    if (!normalizedUrl) return "";
+
+    let parsed;
+    try {
+        parsed = new URL(normalizedUrl);
+    } catch (_error) {
+        return "";
+    }
+
+    const host = String(parsed.hostname || "").toLowerCase();
+    let candidate = "";
+
+    if (host === "youtu.be") {
+        candidate = parsed.pathname.split("/").filter(Boolean)[0] || "";
+    } else if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+        candidate = parsed.searchParams.get("v") || "";
+        if (!candidate) {
+            const parts = parsed.pathname.split("/").filter(Boolean);
+            if (parts[0] === "embed" || parts[0] === "shorts") {
+                candidate = parts[1] || "";
+            }
+        }
+    }
+
+    return /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : "";
+}
+
+function buildYouTubeEmbedUrl(value) {
+    const videoId = extractYouTubeVideoId(value);
+    return videoId ? `https://www.youtube-nocookie.com/embed/${videoId}` : "";
 }
 
 function buildReleaseFallbackUrl(releaseTitle, releaseArtist) {
@@ -1521,7 +1564,7 @@ function applyPublicSectionSettings(sectionSettings) {
         sectionEl.setAttribute("aria-hidden", section.isEnabled === false ? "true" : "false");
     });
 
-    ["releases", "artists", "events", "sponsors", "contact"].forEach((sectionKey) => {
+    ["releases", "artists", "events", "videos", "sponsors", "contact"].forEach((sectionKey) => {
         const section = bySectionKey[sectionKey];
         const isHidden = !section || section.isEnabled === false;
         document.querySelectorAll(`a[href="#${sectionKey}"]`).forEach((linkEl) => {
@@ -1680,6 +1723,55 @@ function renderEvents(data) {
     }).join("");
 
     attachImageFallback(list, 'img[data-event-image="1"]', RELEASE_IMAGE_FALLBACK);
+}
+
+function renderVideos(data) {
+    const grid = document.getElementById("videos-grid");
+    if (!grid) return;
+
+    const videos = [...(data.videos || [])].sort((a, b) => {
+        const left = Number(a.sortOrder ?? a.sort_order ?? 0);
+        const right = Number(b.sortOrder ?? b.sort_order ?? 0);
+        return left - right;
+    });
+
+    if (!videos.length) {
+        grid.innerHTML = `
+            <div class="col-span-full min-h-[180px] border border-cyan-500/25 rounded-xl bg-black/30 grid place-items-center text-center text-gray-400 p-6">
+                ${escapeHtmlAttribute(tPublic("videosUpdating"))}
+            </div>
+        `;
+        return;
+    }
+
+    grid.innerHTML = videos.map((video) => {
+        const title = String(video.title || "Video").trim() || "Video";
+        const description = String(video.description || "").trim();
+        const youtubeUrl = normalizeReleaseOutboundUrl(video.youtubeUrl || video.youtube_url || "");
+        const embedUrl = buildYouTubeEmbedUrl(youtubeUrl);
+
+        const safeTitle = escapeHtmlAttribute(title);
+        const safeDescription = escapeHtmlAttribute(description);
+        const safeYoutubeUrl = escapeHtmlAttribute(youtubeUrl);
+        const safeEmbedUrl = escapeHtmlAttribute(embedUrl);
+
+        return `
+            <article class="border border-cyan-500/25 rounded-xl overflow-hidden bg-black/35">
+                <div class="aspect-video bg-black/60">
+                    ${embedUrl
+                        ? `<iframe src="${safeEmbedUrl}" title="${safeTitle}" class="w-full h-full" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
+                        : `<div class="w-full h-full grid place-items-center text-sm text-gray-500">${escapeHtmlAttribute(tPublic("videosUpdating"))}</div>`}
+                </div>
+                <div class="p-4">
+                    <h3 class="text-lg font-bold text-white">${safeTitle}</h3>
+                    <p class="text-sm text-gray-400 mt-2 line-clamp-2">${safeDescription}</p>
+                    ${youtubeUrl
+                        ? `<a href="${safeYoutubeUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex mt-4 px-4 py-2 border border-cyan-400 text-cyan-300 hover:bg-cyan-400 hover:text-black transition-colors uppercase tracking-wider text-xs font-bold">${escapeHtmlAttribute(tPublic("videosWatchOnYoutube"))}</a>`
+                        : ""}
+                </div>
+            </article>
+        `;
+    }).join("");
 }
 
 function getSponsorsCarouselStep(trackEl) {
@@ -2239,6 +2331,7 @@ async function bootstrap() {
         renderReleases(data);
         renderArtists(data);
         renderEvents(data);
+        renderVideos(data);
         renderSponsors(data);
         applyPublicSectionSettings(data.sectionSettings || []);
         contactRuntimeSettings = data.settings || {};
@@ -2258,6 +2351,7 @@ async function bootstrap() {
         renderReleases(fallback);
         renderArtists(fallback);
         renderEvents(fallback);
+        renderVideos(fallback);
         renderSponsors(fallback);
         applyPublicSectionSettings(fallback.sectionSettings || []);
         contactRuntimeSettings = fallback.settings || {};
