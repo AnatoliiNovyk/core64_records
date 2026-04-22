@@ -828,6 +828,170 @@ async function verifyAdminPersistence(page, adminUrl, adminPassword, mutatedSect
     return state;
 }
 
+async function runVideoUiCrudFlow(adminPage, publicPage, adminUrl, publicUrl, adminPassword) {
+    await ensureAdminLoggedIn(adminPage, adminUrl, adminPassword);
+
+    const stamp = Date.now();
+    const createdTitle = `UI smoke video ${stamp}`;
+    const updatedTitle = `UI smoke video updated ${stamp}`;
+    const createdDescription = "Video create flow from UI smoke";
+    const updatedDescription = "Video update flow from UI smoke";
+    const youtubeUrl = "https://www.youtube.com/watch?v=jfKfPfyJRdk";
+    const createSortOrder = 901;
+    const updateSortOrder = 902;
+
+    let createdId = null;
+
+    try {
+        await adminPage.evaluate(async () => {
+            await window.showSection("videos");
+        });
+
+        await waitForFunction(
+            adminPage,
+            () => {
+                const sectionEl = document.getElementById("section-videos");
+                const listEl = document.getElementById("videos-list-admin");
+                return Boolean(sectionEl && !sectionEl.classList.contains("hidden") && listEl);
+            },
+            undefined,
+            requestTimeoutMs,
+            "wait for videos section"
+        );
+
+        await adminPage.evaluate(async (payload) => {
+            await window.openModal("video");
+            const formEl = document.getElementById("modal-form");
+            if (!formEl) throw new Error("modal form not found");
+
+            const titleEl = formEl.querySelector('input[name="title"]');
+            const urlEl = formEl.querySelector('input[name="youtubeUrl"]');
+            const descEl = formEl.querySelector('textarea[name="description"]');
+            const sortEl = formEl.querySelector('input[name="sortOrder"]');
+            if (!titleEl || !urlEl || !descEl || !sortEl) {
+                throw new Error("video modal fields not found");
+            }
+
+            titleEl.value = payload.title;
+            urlEl.value = payload.youtubeUrl;
+            descEl.value = payload.description;
+            sortEl.value = String(payload.sortOrder);
+            formEl.requestSubmit();
+        }, {
+            title: createdTitle,
+            youtubeUrl,
+            description: createdDescription,
+            sortOrder: createSortOrder
+        });
+
+        await waitForFunction(
+            adminPage,
+            (titleText) => {
+                const modalEl = document.getElementById("modal");
+                const listEl = document.getElementById("videos-list-admin");
+                const listText = String(listEl?.textContent || "");
+                return Boolean(modalEl && modalEl.classList.contains("hidden") && listText.includes(titleText));
+            },
+            createdTitle,
+            requestTimeoutMs,
+            "wait for created video in admin list"
+        );
+
+        const videosAfterCreate = await requestJson(`${apiBase}/videos`);
+        ensureOk(videosAfterCreate, "GET /videos after video create (ui smoke)");
+        const createdVideo = (Array.isArray(videosAfterCreate.json?.data) ? videosAfterCreate.json.data : []).find((video) => {
+            return String(video?.title || "") === createdTitle && String(video?.youtubeUrl || "") === youtubeUrl;
+        });
+        if (!createdVideo || createdVideo.id === undefined || createdVideo.id === null) {
+            throw new Error("Created video was not returned by /videos API");
+        }
+        createdId = createdVideo.id;
+
+        await adminPage.evaluate(async (payload) => {
+            await window.openModal("video", payload.id);
+            const formEl = document.getElementById("modal-form");
+            if (!formEl) throw new Error("modal form not found for edit");
+
+            const titleEl = formEl.querySelector('input[name="title"]');
+            const descEl = formEl.querySelector('textarea[name="description"]');
+            const sortEl = formEl.querySelector('input[name="sortOrder"]');
+            if (!titleEl || !descEl || !sortEl) {
+                throw new Error("video edit fields not found");
+            }
+
+            titleEl.value = payload.title;
+            descEl.value = payload.description;
+            sortEl.value = String(payload.sortOrder);
+            formEl.requestSubmit();
+        }, {
+            id: createdId,
+            title: updatedTitle,
+            description: updatedDescription,
+            sortOrder: updateSortOrder
+        });
+
+        await waitForFunction(
+            adminPage,
+            (titleText, orderValue) => {
+                const listEl = document.getElementById("videos-list-admin");
+                const listText = String(listEl?.textContent || "");
+                return listText.includes(titleText) && listText.includes(`#${orderValue}`);
+            },
+            updatedTitle,
+            updateSortOrder,
+            requestTimeoutMs,
+            "wait for updated video in admin list"
+        );
+
+        const videosAfterUpdate = await requestJson(`${apiBase}/videos`);
+        ensureOk(videosAfterUpdate, "GET /videos after video update (ui smoke)");
+        const updatedVideo = (Array.isArray(videosAfterUpdate.json?.data) ? videosAfterUpdate.json.data : []).find((video) => Number(video?.id) === Number(createdId));
+        if (!updatedVideo) {
+            throw new Error("Updated video was not found by id in /videos API");
+        }
+        if (String(updatedVideo.title || "") !== updatedTitle) {
+            throw new Error(`Updated video title mismatch. Expected '${updatedTitle}', got '${String(updatedVideo.title || "")}'`);
+        }
+        if (String(updatedVideo.description || "") !== updatedDescription) {
+            throw new Error("Updated video description mismatch");
+        }
+        if (Number(updatedVideo.sortOrder) !== updateSortOrder) {
+            throw new Error(`Updated video sort order mismatch. Expected ${updateSortOrder}, got ${String(updatedVideo.sortOrder)}`);
+        }
+
+        await publicPage.goto(buildPublicUrlWithLanguage(publicUrl, "uk"), { waitUntil: "domcontentloaded" });
+        await waitForFunction(
+            publicPage,
+            (titleText) => {
+                const grid = document.getElementById("videos-grid");
+                if (!grid) return false;
+                const hasTitle = String(grid.textContent || "").includes(titleText);
+                const iframeCount = grid.querySelectorAll("iframe").length;
+                return hasTitle && iframeCount >= 1;
+            },
+            updatedTitle,
+            requestTimeoutMs,
+            "wait for public videos embed"
+        );
+
+        return {
+            id: createdId,
+            createdTitle,
+            updatedTitle,
+            youtubeUrl,
+            createSortOrder,
+            updateSortOrder
+        };
+    } finally {
+        if (createdId !== null && createdId !== undefined) {
+            await requestJson(`${apiBase}/videos/${encodeURIComponent(String(createdId))}`, {
+                method: "DELETE",
+                token: await requestAdminToken(adminPassword)
+            });
+        }
+    }
+}
+
 async function restoreOriginalBundle(token, bundle) {
     const bundleResult = await requestJson(`${apiBase}/settings/bundle`, {
         method: "PUT",
@@ -898,6 +1062,7 @@ async function run() {
         const apiVerification = await verifyApiState(token, mutatedSections);
         const publicVerification = await verifyPublicUi(publicPage, publicUrl, mutatedSections);
         const adminVerification = await verifyAdminPersistence(adminPage, adminUrl, adminPassword, mutatedSections);
+        const videoUiCrudVerification = await runVideoUiCrudFlow(adminPage, publicPage, adminUrl, publicUrl, adminPassword);
 
         restoreResult = await restoreOriginalBundle(token, originalBundle);
 
@@ -909,6 +1074,7 @@ async function run() {
             apiVerification,
             publicVerification,
             adminVerification,
+            videoUiCrudVerification,
             passed: true
         }, null, 2));
     } finally {

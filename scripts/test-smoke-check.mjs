@@ -110,7 +110,8 @@ function buildPublicPayload(settings) {
         {
           id: 1,
           title: "Video One",
-          youtubeUrl: "https://www.youtube.com/watch?v=jfKfPfyJRdk"
+          youtubeUrl: "https://www.youtube.com/watch?v=jfKfPfyJRdk",
+          sortOrder: 1
         }
       ],
       sponsors: [

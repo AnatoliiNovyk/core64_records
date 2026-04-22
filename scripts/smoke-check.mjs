@@ -146,6 +146,62 @@ function countBadReleaseLinks(releases) {
     }).length;
 }
 
+function extractYouTubeVideoId(value) {
+    const normalized = String(value || "").trim();
+    if (!normalized) return "";
+
+    let parsed;
+    try {
+        parsed = new URL(normalized);
+    } catch (_error) {
+        return "";
+    }
+
+    const hostname = String(parsed.hostname || "").toLowerCase();
+    let candidate = "";
+
+    if (hostname === "youtu.be") {
+        candidate = parsed.pathname.split("/").filter(Boolean)[0] || "";
+    } else if (
+        hostname === "youtube.com"
+        || hostname === "www.youtube.com"
+        || hostname === "m.youtube.com"
+        || hostname === "music.youtube.com"
+        || hostname === "www.youtube-nocookie.com"
+    ) {
+        candidate = parsed.searchParams.get("v") || "";
+        if (!candidate) {
+            const parts = parsed.pathname.split("/").filter(Boolean);
+            if (parts[0] === "embed" || parts[0] === "shorts") {
+                candidate = parts[1] || "";
+            }
+        }
+    }
+
+    return /^[A-Za-z0-9_-]{11}$/.test(candidate) ? candidate : "";
+}
+
+function getVideosQuality(videos) {
+    return (Array.isArray(videos) ? videos : []).reduce((acc, video) => {
+        const title = String(video?.title ?? "").trim();
+        const youtubeUrl = String(video?.youtubeUrl ?? video?.youtube_url ?? "").trim();
+        const sortOrder = Number(video?.sortOrder ?? video?.sort_order);
+        const hasEmbeddableId = Boolean(extractYouTubeVideoId(youtubeUrl));
+
+        if (!title) acc.missingTitle += 1;
+        if (!youtubeUrl) acc.missingYoutubeUrl += 1;
+        if (!Number.isInteger(sortOrder) || sortOrder < 0) acc.invalidSortOrder += 1;
+        if (!hasEmbeddableId) acc.invalidYoutubeUrl += 1;
+
+        return acc;
+    }, {
+        missingTitle: 0,
+        missingYoutubeUrl: 0,
+        invalidYoutubeUrl: 0,
+        invalidSortOrder: 0
+    });
+}
+
 function hasRequiredSectionKeys(sections) {
     const keys = new Set(
         (Array.isArray(sections) ? sections : [])
@@ -505,6 +561,7 @@ async function run() {
             videos: videos.length,
             sponsors: sponsors.length
         },
+        videosQuality: getVideosQuality(videos),
         missingMedia: {
             releaseImage: countMissing(releases, "image"),
             artistImage: countMissing(artists, "image"),
@@ -523,6 +580,7 @@ async function run() {
     report.checks.public = publicChecks;
 
     if (!publicPayload.response.ok) report.passed = false;
+    if (Object.values(publicChecks.videosQuality).some((value) => value > 0)) report.passed = false;
     if (Object.values(publicChecks.missingMedia).some((value) => value > 0)) report.passed = false;
     if (Object.values(publicChecks.staticPhotos).some((value) => value > 0)) report.passed = false;
     if (publicChecks.badReleaseLinks > 0) report.passed = false;

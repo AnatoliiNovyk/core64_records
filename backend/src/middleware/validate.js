@@ -92,12 +92,28 @@ function isYouTubeUrl(value) {
   }
 
   const hostname = String(parsed.hostname || "").toLowerCase();
-  return hostname === "youtu.be"
+  const isYouTubeHost = hostname === "youtu.be"
     || hostname === "youtube.com"
     || hostname === "www.youtube.com"
     || hostname === "m.youtube.com"
     || hostname === "music.youtube.com"
     || hostname === "www.youtube-nocookie.com";
+  if (!isYouTubeHost) return false;
+
+  let candidate = "";
+  if (hostname === "youtu.be") {
+    candidate = parsed.pathname.split("/").filter(Boolean)[0] || "";
+  } else {
+    candidate = parsed.searchParams.get("v") || "";
+    if (!candidate) {
+      const parts = parsed.pathname.split("/").filter(Boolean);
+      if (parts[0] === "embed" || parts[0] === "shorts") {
+        candidate = parts[1] || "";
+      }
+    }
+  }
+
+  return /^[A-Za-z0-9_-]{11}$/.test(candidate);
 }
 
 export const releaseSchema = z.object({
