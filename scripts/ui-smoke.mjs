@@ -691,6 +691,46 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
         });
     }
 
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await page.goto(publicUrl, { waitUntil: "domcontentloaded" });
+
+    const videosGridTablet = await page.evaluate(() => {
+        const videosGridEl = document.getElementById("videos-grid");
+        const gridTemplateColumns = videosGridEl ? window.getComputedStyle(videosGridEl).gridTemplateColumns : "";
+        let gridColumnCount = 0;
+        const repeatMatch = String(gridTemplateColumns).match(/repeat\((\d+),/i);
+        if (repeatMatch) {
+            gridColumnCount = Number(repeatMatch[1]) || 0;
+        } else {
+            gridColumnCount = String(gridTemplateColumns).trim().split(/\s+/).filter(Boolean).length;
+        }
+
+        return {
+            exists: Boolean(videosGridEl),
+            className: videosGridEl ? String(videosGridEl.className || "") : "",
+            gridTemplateColumns,
+            gridColumnCount
+        };
+    });
+
+    if (!videosGridTablet?.exists) {
+        failWithDetails("Videos grid container was not found on tablet viewport", {
+            videosGridTablet
+        });
+    }
+    if (!String(videosGridTablet.className || "").includes("md:grid-cols-2")) {
+        failWithDetails("Videos grid is missing md:grid-cols-2 class", {
+            videosGridTablet
+        });
+    }
+    if (Number(videosGridTablet.gridColumnCount) !== 2) {
+        failWithDetails("Videos grid did not resolve to 2 columns on tablet viewport", {
+            videosGridTablet
+        });
+    }
+
+    await page.setViewportSize({ width: 1920, height: 1080 });
+
     const localizationExpectations = {
         uk: {
             fileButtonText: "Вибрати файл",
