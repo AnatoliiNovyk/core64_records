@@ -546,6 +546,7 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
         .filter((section) => section.isEnabled !== false)
         .map((section) => String(section.sectionKey));
 
+    await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto(publicUrl, { waitUntil: "domcontentloaded" });
 
     await waitForFunction(
@@ -593,12 +594,28 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
             };
         };
 
+        const videosGridEl = document.getElementById("videos-grid");
+        const gridTemplateColumns = videosGridEl ? window.getComputedStyle(videosGridEl).gridTemplateColumns : "";
+        let gridColumnCount = 0;
+        const repeatMatch = String(gridTemplateColumns).match(/repeat\((\d+),/i);
+        if (repeatMatch) {
+            gridColumnCount = Number(repeatMatch[1]) || 0;
+        } else {
+            gridColumnCount = String(gridTemplateColumns).trim().split(/\s+/).filter(Boolean).length;
+        }
+
         return {
             allManagedSectionOrder: sectionNodes.map((sectionEl) => sectionEl.id),
             visibleManagedSections: sectionNodes
                 .filter((sectionEl) => !sectionEl.hidden)
                 .map((sectionEl) => sectionEl.id),
             sectionStateByKey,
+            videosGridDesktop: {
+                exists: Boolean(videosGridEl),
+                className: videosGridEl ? String(videosGridEl.className || "") : "",
+                gridTemplateColumns,
+                gridColumnCount
+            },
             desktopNav: readNavState("public-desktop-nav-links"),
             mobileNav: readNavState("public-mobile-nav-links")
         };
@@ -632,6 +649,23 @@ async function verifyPublicUi(page, publicUrl, mutatedSections) {
     if (!verification.mobileNav?.exists) {
         failWithDetails("Mobile nav container was not found", {
             containerId: "public-mobile-nav-links"
+        });
+    }
+
+    const videosGridDesktop = verification.videosGridDesktop;
+    if (!videosGridDesktop?.exists) {
+        failWithDetails("Videos grid container was not found on desktop", {
+            videosGridDesktop
+        });
+    }
+    if (!String(videosGridDesktop.className || "").includes("lg:grid-cols-4")) {
+        failWithDetails("Videos grid is missing lg:grid-cols-4 class", {
+            videosGridDesktop
+        });
+    }
+    if (Number(videosGridDesktop.gridColumnCount) !== 4) {
+        failWithDetails("Videos grid did not resolve to 4 columns on desktop", {
+            videosGridDesktop
         });
     }
 
