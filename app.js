@@ -1756,17 +1756,17 @@ function renderVideos(data) {
         const safeEmbedUrl = escapeHtmlAttribute(embedUrl);
 
         return `
-            <article class="border border-cyan-500/25 rounded-xl lg:rounded-lg overflow-hidden bg-black/35">
+            <article class="border border-cyan-500/25 rounded-xl lg:rounded-lg 2xl:rounded-xl overflow-hidden bg-black/35">
                 <div class="aspect-video bg-black/60">
                     ${embedUrl
                         ? `<iframe src="${safeEmbedUrl}" title="${safeTitle}" class="w-full h-full" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe>`
                         : `<div class="w-full h-full grid place-items-center text-sm text-gray-500">${escapeHtmlAttribute(tPublic("videosUpdating"))}</div>`}
                 </div>
-                <div class="p-4 lg:p-3 xl:p-4">
-                    <h3 class="text-lg lg:text-base xl:text-lg font-bold text-white line-clamp-2">${safeTitle}</h3>
-                    <p class="text-sm lg:text-xs xl:text-sm text-gray-400 mt-2 lg:mt-1.5 line-clamp-2">${safeDescription}</p>
+                <div class="p-4 lg:p-3 xl:p-4 2xl:p-5">
+                    <h3 class="text-lg lg:text-base xl:text-lg 2xl:text-xl font-bold text-white line-clamp-2">${safeTitle}</h3>
+                    <p class="text-sm lg:text-xs xl:text-sm 2xl:text-base text-gray-400 mt-2 lg:mt-1.5 2xl:mt-2 line-clamp-2">${safeDescription}</p>
                     ${youtubeUrl
-                        ? `<a href="${safeYoutubeUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex mt-4 lg:mt-3 px-4 py-2 lg:px-3 lg:py-1.5 border border-cyan-400 text-cyan-300 hover:bg-cyan-400 hover:text-black transition-colors uppercase tracking-wider lg:tracking-wide text-xs font-bold">${escapeHtmlAttribute(tPublic("videosWatchOnYoutube"))}</a>`
+                        ? `<a href="${safeYoutubeUrl}" target="_blank" rel="noopener noreferrer" class="inline-flex mt-4 lg:mt-3 2xl:mt-4 px-4 py-2 lg:px-3 lg:py-1.5 2xl:px-4 2xl:py-2 border border-cyan-400 text-cyan-300 hover:bg-cyan-400 hover:text-black transition-colors uppercase tracking-wider lg:tracking-wide text-xs 2xl:text-sm font-bold">${escapeHtmlAttribute(tPublic("videosWatchOnYoutube"))}</a>`
                         : ""}
                 </div>
             </article>
